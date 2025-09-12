@@ -168,26 +168,50 @@ class ImportService {
     const activeRules = rules
       .filter(r => r.isActive)
       .sort((a, b) => b.priority - a.priority);
+    const categoriesById = new Map(categories.map(c => [c.id, c]));
+    const preparedRules = activeRules.map(r => ({
+      ...r,
+      normalizedPattern: this.normalizeText(r.pattern),
+      regex: r.matchType === 'regex' ? new RegExp(r.pattern, 'i') : null
+    }));
+    const preparedNonFuzzy = preparedRules.filter(r => r.matchType !== 'fuzzy');
+    const preparedFuzzy = preparedRules.filter(r => r.matchType === 'fuzzy');
 
-    // Load vendor aliases
-    const { data: aliases } = await supabase
-      .from('vendor_aliases')
-      .select('*')
-      .eq('user_id', userId);
-
-    const vendorAliases = aliases || [];
+    // Load vendor aliases (tolerant to missing table/RLS)
+    let vendorAliases: any[] = [];
+    try {
+      const { data, error } = await supabase
+        .from('vendor_aliases')
+        .select('*')
+        .eq('user_id', userId);
+      if (error) {
+        // Soft-fail: continue without aliases
+        console.warn('ImportService: vendor_aliases fetch error (ignored):', error.message);
+      } else {
+        vendorAliases = data || [];
+      }
+    } catch (e: any) {
+      console.warn('ImportService: vendor_aliases fetch exception (ignored):', e?.message || e);
+    }
 
     return transactions.map(transaction => {
       const suggestions: CategorySuggestion[] = [];
       const normalizedDesc = this.normalizeText(transaction.description);
 
-      // Apply rules
-      for (const rule of activeRules) {
-        const confidence = this.calculateRuleConfidence(
-          transaction.description,
-          rule.pattern,
-          rule.matchType
-        );
+      // Apply rules (non-fuzzy first)
+      for (const rule of preparedNonFuzzy) {
+        let confidence = 0;
+        switch (rule.matchType) {
+          case 'exact':
+            confidence = normalizedDesc === rule.normalizedPattern ? 1.0 : 0.0;
+            break;
+          case 'contains':
+            confidence = normalizedDesc.includes(rule.normalizedPattern) ? 0.9 : 0.0;
+            break;
+          case 'regex':
+            confidence = rule.regex?.test(transaction.description) ? 0.95 : 0.0;
+            break;
+        }
 
         if (confidence >= rule.confidenceThreshold) {
           const category = categories.find(c => c.id === rule.targetCategoryId);
@@ -199,6 +223,26 @@ class ImportService {
               reason: `Règle: "${rule.pattern}"`,
               ruleId: rule.id
             });
+          }
+        }
+      }
+
+      // If nothing matched, try fuzzy rules
+      if (suggestions.length === 0 && preparedFuzzy.length > 0) {
+        for (const rule of preparedFuzzy) {
+          const maxLength = Math.max(normalizedDesc.length, rule.normalizedPattern.length);
+          const confidence = maxLength === 0 ? 0 : Math.max(0, 1 - (distance(normalizedDesc, rule.normalizedPattern) / maxLength));
+          if (confidence >= rule.confidenceThreshold) {
+            const category = categories.find(c => c.id === rule.targetCategoryId);
+            if (category) {
+              suggestions.push({
+                categoryId: rule.targetCategoryId,
+                categoryName: category.name,
+                confidence,
+                reason: `Règle: "${rule.pattern}"`,
+                ruleId: rule.id
+              });
+            }
           }
         }
       }
@@ -275,14 +319,22 @@ class ImportService {
 
     if (hashes.length === 0) return transactions;
 
-    // Check existing hashes in database
-    const { data: existingHashes } = await supabase
-      .from('transactions')
-      .select('dup_hash')
-      .eq('user_id', userId)
-      .in('dup_hash', hashes);
-
-    const existingHashSet = new Set((existingHashes || []).map(h => h.dup_hash));
+    // Check existing hashes in database (tolerant to missing column/table)
+    let existingHashSet = new Set<string>();
+    try {
+      const { data, error } = await supabase
+        .from('transactions')
+        .select('dup_hash')
+        .eq('user_id', userId)
+        .in('dup_hash', hashes);
+      if (error) {
+        console.warn('ImportService: dup_hash check error (ignored):', error.message);
+      } else {
+        existingHashSet = new Set((data || []).map((h: any) => h.dup_hash));
+      }
+    } catch (e: any) {
+      console.warn('ImportService: dup_hash check exception (ignored):', e?.message || e);
+    }
 
     return transactions.map(transaction => {
       if (transaction.date && transaction.amount !== undefined && transaction.description) {
@@ -305,10 +357,14 @@ class ImportService {
   async importTransactions(
     transactions: ParsedTransaction[],
     userId: string,
-    skipDuplicates: boolean = true
+    skipDuplicates: boolean = true,
+    onProgress?: (done: number, total: number) => void
   ): Promise<ImportResult> {
+    // Only send rows that respect DB NOT NULL constraints
     const validTransactions = transactions.filter(t => 
-      t.errors.length === 0 && 
+      t.errors.length === 0 &&
+      t.date && t.amount !== undefined && t.description &&
+      t.categoryId && t.accountId &&
       (!skipDuplicates || !t.isDuplicate) &&
       t.isSelected !== false
     );
@@ -318,13 +374,13 @@ class ImportService {
     const skipped = transactions.length - validTransactions.length;
     const duplicates = transactions.filter(t => t.isDuplicate).length;
 
-    // Process in chunks of 500
-    const chunkSize = 500;
+    // Process in smaller chunks for responsiveness
+    const chunkSize = 50;
     for (let i = 0; i < validTransactions.length; i += chunkSize) {
       const chunk = validTransactions.slice(i, i + chunkSize);
       
       try {
-        const { error } = await supabase
+        const insertPromise = supabase
           .from('transactions')
           .insert(
             chunk.map(t => ({
@@ -339,17 +395,58 @@ class ImportService {
               source: 'import',
               dup_hash: t.duplicateHash,
               is_recurring: false
-            }))
+            })),
+            { returning: 'minimal' }
           );
 
+        // Guard against long network waits with a timeout, but try a generous window
+        const timeoutMs = 20000;
+        const raced = await Promise.race([
+          insertPromise,
+          new Promise<{ error: any }>((resolve) => setTimeout(() => resolve({ error: new Error('timeout') }), timeoutMs))
+        ]);
+        let error = (raced as any)?.error;
+
         if (error) {
-          errors.push(`Chunk ${Math.floor(i / chunkSize) + 1}: ${error.message}`);
+          // Fallback: try row-by-row to surface real error messages and keep progressing
+          for (const t of chunk) {
+            try {
+              const { error: rowError } = await supabase
+                .from('transactions')
+                .insert([
+                  {
+                    user_id: userId,
+                    account_id: t.accountId,
+                    amount: t.amount,
+                    description: t.description,
+                    date: t.date!.toISOString().split('T')[0],
+                    category_id: t.categoryId,
+                    type: t.type,
+                    status: 'completed',
+                    source: 'import',
+                    dup_hash: t.duplicateHash,
+                    is_recurring: false
+                  }
+                ], { returning: 'minimal' });
+              if (rowError) {
+                errors.push(`Row insert error: ${rowError.message}`);
+              } else {
+                imported += 1;
+              }
+            } catch (e: any) {
+              errors.push(`Row insert exception: ${e?.message || e}`);
+            }
+            try { onProgress?.(Math.min(i + (imported % (i + chunk.length) || 0), validTransactions.length), validTransactions.length); } catch {}
+          }
         } else {
           imported += chunk.length;
         }
       } catch (error: any) {
         errors.push(`Chunk ${Math.floor(i / chunkSize) + 1}: ${error.message}`);
       }
+
+      // Report progress regardless of success to avoid UI stalls
+      try { onProgress?.(Math.min(i + chunk.length, validTransactions.length), validTransactions.length); } catch {}
     }
 
     return { imported, skipped, duplicates, errors };

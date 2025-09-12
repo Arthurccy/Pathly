@@ -280,6 +280,8 @@ export interface BudgetContextType {
   setCurrentPeriod: (start: Date, end: Date) => void;
   selectedAccountIds: string[];
   setSelectedAccountIds: (accountIds: string[]) => void;
+  // Utilities
+  reloadAll?: () => Promise<void>;
 }
 
 // Legacy types for backward compatibility

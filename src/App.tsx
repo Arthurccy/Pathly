@@ -21,7 +21,7 @@ import RulesManager from './components/RulesManager';
 import Sidebar from './components/Sidebar';
 
 const AppContent: React.FC = () => {
-  const { user } = useAuth();
+  const { user, session, isLoading } = useAuth();
   const [currentView, setCurrentView] = useState('dashboard');
   
   // Reset view when user changes (logout/login)
@@ -34,7 +34,19 @@ const AppContent: React.FC = () => {
 
   console.log('🎯 AppContent render: User =', user ? 'Present' : 'Null');
 
-  if (!user) {
+  // While auth initializes and no user yet, show spinner
+  if (isLoading && !user) {
+    return (
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+          <p className="mt-4 text-gray-600 dark:text-gray-400">Vérification de la session...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!user && !session) {
     console.log('🎯 AppContent: Showing Auth component');
     return <Auth />;
   }

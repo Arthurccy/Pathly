@@ -215,6 +215,10 @@ export const BudgetProvider: React.FC<BudgetProviderProps> = ({ children }) => {
     }
   };
 
+  const reloadAll = async () => {
+    await loadUserData();
+  };
+
   const migrateFromIndexedDB = async () => {
     if (!user) return;
 
@@ -1081,6 +1085,7 @@ export const BudgetProvider: React.FC<BudgetProviderProps> = ({ children }) => {
       setCurrentPeriod: (start: Date, end: Date) => setCurrentPeriod({ start, end }),
       selectedAccountIds,
       setSelectedAccountIds,
+      reloadAll,
     }}>
       {children}
     </BudgetContext.Provider>

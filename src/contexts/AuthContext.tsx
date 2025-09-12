@@ -134,6 +134,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     try {
       console.log('👤 Loading user settings for:', authUser.email);
       
+      // Set a minimal user immediately so the UI can render while settings load
+      setUser(prev => prev ?? ({ ...(authUser as any), settings: getDefaultSettings() } as AuthUser));
+      
       // Try to load user settings, but don't block if it fails
       let settings = null;
       try {

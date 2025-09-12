@@ -136,10 +136,12 @@ CREATE POLICY "Users can delete own import jobs" ON import_jobs FOR DELETE USING
 -- Create indexes for performance
 CREATE INDEX IF NOT EXISTS idx_rules_user_id ON rules(user_id);
 CREATE INDEX IF NOT EXISTS idx_rules_priority ON rules(priority DESC);
+CREATE INDEX IF NOT EXISTS idx_rules_user_priority ON rules(user_id, priority DESC);
 CREATE INDEX IF NOT EXISTS idx_vendor_aliases_user_id ON vendor_aliases(user_id);
 CREATE INDEX IF NOT EXISTS idx_vendor_aliases_normalized ON vendor_aliases(normalized);
 CREATE INDEX IF NOT EXISTS idx_import_jobs_user_id ON import_jobs(user_id);
 CREATE INDEX IF NOT EXISTS idx_transactions_dup_hash ON transactions(dup_hash);
+CREATE INDEX IF NOT EXISTS idx_transactions_user_dup_hash ON transactions(user_id, dup_hash);
 CREATE INDEX IF NOT EXISTS idx_transactions_source ON transactions(source);
 
 -- Create updated_at triggers

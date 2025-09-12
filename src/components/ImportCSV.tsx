@@ -17,7 +17,7 @@ import {
 
 const ImportCSV: React.FC = () => {
   const { user } = useAuth();
-  const { categories, accounts, addTransaction } = useBudget();
+  const { categories, accounts, addTransaction, reloadAll } = useBudget();
   const fileInputRef = useRef<HTMLInputElement>(null);
   
   const [step, setStep] = useState<'upload' | 'mapping' | 'preview' | 'importing' | 'complete'>('upload');
@@ -46,6 +46,10 @@ const ImportCSV: React.FC = () => {
 
   const [fileName, setFileName] = useState<string>('');
   const [isProcessing, setIsProcessing] = useState(false);
+  const [processedCount, setProcessedCount] = useState(0);
+  const [importTotal, setImportTotal] = useState(0);
+  const [defaultAccountId, setDefaultAccountId] = useState<string>('');
+  const [defaultCategoryId, setDefaultCategoryId] = useState<string>('');
 
   // Load user rules on mount
   React.useEffect(() => {
@@ -116,6 +120,7 @@ const ImportCSV: React.FC = () => {
     setIsProcessing(true);
 
     try {
+      console.log('[ImportCSV] Mapping -> start processing');
       // Parse transactions
       const transactions: ParsedTransaction[] = [];
       for (const row of csvData) {
@@ -126,27 +131,49 @@ const ImportCSV: React.FC = () => {
       // Apply categorization rules
       let processedTransactions = transactions;
       if (settings.autoApplyRules && user) {
-        processedTransactions = await importService.applyCategorization(
-          transactions,
-          rules,
-          categories,
-          user.id
-        );
+        console.log('[ImportCSV] Applying rules...');
+        try {
+          const applyPromise = importService.applyCategorization(
+            transactions,
+            rules,
+            categories,
+            user.id
+          );
+          // Guard against hanging requests
+          processedTransactions = await Promise.race([
+            applyPromise,
+            new Promise<ParsedTransaction[]>(resolve => setTimeout(() => resolve(transactions), 8000))
+          ]);
+        } catch (e) {
+          console.warn('[ImportCSV] applyCategorization failed, continuing without rules', e);
+          processedTransactions = transactions;
+        }
       }
 
       // Check for duplicates
       if (user) {
-        processedTransactions = await importService.checkDuplicates(processedTransactions, user.id);
+        console.log('[ImportCSV] Checking duplicates...');
+        try {
+          const dupPromise = importService.checkDuplicates(processedTransactions, user.id);
+          processedTransactions = await Promise.race([
+            dupPromise,
+            new Promise<ParsedTransaction[]>(resolve => setTimeout(() => resolve(processedTransactions), 8000))
+          ]);
+        } catch (e) {
+          console.warn('[ImportCSV] checkDuplicates failed, continuing without duplicate marking', e);
+        }
       }
 
+      console.log('[ImportCSV] Processed transactions:', processedTransactions.length);
       setParsedTransactions(processedTransactions);
       
-      // Select all valid, non-duplicate transactions by default
+      // Select all valid, non-duplicate transactions by default (and that satisfy DB NOT NULL requirements)
       const validIndices = new Set(
         processedTransactions
           .map((t, index) => ({ transaction: t, index }))
           .filter(({ transaction }) => 
-            transaction.errors.length === 0 && 
+            transaction.errors.length === 0 &&
+            transaction.categoryId && transaction.accountId &&
             (!settings.skipDuplicates || !transaction.isDuplicate)
           )
           .map(({ index }) => index)
@@ -154,11 +181,39 @@ const ImportCSV: React.FC = () => {
       setSelectedTransactions(validIndices);
       
       setStep('preview');
+      console.log('[ImportCSV] Step -> preview');
     } catch (error: any) {
       alert(`Erreur lors du traitement: ${error.message}`);
     } finally {
       setIsProcessing(false);
+      console.log('[ImportCSV] Processing done');
     }
+  };
+
+  const applyDefaultsToMissing = () => {
+    if (!defaultAccountId && !defaultCategoryId) return;
+    const updated = parsedTransactions.map(t => ({
+      ...t,
+      accountId: t.accountId || defaultAccountId || t.accountId,
+      categoryId: t.categoryId || defaultCategoryId || t.categoryId,
+    }));
+    setParsedTransactions(updated);
+
+    const validIndices = new Set(
+      updated
+        .map((t, index) => ({ transaction: t, index }))
+        .filter(({ transaction }) => 
+          transaction.errors.length === 0 &&
+          transaction.categoryId && transaction.accountId &&
+          (!settings.skipDuplicates || !transaction.isDuplicate)
+        )
+        .map(({ index }) => index)
+    );
+    setSelectedTransactions(validIndices);
+    const totalValid = updated.filter(t =>
+      t.errors.length === 0 && t.categoryId && t.accountId && (!settings.skipDuplicates || !t.isDuplicate) && t.isSelected !== false
+    ).length;
+    setImportTotal(totalValid);
   };
 
   const handleImport = async () => {
@@ -166,36 +221,67 @@ const ImportCSV: React.FC = () => {
 
     setIsProcessing(true);
     setStep('importing');
+    setProcessedCount(0);
 
     try {
-      // Create import job
-      const jobId = await importService.createImportJob(
-        user.id,
-        fileName,
-        parsedTransactions.length
-      );
+      // Create import job (do not block UI if slow)
+      let jobId: string | undefined = undefined;
+      try {
+        const createPromise = importService.createImportJob(
+          user.id,
+          fileName,
+          parsedTransactions.length
+        );
+        jobId = await Promise.race([
+          createPromise,
+          new Promise<string | undefined>((resolve) => setTimeout(() => resolve(undefined), 8000))
+        ]);
+      } catch (e) {
+        console.warn('[ImportCSV] createImportJob failed, continuing without job', e);
+      }
 
-      // Mark selected transactions
-      const transactionsToImport = parsedTransactions.map((t, index) => ({
+      // Apply defaults on-the-fly if provided, then mark selected
+      const prepared = parsedTransactions.map(t => ({
+        ...t,
+        accountId: t.accountId || defaultAccountId || t.accountId,
+        categoryId: t.categoryId || defaultCategoryId || t.categoryId,
+      }));
+      const transactionsToImport = prepared.map((t, index) => ({
         ...t,
         isSelected: selectedTransactions.has(index)
       }));
+      // Precompute total valid to import for progress denominator
+      const totalValid = transactionsToImport.filter(t =>
+        t.errors.length === 0 && t.categoryId && t.accountId && (!settings.skipDuplicates || !t.isDuplicate) && t.isSelected !== false
+      ).length;
+      setImportTotal(totalValid);
 
       // Import transactions
       const result = await importService.importTransactions(
         transactionsToImport,
         user.id,
-        settings.skipDuplicates
+        settings.skipDuplicates,
+        (done, total) => setProcessedCount(done)
       );
 
       // Update import job
-      await importService.updateImportJob(jobId, {
-        rowsImported: result.imported,
-        rowsSkipped: result.skipped,
-        rowsDuplicates: result.duplicates,
-        errorsJson: result.errors.length > 0 ? { errors: result.errors } : null,
-        status: result.errors.length > 0 ? 'failed' : 'completed'
-      });
+      if (jobId) {
+        try {
+          const updatePromise = importService.updateImportJob(jobId, {
+            rowsImported: result.imported,
+            rowsSkipped: result.skipped,
+            rowsDuplicates: result.duplicates,
+            errorsJson: result.errors.length > 0 ? { errors: result.errors } : null,
+            status: result.errors.length > 0 ? 'failed' : 'completed'
+          });
+          await Promise.race([
+            updatePromise,
+            new Promise<void>((resolve) => setTimeout(() => resolve(), 6000))
+          ]);
+        } catch (e) {
+          console.warn('[ImportCSV] updateImportJob failed (ignored)', e);
+        }
+      }
 
       setImportResult({ ...result, jobId });
       setStep('complete');
@@ -221,7 +307,8 @@ const ImportCSV: React.FC = () => {
     const validIndices = parsedTransactions
       .map((t, index) => ({ transaction: t, index }))
       .filter(({ transaction }) => 
-        transaction.errors.length === 0 && 
+        transaction.errors.length === 0 &&
+        transaction.categoryId && transaction.accountId &&
         (!settings.skipDuplicates || !transaction.isDuplicate)
       )
       .map(({ index }) => index);
@@ -519,13 +606,13 @@ const ImportCSV: React.FC = () => {
                 onClick={toggleAllTransactions}
                 className="flex items-center space-x-2 text-sm text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300"
               >
-                {selectedTransactions.size === parsedTransactions.filter(t => t.errors.length === 0 && (!settings.skipDuplicates || !t.isDuplicate)).length ? (
+                {selectedTransactions.size === parsedTransactions.filter(t => t.errors.length === 0 && t.categoryId && t.accountId && (!settings.skipDuplicates || !t.isDuplicate)).length ? (
                   <EyeOff className="h-4 w-4" />
                 ) : (
                   <Eye className="h-4 w-4" />
                 )}
                 <span>
-                  {selectedTransactions.size === parsedTransactions.filter(t => t.errors.length === 0 && (!settings.skipDuplicates || !t.isDuplicate)).length 
+                  {selectedTransactions.size === parsedTransactions.filter(t => t.errors.length === 0 && t.categoryId && t.accountId && (!settings.skipDuplicates || !t.isDuplicate)).length 
                     ? 'Désélectionner tout' 
                     : 'Sélectionner tout'
                   }
@@ -545,6 +632,46 @@ const ImportCSV: React.FC = () => {
                   className="px-4 py-2 bg-green-600 hover:bg-green-700 disabled:bg-gray-400 text-white rounded-lg transition-colors"
                 >
                   Importer {selectedTransactions.size} transactions
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Transactions Table */}
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Compte par défaut (si manquant)</label>
+                <select
+                  value={defaultAccountId}
+                  onChange={(e) => setDefaultAccountId(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
+                >
+                  <option value="">-- Aucun --</option>
+                  {accounts.map(acc => (
+                    <option key={acc.id} value={acc.id}>{acc.name}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Catégorie par défaut (si manquante)</label>
+                <select
+                  value={defaultCategoryId}
+                  onChange={(e) => setDefaultCategoryId(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
+                >
+                  <option value="">-- Aucune --</option>
+                  {categories.map(cat => (
+                    <option key={cat.id} value={cat.id}>{cat.name}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="flex items-end">
+                <button
+                  onClick={applyDefaultsToMissing}
+                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
+                >
+                  Appliquer aux lignes manquantes
                 </button>
               </div>
             </div>
@@ -692,8 +819,14 @@ const ImportCSV: React.FC = () => {
               Import en cours...
             </h3>
             <p className="text-sm text-gray-600 dark:text-gray-400">
-              Traitement de {selectedTransactions.size} transactions
+              Traitement: {Math.min(processedCount, importTotal)} / {importTotal}
             </p>
+            <div className="mt-4 w-full max-w-md mx-auto h-2 bg-gray-200 dark:bg-gray-700 rounded">
+              <div
+                className="h-2 bg-green-600 rounded"
+                style={{ width: `${importTotal > 0 ? Math.floor(100 * Math.min(processedCount, importTotal) / importTotal) : 0}%` }}
+              />
+            </div>
           </div>
         </div>
       )}
@@ -747,10 +880,10 @@ const ImportCSV: React.FC = () => {
                 Nouvel import
               </button>
               <button
-                onClick={() => window.location.reload()}
+                onClick={async () => { try { await reloadAll?.(); } catch {} }}
                 className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors"
               >
-                Voir les transactions
+                Rafraîchir les transactions
               </button>
             </div>
           </div>
