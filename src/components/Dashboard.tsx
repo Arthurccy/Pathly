@@ -95,8 +95,13 @@ const Dashboard: React.FC = () => {
   
   // Calculate percentage changes
   const calculateChange = (current: number, previous: number): string | null => {
+    // No data to compare
+    if (previous === 0 && current === 0) {
+      return null;
+    }
+    // New data (no previous period data)
     if (previous === 0) {
-      return current > 0 ? '+100%' : current < 0 ? '-100%' : null;
+      return null; // Don't show percentage for new data
     }
     const change = ((current - previous) / previous) * 100;
     const sign = change >= 0 ? '+' : '';
