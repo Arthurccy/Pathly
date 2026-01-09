@@ -98,7 +98,7 @@ const Dashboard: React.FC = () => {
     if (previous === 0) {
       return current > 0 ? '+100%' : current < 0 ? '-100%' : null;
     }
-    const change = ((current - previous) / Math.abs(previous)) * 100;
+    const change = ((current - previous) / previous) * 100;
     const sign = change >= 0 ? '+' : '';
     return `${sign}${change.toFixed(1)}%`;
   };
