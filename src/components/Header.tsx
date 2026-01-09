@@ -1,17 +1,18 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { User, Moon, Sun, LogOut, Loader2 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../hooks/useTheme';
 
 const Header: React.FC = () => {
-  const { user, logout, isLoading } = useAuth();
+  const { user, logout } = useAuth();
   const { isDark, toggleTheme } = useTheme();
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
   
   const handleLogout = async () => {
-    if (isLoading) return;
+    if (isLoggingOut) return;
     
     try {
-      setIsLoading(true);
+      setIsLoggingOut(true);
       await logout();
       // Show success message
       const toast = document.createElement('div');
@@ -38,7 +39,7 @@ const Header: React.FC = () => {
         }
       }, 3000);
     } finally {
-      setIsLoading(false);
+      setIsLoggingOut(false);
     }
   };
 
@@ -70,11 +71,11 @@ const Header: React.FC = () => {
               
               <button
                 onClick={handleLogout}
-                disabled={isLoading}
+                disabled={isLoggingOut}
                 className="p-2 rounded-lg text-gray-500 hover:text-red-600 dark:text-gray-400 dark:hover:text-red-400 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 title="Se déconnecter"
               >
-                {isLoading ? (
+                {isLoggingOut ? (
                   <Loader2 className="h-5 w-5 animate-spin" />
                 ) : (
                   <LogOut className="h-5 w-5" />
