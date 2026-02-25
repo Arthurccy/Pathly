@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { format, startOfMonth, endOfMonth, startOfYear, endOfYear } from 'date-fns';
+import { format, startOfMonth, endOfMonth, startOfYear, endOfYear, subMonths, subYears } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { 
   TrendingUp, 
@@ -45,9 +45,21 @@ const Dashboard: React.FC = () => {
   const periodStart = viewMode === 'monthly' ? monthStart : yearStart;
   const periodEnd = viewMode === 'monthly' ? monthEnd : yearEnd;
   
+  // Calculate previous period for comparison
+  const previousDate = viewMode === 'monthly' ? subMonths(currentDate, 1) : subYears(currentDate, 1);
+  const previousPeriodStart = viewMode === 'monthly' ? startOfMonth(previousDate) : startOfYear(previousDate);
+  const previousPeriodEnd = viewMode === 'monthly' ? endOfMonth(previousDate) : endOfYear(previousDate);
+  
   const filteredTransactions = transactions.filter(
     t => t.date >= periodStart && 
          t.date <= periodEnd &&
+         t.status === 'completed' &&
+         (selectedAccountIds.length === 0 || selectedAccountIds.includes(t.accountId))
+  );
+  
+  const previousTransactions = transactions.filter(
+    t => t.date >= previousPeriodStart && 
+         t.date <= previousPeriodEnd &&
          t.status === 'completed' &&
          (selectedAccountIds.length === 0 || selectedAccountIds.includes(t.accountId))
   );
@@ -66,6 +78,40 @@ const Dashboard: React.FC = () => {
     
   const balance = totalIncome - totalExpenses - totalSavings;
   
+  // Previous period totals
+  const previousIncome = previousTransactions
+    .filter(t => t.type === 'income')
+    .reduce((sum, t) => sum + t.amount, 0);
+    
+  const previousExpenses = previousTransactions
+    .filter(t => t.type === 'expense')
+    .reduce((sum, t) => sum + t.amount, 0);
+
+  const previousSavings = previousTransactions
+    .filter(t => t.type === 'savings')
+    .reduce((sum, t) => sum + t.amount, 0);
+    
+  const previousBalance = previousIncome - previousExpenses - previousSavings;
+  
+  // Calculate percentage changes
+  const calculateChange = (current: number, previous: number): string | null => {
+    // No data to compare
+    if (previous === 0 && current === 0) {
+      return null;
+    }
+    // New data (no previous period data)
+    if (previous === 0) {
+      return null; // Don't show percentage for new data
+    }
+    const change = ((current - previous) / previous) * 100;
+    const sign = change >= 0 ? '+' : '';
+    return `${sign}${change.toFixed(1)}%`;
+  };
+  
+  const incomeChange = calculateChange(totalIncome, previousIncome);
+  const expensesChange = calculateChange(totalExpenses, previousExpenses);
+  const balanceChange = calculateChange(balance, previousBalance);
+  
   const completedGoals = savingsGoals.filter(g => g.isCompleted).length;
   const totalGoals = savingsGoals.length;
 
@@ -81,7 +127,7 @@ const Dashboard: React.FC = () => {
       icon: TrendingUp,
       color: 'text-green-600 dark:text-green-400',
       bgColor: 'bg-green-50 dark:bg-green-900/20',
-      change: '+12.5%',
+      change: incomeChange,
     },
     {
       title: `Dépenses ${viewMode === 'monthly' ? 'du mois' : 'de l\'année'}`,
@@ -89,7 +135,7 @@ const Dashboard: React.FC = () => {
       icon: TrendingDown,
       color: 'text-red-600 dark:text-red-400',
       bgColor: 'bg-red-50 dark:bg-red-900/20',
-      change: '-3.2%',
+      change: expensesChange,
     },
     {
       title: 'Solde restant',
@@ -97,7 +143,7 @@ const Dashboard: React.FC = () => {
       icon: DollarSign,
       color: balance >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400',
       bgColor: balance >= 0 ? 'bg-green-50 dark:bg-green-900/20' : 'bg-red-50 dark:bg-red-900/20',
-      change: balance >= 0 ? '+8.7%' : '-15.3%',
+      change: balanceChange,
     },
     {
       title: 'Patrimoine net',
@@ -105,7 +151,7 @@ const Dashboard: React.FC = () => {
       icon: Target,
       color: netWorth >= 0 ? 'text-blue-600 dark:text-blue-400' : 'text-red-600 dark:text-red-400',
       bgColor: netWorth >= 0 ? 'bg-blue-50 dark:bg-blue-900/20' : 'bg-red-50 dark:bg-red-900/20',
-      change: '+5.1%',
+      change: null, // Net worth change requires historical tracking
     },
   ];
 
@@ -251,7 +297,7 @@ const Dashboard: React.FC = () => {
                   </div>
                 </div>
                 <div className={`text-sm font-medium ${stat.color}`}>
-                  {stat.change}
+                  {stat.change || '—'}
                 </div>
               </div>
             </div>
