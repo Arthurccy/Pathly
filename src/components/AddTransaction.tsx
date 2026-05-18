@@ -1,44 +1,78 @@
-import React, { useState } from 'react';
-import { Plus, Save } from 'lucide-react';
+import React, { useEffect, useMemo, useState } from 'react';
+import { CreditCard, Plus, Save } from 'lucide-react';
 import * as LucideIcons from 'lucide-react';
 import { useBudget } from '../contexts/BudgetContext';
 
 const AddTransaction: React.FC = () => {
-  const { categories, addTransaction } = useBudget();
+  const { accounts, categories, addTransaction } = useBudget();
   const [formData, setFormData] = useState({
     amount: '',
     description: '',
+    accountId: '',
     categoryId: '',
     type: 'expense' as 'expense' | 'income',
     date: new Date().toISOString().split('T')[0],
   });
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const activeAccounts = useMemo(
+    () => accounts.filter(account => account.isActive),
+    [accounts]
+  );
+
+  useEffect(() => {
+    if (formData.accountId && activeAccounts.some(account => account.id === formData.accountId)) {
+      return;
+    }
+
+    setFormData(prev => ({
+      ...prev,
+      accountId: activeAccounts[0]?.id || '',
+    }));
+  }, [activeAccounts, formData.accountId]);
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
-    if (!formData.amount || !formData.description || !formData.categoryId) {
+
+    if (!formData.amount || !formData.description || !formData.accountId || !formData.categoryId) {
       alert('Veuillez remplir tous les champs obligatoires');
       return;
     }
 
-    addTransaction({
-      amount: parseFloat(formData.amount),
-      description: formData.description,
-      categoryId: formData.categoryId,
-      type: formData.type,
-      date: new Date(formData.date),
-    });
+    if (!activeAccounts.some(account => account.id === formData.accountId)) {
+      alert('Veuillez sélectionner un compte valide');
+      return;
+    }
 
-    // Reset form
-    setFormData({
-      amount: '',
-      description: '',
-      categoryId: '',
-      type: 'expense',
-      date: new Date().toISOString().split('T')[0],
-    });
+    try {
+      setIsSubmitting(true);
+      await addTransaction({
+        accountId: formData.accountId,
+        amount: parseFloat(formData.amount),
+        description: formData.description,
+        categoryId: formData.categoryId,
+        type: formData.type,
+        date: new Date(formData.date),
+        status: 'completed',
+        isRecurring: false,
+      });
 
-    alert('Transaction ajoutée avec succès !');
+      setFormData(prev => ({
+        amount: '',
+        description: '',
+        accountId: prev.accountId,
+        categoryId: '',
+        type: 'expense',
+        date: new Date().toISOString().split('T')[0],
+      }));
+
+      alert('Transaction ajoutée avec succès !');
+    } catch (error) {
+      console.error('Error submitting transaction:', error);
+      alert("Impossible d'ajouter la transaction. Vérifiez les champs puis réessayez.");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const availableCategories = categories.filter(c => c.type === formData.type);
@@ -56,7 +90,6 @@ const AddTransaction: React.FC = () => {
 
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6">
         <form onSubmit={handleSubmit} className="space-y-6">
-          {/* Type Selection */}
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
               Type de transaction *
@@ -72,11 +105,10 @@ const AddTransaction: React.FC = () => {
                 }`}
               >
                 <div className="text-center">
-                  <div className="text-2xl mb-2">💸</div>
                   <div className="font-medium">Dépense</div>
                 </div>
               </button>
-              
+
               <button
                 type="button"
                 onClick={() => setFormData({ ...formData, type: 'income', categoryId: '' })}
@@ -87,14 +119,12 @@ const AddTransaction: React.FC = () => {
                 }`}
               >
                 <div className="text-center">
-                  <div className="text-2xl mb-2">💰</div>
                   <div className="font-medium">Revenu</div>
                 </div>
               </button>
             </div>
           </div>
 
-          {/* Amount */}
           <div>
             <label htmlFor="amount" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
               Montant * (€)
@@ -112,7 +142,6 @@ const AddTransaction: React.FC = () => {
             />
           </div>
 
-          {/* Description */}
           <div>
             <label htmlFor="description" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
               Description *
@@ -128,7 +157,34 @@ const AddTransaction: React.FC = () => {
             />
           </div>
 
-          {/* Category */}
+          <div>
+            <label htmlFor="account" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              Compte *
+            </label>
+            {activeAccounts.length > 0 ? (
+              <select
+                id="account"
+                value={formData.accountId}
+                onChange={(e) => setFormData({ ...formData, accountId: e.target.value })}
+                className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
+                required
+              >
+                {activeAccounts.map(account => (
+                  <option key={account.id} value={account.id}>
+                    {account.name} - {account.balance.toFixed(2)} {account.currency}
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <div className="flex items-center space-x-3 p-4 border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20 rounded-lg">
+                <CreditCard className="h-5 w-5 text-amber-600 dark:text-amber-400" />
+                <p className="text-sm text-amber-800 dark:text-amber-200">
+                  Créez ou activez un compte avant d'ajouter une transaction.
+                </p>
+              </div>
+            )}
+          </div>
+
           <div>
             <label htmlFor="category" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
               Catégorie *
@@ -152,8 +208,8 @@ const AddTransaction: React.FC = () => {
                         className="p-2 rounded-lg mx-auto mb-2 w-fit"
                         style={{ backgroundColor: `${category.color}20` }}
                       >
-                        <IconComponent 
-                          className="h-5 w-5" 
+                        <IconComponent
+                          className="h-5 w-5"
                           style={{ color: category.color }}
                         />
                       </div>
@@ -167,7 +223,6 @@ const AddTransaction: React.FC = () => {
             </div>
           </div>
 
-          {/* Date */}
           <div>
             <label htmlFor="date" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
               Date *
@@ -182,13 +237,13 @@ const AddTransaction: React.FC = () => {
             />
           </div>
 
-          {/* Submit Button */}
           <button
             type="submit"
-            className="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-3 px-4 rounded-lg transition-colors flex items-center justify-center space-x-2"
+            disabled={isSubmitting || activeAccounts.length === 0}
+            className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 disabled:cursor-not-allowed text-white font-medium py-3 px-4 rounded-lg transition-colors flex items-center justify-center space-x-2"
           >
             <Save className="h-5 w-5" />
-            <span>Enregistrer la transaction</span>
+            <span>{isSubmitting ? 'Enregistrement...' : 'Enregistrer la transaction'}</span>
           </button>
         </form>
       </div>

@@ -321,6 +321,12 @@ export const BudgetProvider: React.FC<BudgetProviderProps> = ({ children }) => {
   // Transaction functions
   const addTransaction = async (transaction: Omit<Transaction, 'id' | 'userId'>) => {
     if (!user) return;
+    if (!transaction.accountId) {
+      throw new Error('Aucun compte sélectionné pour cette transaction');
+    }
+    if (!transaction.categoryId) {
+      throw new Error('Aucune catégorie sélectionnée pour cette transaction');
+    }
     
     try {
       const newTransaction = await supabaseService.createTransaction({
