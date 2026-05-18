@@ -18,7 +18,6 @@ import UserSettings from './components/UserSettings';
 import HelpCenter from './components/HelpCenter';
 import ImportCSV from './components/ImportCSV';
 import RulesManager from './components/RulesManager';
-import Sidebar from './components/Sidebar';
 
 const AppContent: React.FC = () => {
   const { user, session, isLoading } = useAuth();
@@ -90,13 +89,8 @@ const AppContent: React.FC = () => {
   };
 
   return (
-    <Layout>
-      <div className="flex">
-        <Sidebar currentView={currentView} onViewChange={setCurrentView} />
-        <div className="flex-1">
-          {renderContent()}
-        </div>
-      </div>
+    <Layout currentView={currentView} onViewChange={setCurrentView}>
+      {renderContent()}
     </Layout>
   );
 };

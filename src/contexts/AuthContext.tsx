@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef, ReactNode } from 'react';
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
 import { UserSettings } from '../types';
@@ -35,6 +35,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const loadRequestId = useRef(0);
+  const userRef = useRef<AuthUser | null>(null);
+
+  useEffect(() => {
+    userRef.current = user;
+  }, [user]);
 
   useEffect(() => {
     let mounted = true;
@@ -86,35 +92,34 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     // Listen for auth changes
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (event, session) => {
+    } = supabase.auth.onAuthStateChange((event, session) => {
       if (!mounted) return;
       
       console.log('🔐 Auth state change:', event, session ? 'Session exists' : 'No session');
       
-      setIsLoading(true);
-      
-      try {
-        if (event === 'SIGNED_OUT' || !session) {
-          console.log('🚪 User signed out, clearing state');
-          setSession(null);
-          setUser(null);
-          setIsLoading(false);
-        } else if (session?.user) {
-          console.log('👤 User signed in, loading settings');
-          setSession(session);
-          await loadUserWithSettings(session.user);
-        } else {
-          console.log('❓ Unknown auth state');
-          setSession(null);
-          setUser(null);
-          setIsLoading(false);
-        }
-      } catch (error) {
-        console.error('❌ Auth state change error:', error);
+      if (event === 'SIGNED_OUT' || !session) {
+        console.log('User signed out, clearing state');
+        loadRequestId.current++;
         setSession(null);
         setUser(null);
         setIsLoading(false);
+        return;
       }
+
+      setSession(session);
+
+      if (!session.user) {
+        setIsLoading(false);
+        return;
+      }
+
+      const requestId = ++loadRequestId.current;
+      setIsLoading(!userRef.current);
+      setTimeout(() => {
+        if (mounted) {
+          loadUserWithSettings(session.user, requestId);
+        }
+      }, 0);
     });
 
     return () => {
@@ -124,7 +129,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     };
   }, []);
 
-  const loadUserWithSettings = async (authUser: User) => {
+  const loadUserWithSettings = async (authUser: User, requestId = ++loadRequestId.current) => {
     if (!authUser) {
       console.log('❌ No auth user provided to loadUserWithSettings');
       setIsLoading(false);
@@ -134,8 +139,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     try {
       console.log('👤 Loading user settings for:', authUser.email);
       
+      if (requestId !== loadRequestId.current) return;
+
       // Set a minimal user immediately so the UI can render while settings load
-      setUser(prev => prev ?? ({ ...(authUser as any), settings: getDefaultSettings() } as AuthUser));
+      setUser(prev => prev?.id === authUser.id ? prev : ({ ...(authUser as any), settings: getDefaultSettings() } as AuthUser));
       
       // Try to load user settings, but don't block if it fails
       let settings = null;
@@ -181,7 +188,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         }
       };
 
-      setUser(userWithSettings);
+      if (requestId === loadRequestId.current) {
+        setUser(userWithSettings);
+      }
 
       // Create default settings if they don't exist
       if (!settings && authUser.id) {
@@ -196,14 +205,18 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     } catch (error) {
       console.error('❌ Error loading user with settings:', error);
       // Even if settings fail, set the user so they can use the app
-      setUser({
-        ...authUser,
-        settings: getDefaultSettings()
-      } as AuthUser);
+      if (requestId === loadRequestId.current) {
+        setUser({
+          ...authUser,
+          settings: getDefaultSettings()
+        } as AuthUser);
+      }
       console.log('✅ User loaded with default settings due to error');
     } finally {
       console.log('🏁 Setting loading to false');
-      setIsLoading(false);
+      if (requestId === loadRequestId.current) {
+        setIsLoading(false);
+      }
     }
   };
 
@@ -271,7 +284,16 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         return false;
       }
 
-      console.log('✅ Login successful');
+      if (data.session) {
+        setSession(data.session);
+      }
+      if (data.user) {
+        await loadUserWithSettings(data.user);
+      } else {
+        setIsLoading(false);
+      }
+
+      console.log('Login successful');
       return !!data.user;
     } catch (error) {
       console.error('❌ Login error:', error);
@@ -301,7 +323,16 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         return false;
       }
 
-      console.log('✅ Registration successful');
+      if (data.session) {
+        setSession(data.session);
+      }
+      if (data.user) {
+        await loadUserWithSettings(data.user);
+      } else {
+        setIsLoading(false);
+      }
+
+      console.log('Registration successful');
       return !!data.user;
     } catch (error) {
       console.error('❌ Registration error:', error);
@@ -314,7 +345,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     try {
       console.log('🚪 Attempting logout');
       
-      const { error } = await supabase.auth.signOut();
+      setIsLoading(true);
+
+      const { error } = await supabase.auth.signOut({ scope: 'local' });
       if (error) {
         console.error('❌ Logout error:', error);
         throw error;
@@ -325,6 +358,11 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     } catch (error) {
       console.error('❌ Logout error:', error);
       throw error;
+    } finally {
+      loadRequestId.current++;
+      setSession(null);
+      setUser(null);
+      setIsLoading(false);
     }
   };
 

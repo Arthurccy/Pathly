@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef, ReactNode } from 'react';
 import { 
   Transaction, 
   Category, 
@@ -95,6 +95,7 @@ export const BudgetProvider: React.FC<BudgetProviderProps> = ({ children }) => {
   const [debtPayments, setDebtPayments] = useState<DebtPayment[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [migrationStatus, setMigrationStatus] = useState<'pending' | 'completed' | 'error'>('pending');
+  const loadRequestId = useRef(0);
   
   // Filters
   const [currentPeriod, setCurrentPeriod] = useState({
@@ -106,10 +107,11 @@ export const BudgetProvider: React.FC<BudgetProviderProps> = ({ children }) => {
   useEffect(() => {
     if (user) {
       console.log('💰 User detected, loading budget data...');
-      loadUserData();
+      loadUserData(user.id);
     } else {
       // Clear data when user logs out
       console.log('🔄 Clearing budget data after logout');
+      loadRequestId.current++;
       setTransactions([]);
       setCategories([]);
       setAccounts([]);
@@ -122,10 +124,11 @@ export const BudgetProvider: React.FC<BudgetProviderProps> = ({ children }) => {
     }
   }, [user]);
 
-  const loadUserData = async () => {
-    if (!user) return;
+  const loadUserData = async (userId = user?.id) => {
+    if (!userId) return;
 
     console.log('💰 Loading budget data for user:', user.email);
+    const requestId = ++loadRequestId.current;
     setIsLoading(true);
     
     try {
@@ -139,12 +142,12 @@ export const BudgetProvider: React.FC<BudgetProviderProps> = ({ children }) => {
         supabaseDebts,
         supabaseDebtPayments
       ] = await Promise.all([
-        supabaseService.getAccounts(user.id),
-        supabaseService.getCategories(user.id),
-        supabaseService.getTransactions(user.id),
-        supabaseService.getBudgets(user.id),
-        supabaseService.getSavingsGoals(user.id),
-        supabaseService.getDebts(user.id),
+        supabaseService.getAccounts(userId),
+        supabaseService.getCategories(userId),
+        supabaseService.getTransactions(userId),
+        supabaseService.getBudgets(userId),
+        supabaseService.getSavingsGoals(userId),
+        supabaseService.getDebts(userId),
         supabaseService.getDebtPayments()
       ]);
 
@@ -156,6 +159,8 @@ export const BudgetProvider: React.FC<BudgetProviderProps> = ({ children }) => {
         goals: supabaseSavingsGoals.length,
         debts: supabaseDebts.length
       });
+
+      if (requestId !== loadRequestId.current) return;
 
       // If no data in Supabase, try to migrate from IndexedDB
       if (supabaseAccounts.length === 0 && supabaseCategories.length === 0 && supabaseTransactions.length === 0) {
@@ -172,14 +177,16 @@ export const BudgetProvider: React.FC<BudgetProviderProps> = ({ children }) => {
           newDebts,
           newDebtPayments
         ] = await Promise.all([
-          supabaseService.getAccounts(user.id),
-          supabaseService.getCategories(user.id),
-          supabaseService.getTransactions(user.id),
-          supabaseService.getBudgets(user.id),
-          supabaseService.getSavingsGoals(user.id),
-          supabaseService.getDebts(user.id),
+          supabaseService.getAccounts(userId),
+          supabaseService.getCategories(userId),
+          supabaseService.getTransactions(userId),
+          supabaseService.getBudgets(userId),
+          supabaseService.getSavingsGoals(userId),
+          supabaseService.getDebts(userId),
           supabaseService.getDebtPayments()
         ]);
+
+        if (requestId !== loadRequestId.current) return;
 
         setAccounts(newAccounts);
         setCategories(newCategories);
@@ -188,7 +195,10 @@ export const BudgetProvider: React.FC<BudgetProviderProps> = ({ children }) => {
         setSavingsGoals(newSavingsGoals);
         setDebts(newDebts);
         setDebtPayments(newDebtPayments);
+        setSelectedAccountIds(newAccounts.map(acc => acc.id));
       } else {
+        if (requestId !== loadRequestId.current) return;
+
         console.log('✅ Using existing Supabase data');
         setAccounts(supabaseAccounts);
         setCategories(supabaseCategories);
@@ -197,21 +207,21 @@ export const BudgetProvider: React.FC<BudgetProviderProps> = ({ children }) => {
         setSavingsGoals(supabaseSavingsGoals);
         setDebts(supabaseDebts);
         setDebtPayments(supabaseDebtPayments);
+        setSelectedAccountIds(supabaseAccounts.map(acc => acc.id));
       }
 
-      // Set default selected accounts
-      const accountsToSelect = supabaseAccounts.length > 0 ? supabaseAccounts : 
-                              accounts.length > 0 ? accounts : [];
-      setSelectedAccountIds(accountsToSelect.map(acc => acc.id));
-      
       setMigrationStatus('completed');
       console.log('✅ Budget data loaded successfully');
 
     } catch (error) {
       console.error('❌ Error loading user data:', error);
-      setMigrationStatus('error');
+      if (requestId === loadRequestId.current) {
+        setMigrationStatus('error');
+      }
     } finally {
-      setIsLoading(false);
+      if (requestId === loadRequestId.current) {
+        setIsLoading(false);
+      }
     }
   };
 

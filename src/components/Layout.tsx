@@ -5,9 +5,11 @@ import Sidebar from './Sidebar';
 
 interface LayoutProps {
   children: React.ReactNode;
+  currentView?: string;
+  onViewChange?: (view: string) => void;
 }
 
-const Layout: React.FC<LayoutProps> = ({ children }) => {
+const Layout: React.FC<LayoutProps> = ({ children, currentView, onViewChange }) => {
   const { user } = useAuth();
 
   if (!user) {
@@ -18,7 +20,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
       <Header />
       <div className="flex">
-        <Sidebar />
+        <Sidebar currentView={currentView} onViewChange={onViewChange} />
         <main className="flex-1 p-4 lg:p-8 lg:ml-64">
           {children}
         </main>
