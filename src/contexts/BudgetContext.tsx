@@ -80,6 +80,54 @@ const defaultAccounts: Omit<BankAccount, 'id' | 'userId'>[] = [
   { name: 'Espèces', type: 'cash', balance: 150, currency: 'EUR', color: '#F59E0B', isActive: true, order: 3 },
 ];
 
+const dedupeCategories = (items: Category[]): Category[] => {
+  const seen = new Set<string>();
+  return items.filter(item => {
+    const key = `${item.type}:${item.name.trim().toLowerCase()}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+};
+
+const dedupeAccounts = (items: BankAccount[]): BankAccount[] => {
+  const seen = new Set<string>();
+  return items.filter(item => {
+    const key = `${item.type}:${item.name.trim().toLowerCase()}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+};
+
+const normalizeCategoryRefs = (
+  categoryItems: Category[],
+  transactionItems: Transaction[],
+  budgetItems: Budget[]
+) => {
+  const canonicalByKey = new Map<string, string>();
+  const idToCanonical = new Map<string, string>();
+
+  for (const category of categoryItems) {
+    const key = `${category.type}:${category.name.trim().toLowerCase()}`;
+    const canonicalId = canonicalByKey.get(key) || category.id;
+    canonicalByKey.set(key, canonicalId);
+    idToCanonical.set(category.id, canonicalId);
+  }
+
+  return {
+    categories: dedupeCategories(categoryItems),
+    transactions: transactionItems.map(transaction => ({
+      ...transaction,
+      categoryId: idToCanonical.get(transaction.categoryId) || transaction.categoryId,
+    })),
+    budgets: budgetItems.map(budget => ({
+      ...budget,
+      categoryId: idToCanonical.get(budget.categoryId) || budget.categoryId,
+    })),
+  };
+};
+
 interface BudgetProviderProps {
   children: ReactNode;
 }
@@ -122,12 +170,12 @@ export const BudgetProvider: React.FC<BudgetProviderProps> = ({ children }) => {
       setSelectedAccountIds([]);
       setMigrationStatus('pending');
     }
-  }, [user]);
+  }, [user?.id]);
 
   const loadUserData = async (userId = user?.id) => {
     if (!userId) return;
 
-    console.log('💰 Loading budget data for user:', user.email);
+    console.log('💰 Loading budget data for user:', user?.email || userId);
     const requestId = ++loadRequestId.current;
     setIsLoading(true);
     
@@ -188,26 +236,32 @@ export const BudgetProvider: React.FC<BudgetProviderProps> = ({ children }) => {
 
         if (requestId !== loadRequestId.current) return;
 
-        setAccounts(newAccounts);
-        setCategories(newCategories);
-        setTransactions(newTransactions);
-        setBudgets(newBudgets);
+        const cleanAccounts = dedupeAccounts(newAccounts);
+        const normalized = normalizeCategoryRefs(newCategories, newTransactions, newBudgets);
+
+        setAccounts(cleanAccounts);
+        setCategories(normalized.categories);
+        setTransactions(normalized.transactions);
+        setBudgets(normalized.budgets);
         setSavingsGoals(newSavingsGoals);
         setDebts(newDebts);
         setDebtPayments(newDebtPayments);
-        setSelectedAccountIds(newAccounts.map(acc => acc.id));
+        setSelectedAccountIds(cleanAccounts.map(acc => acc.id));
       } else {
         if (requestId !== loadRequestId.current) return;
 
         console.log('✅ Using existing Supabase data');
-        setAccounts(supabaseAccounts);
-        setCategories(supabaseCategories);
-        setTransactions(supabaseTransactions);
-        setBudgets(supabaseBudgets);
+        const cleanAccounts = dedupeAccounts(supabaseAccounts);
+        const normalized = normalizeCategoryRefs(supabaseCategories, supabaseTransactions, supabaseBudgets);
+
+        setAccounts(cleanAccounts);
+        setCategories(normalized.categories);
+        setTransactions(normalized.transactions);
+        setBudgets(normalized.budgets);
         setSavingsGoals(supabaseSavingsGoals);
         setDebts(supabaseDebts);
         setDebtPayments(supabaseDebtPayments);
-        setSelectedAccountIds(supabaseAccounts.map(acc => acc.id));
+        setSelectedAccountIds(cleanAccounts.map(acc => acc.id));
       }
 
       setMigrationStatus('completed');
@@ -296,8 +350,22 @@ export const BudgetProvider: React.FC<BudgetProviderProps> = ({ children }) => {
     try {
       console.log('📝 Creating default categories and accounts...');
       
+      const [existingCategories, existingAccounts] = await Promise.all([
+        supabaseService.getCategories(user.id),
+        supabaseService.getAccounts(user.id),
+      ]);
+      const existingCategoryKeys = new Set(
+        existingCategories.map(category => `${category.type}:${category.name.trim().toLowerCase()}`)
+      );
+      const existingAccountKeys = new Set(
+        existingAccounts.map(account => `${account.type}:${account.name.trim().toLowerCase()}`)
+      );
+
       // Create default categories
       for (const categoryData of defaultCategories) {
+        const key = `${categoryData.type}:${categoryData.name.trim().toLowerCase()}`;
+        if (existingCategoryKeys.has(key)) continue;
+        existingCategoryKeys.add(key);
         await supabaseService.createCategory({
           ...categoryData,
           userId: user.id,
@@ -306,6 +374,9 @@ export const BudgetProvider: React.FC<BudgetProviderProps> = ({ children }) => {
 
       // Create default accounts
       for (const accountData of defaultAccounts) {
+        const key = `${accountData.type}:${accountData.name.trim().toLowerCase()}`;
+        if (existingAccountKeys.has(key)) continue;
+        existingAccountKeys.add(key);
         await supabaseService.createAccount({
           ...accountData,
           userId: user.id,
@@ -418,6 +489,14 @@ export const BudgetProvider: React.FC<BudgetProviderProps> = ({ children }) => {
   // Account functions
   const addAccount = async (account: Omit<BankAccount, 'id' | 'userId'>) => {
     if (!user) return;
+    const duplicate = accounts.some(existing =>
+      existing.type === account.type &&
+      existing.name.trim().toLowerCase() === account.name.trim().toLowerCase()
+    );
+    if (duplicate) {
+      console.warn('Un compte avec ce nom existe déjà');
+      return;
+    }
     
     try {
       const newAccount = await supabaseService.createAccount({
@@ -518,6 +597,14 @@ export const BudgetProvider: React.FC<BudgetProviderProps> = ({ children }) => {
   // Category functions
   const addCategory = async (category: Omit<Category, 'id'>) => {
     if (!user) return;
+    const duplicate = categories.some(existing =>
+      existing.type === category.type &&
+      existing.name.trim().toLowerCase() === category.name.trim().toLowerCase()
+    );
+    if (duplicate) {
+      console.warn('Une catégorie avec ce nom existe déjà');
+      return;
+    }
 
     try {
       const newCategory = await supabaseService.createCategory({

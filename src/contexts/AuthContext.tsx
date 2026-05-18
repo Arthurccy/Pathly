@@ -281,13 +281,16 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       if (error) {
         console.error('❌ Login error:', error);
         setIsLoading(false);
+        if (error.message?.toLowerCase().includes('email not confirmed')) {
+          throw new Error('Veuillez confirmer votre email avant de vous connecter.');
+        }
         return false;
       }
 
       if (data.session) {
         setSession(data.session);
       }
-      if (data.user) {
+      if (data.session && data.user) {
         await loadUserWithSettings(data.user);
       } else {
         setIsLoading(false);
@@ -298,6 +301,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     } catch (error) {
       console.error('❌ Login error:', error);
       setIsLoading(false);
+      if (error instanceof Error && error.message.includes('confirmer votre email')) {
+        throw error;
+      }
       return false;
     }
   };
@@ -326,9 +332,11 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       if (data.session) {
         setSession(data.session);
       }
-      if (data.user) {
+      if (data.session && data.user) {
         await loadUserWithSettings(data.user);
       } else {
+        setSession(null);
+        setUser(null);
         setIsLoading(false);
       }
 
