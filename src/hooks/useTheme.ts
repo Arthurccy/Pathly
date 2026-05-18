@@ -3,7 +3,7 @@ import { useState, useEffect } from 'react';
 export const useTheme = () => {
   const [isDark, setIsDark] = useState(() => {
     if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem('budget-diary-theme');
+      const saved = localStorage.getItem('pathly-theme');
       if (saved) {
         return saved === 'dark';
       }
@@ -19,7 +19,7 @@ export const useTheme = () => {
     } else {
       root.classList.remove('dark');
     }
-    localStorage.setItem('budget-diary-theme', isDark ? 'dark' : 'light');
+    localStorage.setItem('pathly-theme', isDark ? 'dark' : 'light');
   }, [isDark]);
 
   const toggleTheme = () => setIsDark(!isDark);

@@ -2,7 +2,7 @@ import { User, Transaction, Category, BankAccount, Budget, SavingsGoal, Debt, De
 
 // Database service using IndexedDB for better persistence
 class DatabaseService {
-  private dbName = 'BudgetDiaryDB';
+  private dbName = 'PathlyDB';
   private version = 1;
   private db: IDBDatabase | null = null;
 

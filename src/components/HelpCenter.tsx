@@ -8,8 +8,8 @@ const HelpCenter: React.FC = () => {
   const faqItems = [
     {
       id: 'getting-started',
-      question: 'Comment commencer avec BudgetDiary ?',
-      answer: `Pour commencer avec BudgetDiary :
+      question: 'Comment commencer avec Pathly ?',
+      answer: `Pour commencer avec Pathly :
       1. Ajoutez vos comptes bancaires dans la section "Comptes"
       2. Créez vos catégories de revenus et dépenses
       3. Commencez à enregistrer vos transactions
@@ -141,7 +141,7 @@ const HelpCenter: React.FC = () => {
             Guide de démarrage
           </h3>
           <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
-            Apprenez les bases de BudgetDiary en quelques minutes
+            Apprenez les bases de Pathly en quelques minutes
           </p>
           <button className="text-green-600 dark:text-green-400 hover:underline text-sm font-medium">
             Commencer le guide
@@ -224,7 +224,7 @@ const HelpCenter: React.FC = () => {
       {/* Tips */}
       <div className="bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-900/20 dark:to-purple-900/20 rounded-lg p-6">
         <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-          💡 Conseils pour bien utiliser BudgetDiary
+          💡 Conseils pour bien utiliser Pathly
         </h3>
         
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">

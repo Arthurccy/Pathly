@@ -80,7 +80,7 @@ const Auth: React.FC = () => {
           <div className="mx-auto h-12 w-12 bg-blue-600 rounded-lg flex items-center justify-center mb-4">
             <Lock className="h-6 w-6 text-white" />
           </div>
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white">BudgetDiary</h1>
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Pathly</h1>
           <p className="text-gray-600 dark:text-gray-400 mt-2">
             Gérez votre budget personnel en toute simplicité
           </p>
@@ -101,7 +101,7 @@ const Auth: React.FC = () => {
             <p className="text-gray-600 dark:text-gray-400 text-center mt-2">
               {isLogin 
                 ? 'Connectez-vous à votre compte cloud' 
-                : 'Rejoignez BudgetDiary et synchronisez vos données'
+                : 'Rejoignez Pathly et synchronisez vos données'
               }
             </p>
           </div>

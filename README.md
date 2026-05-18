@@ -60,7 +60,7 @@ Taches:
 - [ ] valider gestion timezone/date pour toutes les transactions
 - [ ] centraliser les garde-fous anti-doublons import
 - [ ] ajouter logs explicites cote services critiques
-- [ ] corriger incoherences UI texte et libelles (Pathly vs BudgetDiary si necessaire)
+- [x] corriger incoherences UI texte et libelles Pathly
 
 Livrables:
 - [ ] checklist de validation des calculs

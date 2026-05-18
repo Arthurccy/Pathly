@@ -18,7 +18,7 @@ const Layout: React.FC<LayoutProps> = ({ children, currentView, onViewChange }) 
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
-      <Header />
+      <Header onViewChange={onViewChange} />
       <div className="flex">
         <Sidebar currentView={currentView} onViewChange={onViewChange} />
         <main className="flex-1 p-4 lg:p-8 lg:ml-64">
