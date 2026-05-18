@@ -54,7 +54,7 @@ const AppContent: React.FC = () => {
   const renderContent = () => {
     switch (currentView) {
       case 'dashboard':
-        return <Dashboard />;
+        return <Dashboard onViewChange={setCurrentView} />;
       case 'add-transaction':
         return <AddTransaction />;
       case 'recurring-transactions':
@@ -84,7 +84,7 @@ const AppContent: React.FC = () => {
       case 'rules':
         return <RulesManager />;
       default:
-        return <Dashboard />;
+        return <Dashboard onViewChange={setCurrentView} />;
     }
   };
 

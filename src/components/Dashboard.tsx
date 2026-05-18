@@ -9,7 +9,10 @@ import {
   Calendar,
   Filter,
   Eye,
-  EyeOff
+  EyeOff,
+  Plus,
+  Upload,
+  Wallet
 } from 'lucide-react';
 import { useBudget } from '../contexts/BudgetContext';
 import ExpenseChart from './ExpenseChart';
@@ -19,7 +22,11 @@ import CashFlowChart from './CashFlowChart';
 import AccountsOverview from './AccountsOverview';
 import SavingsGoalsProgress from './SavingsGoalsProgress';
 
-const Dashboard: React.FC = () => {
+interface DashboardProps {
+  onViewChange?: (view: string) => void;
+}
+
+const Dashboard: React.FC<DashboardProps> = ({ onViewChange }) => {
   const { 
     transactions, 
     categories, 
@@ -155,6 +162,20 @@ const Dashboard: React.FC = () => {
     },
   ];
 
+  const nextGoal = savingsGoals
+    .filter(goal => !goal.isCompleted)
+    .sort((a, b) => {
+      const aProgress = a.targetAmount > 0 ? a.currentAmount / a.targetAmount : 0;
+      const bProgress = b.targetAmount > 0 ? b.currentAmount / b.targetAmount : 0;
+      return bProgress - aProgress;
+    })[0];
+
+  const primaryActions = [
+    { label: 'Ajouter', detail: 'Revenu ou dépense', icon: Plus, view: 'add-transaction' },
+    { label: 'Comptes', detail: 'Soldes et Livret A', icon: Wallet, view: 'accounts' },
+    { label: 'Importer', detail: 'CSV bancaire', icon: Upload, view: 'import-csv' },
+  ];
+
   const handleAccountToggle = (accountId: string) => {
     if (selectedAccountIds.includes(accountId)) {
       setSelectedAccountIds(selectedAccountIds.filter(id => id !== accountId));
@@ -173,19 +194,81 @@ const Dashboard: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      {/* Header with filters */}
-      <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-            Tableau de bord
-          </h1>
-          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-            {format(currentDate, 'MMMM yyyy', { locale: fr })}
-          </p>
+      <section className="overflow-hidden rounded-2xl border border-white/70 bg-white/85 shadow-sm backdrop-blur dark:border-gray-800 dark:bg-gray-900/85">
+        <div className="grid gap-6 p-5 sm:p-6 xl:grid-cols-[1.3fr_0.7fr]">
+          <div className="min-w-0">
+            <p className="text-sm font-medium capitalize text-blue-700 dark:text-blue-300">
+              {format(currentDate, 'MMMM yyyy', { locale: fr })}
+            </p>
+            <h1 className="mt-2 text-3xl font-bold text-gray-950 dark:text-white">
+              Votre argent, en clair.
+            </h1>
+            <p className="mt-2 max-w-2xl text-sm text-gray-600 dark:text-gray-400">
+              Ajoutez une opération en un clic, gardez vos comptes sous les yeux et voyez tout de suite ce qu'il reste pour avancer.
+            </p>
+
+            <div className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-3">
+              {primaryActions.map(action => {
+                const Icon = action.icon;
+                return (
+                  <button
+                    key={action.view}
+                    type="button"
+                    onClick={() => onViewChange?.(action.view)}
+                    className="flex min-h-20 items-center gap-3 rounded-xl border border-gray-200 bg-white p-4 text-left transition hover:-translate-y-0.5 hover:border-blue-200 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:border-gray-800 dark:bg-gray-950/60 dark:hover:border-blue-800"
+                  >
+                    <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-gray-950 text-white dark:bg-white dark:text-gray-950">
+                      <Icon className="h-5 w-5" />
+                    </span>
+                    <span className="min-w-0">
+                      <span className="block font-semibold text-gray-950 dark:text-white">{action.label}</span>
+                      <span className="block truncate text-sm text-gray-500 dark:text-gray-400">{action.detail}</span>
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          <div className="rounded-xl bg-gray-950 p-5 text-white shadow-sm dark:bg-white dark:text-gray-950">
+            <p className="text-sm text-gray-300 dark:text-gray-600">Solde disponible</p>
+            <p className={`mt-2 text-4xl font-bold ${balance >= 0 ? 'text-emerald-300 dark:text-emerald-700' : 'text-red-300 dark:text-red-700'}`}>
+              {balance.toFixed(2)} €
+            </p>
+            <div className="mt-5 grid grid-cols-2 gap-3 text-sm">
+              <div>
+                <p className="text-gray-400 dark:text-gray-500">Revenus</p>
+                <p className="font-semibold text-emerald-300 dark:text-emerald-700">{totalIncome.toFixed(2)} €</p>
+              </div>
+              <div>
+                <p className="text-gray-400 dark:text-gray-500">Dépenses</p>
+                <p className="font-semibold text-red-300 dark:text-red-700">{totalExpenses.toFixed(2)} €</p>
+              </div>
+              <div>
+                <p className="text-gray-400 dark:text-gray-500">Patrimoine</p>
+                <p className="font-semibold">{netWorth.toFixed(2)} €</p>
+              </div>
+              <div>
+                <p className="text-gray-400 dark:text-gray-500">Objectifs</p>
+                <p className="font-semibold">{completedGoals}/{totalGoals}</p>
+              </div>
+            </div>
+            {nextGoal && (
+              <button
+                type="button"
+                onClick={() => onViewChange?.('goals')}
+                className="mt-5 w-full rounded-lg bg-white/10 px-3 py-2 text-left text-sm transition hover:bg-white/15 dark:bg-gray-950/10 dark:hover:bg-gray-950/15"
+              >
+                <span className="block text-gray-300 dark:text-gray-600">Objectif en cours</span>
+                <span className="block truncate font-medium">{nextGoal.title}</span>
+              </button>
+            )}
+          </div>
         </div>
-        
+      </section>
+
+      <div className="flex flex-col gap-3 rounded-xl border border-gray-200 bg-white/80 p-3 shadow-sm backdrop-blur dark:border-gray-800 dark:bg-gray-900/80 md:flex-row md:items-center md:justify-between">
         <div className="flex flex-wrap items-center gap-3">
-          {/* View Mode Toggle */}
           <div className="flex bg-gray-100 dark:bg-gray-700 rounded-lg p-1">
             <button
               onClick={() => setViewMode('monthly')}
@@ -211,7 +294,6 @@ const Dashboard: React.FC = () => {
             </button>
           </div>
 
-          {/* Account Filter */}
           <div className="relative">
             <button
               onClick={() => setShowAccountFilter(!showAccountFilter)}
@@ -273,14 +355,13 @@ const Dashboard: React.FC = () => {
         </div>
       </div>
 
-      {/* Stats Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {stats.map((stat) => {
           const Icon = stat.icon;
           return (
             <div
               key={stat.title}
-              className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6"
+              className="bg-white/85 dark:bg-gray-900/85 rounded-xl shadow-sm border border-gray-200 dark:border-gray-800 p-5 backdrop-blur"
             >
               <div className="flex items-center justify-between">
                 <div className="flex items-center">
