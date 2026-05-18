@@ -3,6 +3,7 @@ import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { BudgetProvider } from './contexts/BudgetContext';
 import Layout from './components/Layout';
 import Auth from './components/Auth';
+import LandingPage from './components/LandingPage';
 import Dashboard from './components/Dashboard';
 import AddTransaction from './components/AddTransaction';
 import RecurringTransactions from './components/RecurringTransactions';
@@ -23,6 +24,7 @@ import OnboardingTour from './components/OnboardingTour';
 const AppContent: React.FC = () => {
   const { user, session, isLoading } = useAuth();
   const [currentView, setCurrentView] = useState('dashboard');
+  const [authMode, setAuthMode] = useState<'landing' | 'login' | 'register'>('landing');
   
   // Reset view when user changes (logout/login)
   React.useEffect(() => {
@@ -47,8 +49,22 @@ const AppContent: React.FC = () => {
   }
 
   if (!user && !session) {
-    console.log('🎯 AppContent: Showing Auth component');
-    return <Auth />;
+    if (authMode === 'landing') {
+      return (
+        <LandingPage
+          onLogin={() => setAuthMode('login')}
+          onRegister={() => setAuthMode('register')}
+        />
+      );
+    }
+
+    console.log('AppContent: Showing Auth component');
+    return (
+      <Auth
+        initialMode={authMode}
+        onBack={() => setAuthMode('landing')}
+      />
+    );
   }
 
   console.log('🎯 AppContent: Showing main app');

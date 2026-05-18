@@ -1,10 +1,15 @@
 import React, { useState } from 'react';
-import { Eye, EyeOff, Lock, User, Mail, AlertCircle, CheckCircle } from 'lucide-react';
+import { ArrowLeft, Eye, EyeOff, Lock, User, Mail, AlertCircle, CheckCircle } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 
-const Auth: React.FC = () => {
+interface AuthProps {
+  initialMode?: 'login' | 'register';
+  onBack?: () => void;
+}
+
+const Auth: React.FC<AuthProps> = ({ initialMode = 'login', onBack }) => {
   const { login, register, isLoading, user } = useAuth();
-  const [isLogin, setIsLogin] = useState(true);
+  const [isLogin, setIsLogin] = useState(initialMode === 'login');
   const [showPassword, setShowPassword] = useState(false);
   const [formData, setFormData] = useState({
     email: '',
@@ -75,6 +80,16 @@ const Auth: React.FC = () => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800 flex items-center justify-center p-4">
       <div className="max-w-md w-full">
+        {onBack && (
+          <button
+            type="button"
+            onClick={onBack}
+            className="mb-6 inline-flex items-center gap-2 rounded-lg bg-white/80 px-3 py-2 text-sm font-medium text-gray-700 shadow-sm transition hover:bg-white dark:bg-gray-800/80 dark:text-gray-200 dark:hover:bg-gray-800"
+          >
+            <ArrowLeft className="h-4 w-4" />
+            Retour
+          </button>
+        )}
         {/* Logo/Header */}
         <div className="text-center mb-8">
           <div className="mx-auto h-12 w-12 bg-blue-600 rounded-lg flex items-center justify-center mb-4">
