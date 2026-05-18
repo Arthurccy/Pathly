@@ -50,12 +50,12 @@ const defaultCategories: Omit<Category, 'id' | 'userId'>[] = [
   { name: 'Autres revenus', icon: 'Plus', color: '#059669', type: 'income', order: 4, isActive: true },
   
   // Expense categories
-  { name: 'Logement', icon: 'Home', color: '#3B82F6', type: 'expense', order: 1, isActive: true, budget: 1200 },
-  { name: 'Alimentation', icon: 'ShoppingCart', color: '#10B981', type: 'expense', order: 2, isActive: true, budget: 400 },
-  { name: 'Transport', icon: 'Car', color: '#F59E0B', type: 'expense', order: 3, isActive: true, budget: 200 },
-  { name: 'Loisirs', icon: 'Gamepad2', color: '#8B5CF6', type: 'expense', order: 4, isActive: true, budget: 150 },
-  { name: 'Santé', icon: 'Heart', color: '#EF4444', type: 'expense', order: 5, isActive: true, budget: 100 },
-  { name: 'Vêtements', icon: 'Shirt', color: '#EC4899', type: 'expense', order: 6, isActive: true, budget: 100 },
+  { name: 'Logement', icon: 'Home', color: '#3B82F6', type: 'expense', order: 1, isActive: true },
+  { name: 'Alimentation', icon: 'ShoppingCart', color: '#10B981', type: 'expense', order: 2, isActive: true },
+  { name: 'Transport', icon: 'Car', color: '#F59E0B', type: 'expense', order: 3, isActive: true },
+  { name: 'Loisirs', icon: 'Gamepad2', color: '#8B5CF6', type: 'expense', order: 4, isActive: true },
+  { name: 'Santé', icon: 'Heart', color: '#EF4444', type: 'expense', order: 5, isActive: true },
+  { name: 'Vêtements', icon: 'Shirt', color: '#EC4899', type: 'expense', order: 6, isActive: true },
   { name: 'Éducation', icon: 'GraduationCap', color: '#6366F1', type: 'expense', order: 7, isActive: true },
   { name: 'Assurances', icon: 'Shield', color: '#64748B', type: 'expense', order: 8, isActive: true },
   { name: 'Impôts', icon: 'Receipt', color: '#DC2626', type: 'expense', order: 9, isActive: true },
@@ -74,11 +74,7 @@ const defaultCategories: Omit<Category, 'id' | 'userId'>[] = [
   { name: 'Assurance', icon: 'Shield', color: '#8B5CF6', type: 'bill', order: 4, isActive: true },
 ];
 
-const defaultAccounts: Omit<BankAccount, 'id' | 'userId'>[] = [
-  { name: 'Compte courant', type: 'checking', balance: 2500, currency: 'EUR', color: '#3B82F6', isActive: true, order: 1 },
-  { name: 'Livret A', type: 'savings', balance: 5000, currency: 'EUR', color: '#10B981', isActive: true, order: 2 },
-  { name: 'Espèces', type: 'cash', balance: 150, currency: 'EUR', color: '#F59E0B', isActive: true, order: 3 },
-];
+const defaultAccounts: Omit<BankAccount, 'id' | 'userId'>[] = [];
 
 const dedupeCategories = (items: Category[]): Category[] => {
   const seen = new Set<string>();

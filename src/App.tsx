@@ -18,6 +18,7 @@ import UserSettings from './components/UserSettings';
 import HelpCenter from './components/HelpCenter';
 import ImportCSV from './components/ImportCSV';
 import RulesManager from './components/RulesManager';
+import OnboardingTour from './components/OnboardingTour';
 
 const AppContent: React.FC = () => {
   const { user, session, isLoading } = useAuth();
@@ -91,6 +92,7 @@ const AppContent: React.FC = () => {
   return (
     <Layout currentView={currentView} onViewChange={setCurrentView}>
       {renderContent()}
+      <OnboardingTour onViewChange={setCurrentView} />
     </Layout>
   );
 };
