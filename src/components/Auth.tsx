@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ArrowLeft, Eye, EyeOff, Lock, User, Mail, AlertCircle, CheckCircle } from 'lucide-react';
+import { ArrowLeft, AlertCircle, CheckCircle, Eye, EyeOff, Lock, Mail, User } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 
 interface AuthProps {
@@ -8,7 +8,7 @@ interface AuthProps {
 }
 
 const Auth: React.FC<AuthProps> = ({ initialMode = 'login', onBack }) => {
-  const { login, register, isLoading, user } = useAuth();
+  const { login, register, isLoading } = useAuth();
   const [isLogin, setIsLogin] = useState(initialMode === 'login');
   const [showPassword, setShowPassword] = useState(false);
   const [formData, setFormData] = useState({
@@ -40,24 +40,24 @@ const Auth: React.FC<AuthProps> = ({ initialMode = 'login', onBack }) => {
     }
 
     try {
-      let success = false;
-      
       if (isLogin) {
-        success = await login(formData.email, formData.password);
-        if (!success) {
+        const ok = await login(formData.email, formData.password);
+        if (!ok) {
           setError('E-mail ou mot de passe incorrect');
         }
+        return;
+      }
+
+      const ok = await register(formData.email, formData.password, formData.name);
+      if (ok) {
+        setSuccess(`Compte créé. Ouvrez l'email envoyé à ${formData.email}, cliquez sur le lien de vérification, puis revenez vous connecter à Pathly.`);
+        setFormData({ email: formData.email, password: '', name: '' });
       } else {
-        success = await register(formData.email, formData.password, formData.name);
-        if (success) {
-          setSuccess('Compte créé avec succès ! Vérifiez votre email pour confirmer votre compte.');
-        } else {
-          setError('Erreur lors de la création du compte. Vérifiez que l\'email n\'est pas déjà utilisé.');
-        }
+        setError("Erreur lors de la création du compte. Vérifiez que l'email n'est pas déjà utilisé.");
       }
     } catch (err: any) {
       console.error('Auth error:', err);
-      setError(err.message || 'Une erreur s\'est produite. Veuillez réessayer.');
+      setError(err.message || "Une erreur s'est produite. Veuillez réessayer.");
     }
   };
 
@@ -65,12 +65,9 @@ const Auth: React.FC<AuthProps> = ({ initialMode = 'login', onBack }) => {
     return (
       <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto" />
           <p className="mt-4 text-gray-600 dark:text-gray-400">
             Vérification de la session...
-          </p>
-          <p className="mt-2 text-xs text-gray-500 dark:text-gray-500">
-            Ouvrez la console pour voir les logs de debug
           </p>
         </div>
       </div>
@@ -90,7 +87,7 @@ const Auth: React.FC<AuthProps> = ({ initialMode = 'login', onBack }) => {
             Retour
           </button>
         )}
-        {/* Logo/Header */}
+
         <div className="text-center mb-8">
           <div className="mx-auto h-12 w-12 bg-blue-600 rounded-lg flex items-center justify-center mb-4">
             <Lock className="h-6 w-6 text-white" />
@@ -102,24 +99,50 @@ const Auth: React.FC<AuthProps> = ({ initialMode = 'login', onBack }) => {
           <div className="mt-4 p-3 bg-green-50 dark:bg-green-900/20 rounded-lg border border-green-200 dark:border-green-800">
             <div className="flex items-center justify-center space-x-2 text-green-700 dark:text-green-300">
               <CheckCircle className="h-5 w-5" />
-              <span className="text-sm font-medium">Vos données sont sauvegardées en ligne de façon sécurisée 🟢</span>
+              <span className="text-sm font-medium">Vos données sont sauvegardées en ligne de façon sécurisée</span>
             </div>
           </div>
         </div>
 
-        {/* Auth Form */}
         <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-8">
           <div className="mb-6">
             <h2 className="text-2xl font-semibold text-gray-900 dark:text-white text-center">
               {isLogin ? 'Connexion' : 'Créer un compte'}
             </h2>
             <p className="text-gray-600 dark:text-gray-400 text-center mt-2">
-              {isLogin 
-                ? 'Connectez-vous à votre compte cloud' 
-                : 'Rejoignez Pathly et synchronisez vos données'
+              {isLogin
+                ? 'Connectez-vous à votre compte cloud'
+                : 'Créez votre compte, puis confirmez votre email pour l’activer'
               }
             </p>
           </div>
+
+          {success && !isLogin && (
+            <div className="mb-6 rounded-xl border border-emerald-200 bg-emerald-50 p-4 dark:border-emerald-800 dark:bg-emerald-900/20">
+              <div className="flex items-start space-x-3">
+                <CheckCircle className="mt-0.5 h-5 w-5 text-emerald-600 dark:text-emerald-400" />
+                <div>
+                  <p className="font-semibold text-emerald-900 dark:text-emerald-100">
+                    Vérifiez votre email pour activer le compte
+                  </p>
+                  <p className="mt-1 text-sm leading-6 text-emerald-800 dark:text-emerald-200">
+                    {success}
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsLogin(true);
+                      setSuccess('');
+                      setError('');
+                    }}
+                    className="mt-3 text-sm font-semibold text-emerald-900 underline-offset-4 hover:underline dark:text-emerald-100"
+                  >
+                    J'ai vérifié mon email, me connecter
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
 
           <form onSubmit={handleSubmit} className="space-y-6">
             {!isLogin && (
@@ -128,7 +151,7 @@ const Auth: React.FC<AuthProps> = ({ initialMode = 'login', onBack }) => {
                   Nom complet
                 </label>
                 <div className="relative">
-                  <User className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
+                  <User className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
                   <input
                     type="text"
                     id="name"
@@ -147,7 +170,7 @@ const Auth: React.FC<AuthProps> = ({ initialMode = 'login', onBack }) => {
                 Adresse e-mail
               </label>
               <div className="relative">
-                <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
+                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
                 <input
                   type="email"
                   id="email"
@@ -165,7 +188,7 @@ const Auth: React.FC<AuthProps> = ({ initialMode = 'login', onBack }) => {
                 Mot de passe
               </label>
               <div className="relative">
-                <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
+                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
                 <input
                   type={showPassword ? 'text' : 'password'}
                   id="password"
@@ -179,7 +202,8 @@ const Auth: React.FC<AuthProps> = ({ initialMode = 'login', onBack }) => {
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                  aria-label={showPassword ? 'Masquer le mot de passe' : 'Afficher le mot de passe'}
                 >
                   {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
                 </button>
@@ -198,7 +222,7 @@ const Auth: React.FC<AuthProps> = ({ initialMode = 'login', onBack }) => {
               </div>
             )}
 
-            {success && (
+            {success && isLogin && (
               <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-3">
                 <div className="flex items-center space-x-2">
                   <CheckCircle className="h-5 w-5 text-green-600 dark:text-green-400" />
@@ -214,7 +238,7 @@ const Auth: React.FC<AuthProps> = ({ initialMode = 'login', onBack }) => {
             >
               {isLoading ? (
                 <>
-                  <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
+                  <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white" />
                   <span>Chargement...</span>
                 </>
               ) : (
@@ -234,23 +258,22 @@ const Auth: React.FC<AuthProps> = ({ initialMode = 'login', onBack }) => {
               }}
               className="text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 font-medium"
             >
-              {isLogin 
-                ? "Pas encore de compte ? S'inscrire" 
+              {isLogin
+                ? "Pas encore de compte ? S'inscrire"
                 : 'Déjà un compte ? Se connecter'
               }
             </button>
           </div>
 
-          {/* Cloud benefits */}
           <div className="mt-6 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
             <h4 className="text-sm font-medium text-blue-800 dark:text-blue-200 mb-2">
-              ☁️ Avantages du stockage cloud
+              Avantages du stockage cloud
             </h4>
             <ul className="text-xs text-blue-600 dark:text-blue-300 space-y-1">
-              <li>• Synchronisation multi-appareils</li>
-              <li>• Sauvegarde automatique sécurisée</li>
-              <li>• Accès depuis n'importe où</li>
-              <li>• Données chiffrées et protégées</li>
+              <li>Synchronisation multi-appareils</li>
+              <li>Sauvegarde automatique sécurisée</li>
+              <li>Accès depuis n'importe où</li>
+              <li>Données chiffrées et protégées</li>
             </ul>
           </div>
         </div>

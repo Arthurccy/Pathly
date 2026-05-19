@@ -317,6 +317,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         email,
         password,
         options: {
+          emailRedirectTo: typeof window !== 'undefined' ? window.location.origin : undefined,
           data: {
             name,
           },
