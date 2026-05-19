@@ -1,5 +1,5 @@
 import React from 'react';
-import { ArrowRight, BarChart3, CheckCircle2, CreditCard, Lock, Plus, ShieldCheck, Sparkles } from 'lucide-react';
+import { ArrowRight, BarChart3, CheckCircle2, CreditCard, Lock, Plus, Sparkles } from 'lucide-react';
 
 interface LandingPageProps {
   onLogin: () => void;
@@ -31,7 +31,7 @@ const LandingPage: React.FC<LandingPageProps> = ({ onLogin, onRegister }) => {
               onClick={onRegister}
               className="rounded-lg bg-white px-4 py-2 text-sm font-semibold text-slate-950 transition hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-white/70"
             >
-              Créer un compte
+              Creer un compte
             </button>
           </div>
         </div>
@@ -50,13 +50,13 @@ const LandingPage: React.FC<LandingPageProps> = ({ onLogin, onRegister }) => {
             <div className="max-w-3xl">
               <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-3 py-1 text-sm text-white/85 backdrop-blur">
                 <Sparkles className="h-4 w-4" />
-                Une app budget qui démarre vraiment à zéro
+                Une app budget qui demarre vraiment a zero
               </div>
               <h1 className="max-w-4xl text-5xl font-bold tracking-tight sm:text-6xl lg:text-7xl">
                 Pathly
               </h1>
               <p className="mt-6 max-w-2xl text-lg leading-8 text-slate-200 sm:text-xl">
-                Suivez vos comptes, vos dépenses et vos objectifs sans tableau compliqué ni données inventées. Pathly vous aide à revenir chaque jour avec une vue claire de votre argent.
+                Suivez vos comptes, vos depenses et vos objectifs sans tableau complique. Pathly vous aide a revenir chaque jour avec une vue claire de votre argent.
               </p>
 
               <div className="mt-8 flex flex-col gap-3 sm:flex-row">
@@ -73,23 +73,17 @@ const LandingPage: React.FC<LandingPageProps> = ({ onLogin, onRegister }) => {
                   onClick={onLogin}
                   className="inline-flex items-center justify-center rounded-xl border border-white/20 bg-white/10 px-6 py-3 text-base font-semibold text-white backdrop-blur transition hover:bg-white/15 focus:outline-none focus:ring-2 focus:ring-white/70"
                 >
-                  J’ai déjà un compte
+                  J'ai deja un compte
                 </button>
               </div>
 
-              <div className="mt-8 grid max-w-2xl gap-3 text-sm text-slate-200 sm:grid-cols-3">
-                <div className="flex items-center gap-2">
-                  <CheckCircle2 className="h-5 w-5 text-emerald-300" />
-                  Données vierges au départ
-                </div>
-                <div className="flex items-center gap-2">
-                  <CheckCircle2 className="h-5 w-5 text-emerald-300" />
-                  Tutoriel intégré
-                </div>
-                <div className="flex items-center gap-2">
-                  <CheckCircle2 className="h-5 w-5 text-emerald-300" />
-                  Actions rapides
-                </div>
+              <div className="mt-8 flex max-w-2xl flex-wrap items-center gap-x-5 gap-y-3 text-sm text-slate-200">
+                {['Donnees vierges au depart', 'Tutoriel integre', 'Actions rapides'].map((label) => (
+                  <div key={label} className="inline-flex items-center gap-2 whitespace-nowrap">
+                    <CheckCircle2 className="h-5 w-5 flex-none text-emerald-300" />
+                    <span>{label}</span>
+                  </div>
+                ))}
               </div>
             </div>
 
@@ -99,7 +93,7 @@ const LandingPage: React.FC<LandingPageProps> = ({ onLogin, onRegister }) => {
                   <div className="flex items-center justify-between border-b border-white/10 pb-4">
                     <div>
                       <p className="text-sm text-slate-400">Solde disponible</p>
-                      <p className="mt-1 text-4xl font-bold text-emerald-300">0,00 €</p>
+                      <p className="mt-1 text-4xl font-bold text-emerald-300">0,00 EUR</p>
                     </div>
                     <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-white text-slate-950">
                       <BarChart3 className="h-6 w-6" />
@@ -109,7 +103,7 @@ const LandingPage: React.FC<LandingPageProps> = ({ onLogin, onRegister }) => {
                     {[
                       { label: 'Compte', icon: CreditCard },
                       { label: 'Ajouter', icon: Plus },
-                      { label: 'Sécurisé', icon: Lock },
+                      { label: 'Securise', icon: Lock },
                     ].map(item => {
                       const Icon = item.icon;
                       return (
@@ -122,20 +116,11 @@ const LandingPage: React.FC<LandingPageProps> = ({ onLogin, onRegister }) => {
                   </div>
                   <div className="mt-4 space-y-3 rounded-xl bg-white p-4 text-slate-950">
                     <div className="flex items-center justify-between">
-                      <span className="text-sm font-medium">Créer mon premier compte</span>
+                      <span className="text-sm font-medium">Creer mon premier compte</span>
                       <span className="rounded-full bg-slate-100 px-2 py-1 text-xs">2 min</span>
                     </div>
                     <div className="h-2 rounded-full bg-slate-100">
                       <div className="h-2 w-1/3 rounded-full bg-slate-950" />
-                    </div>
-                  </div>
-                </div>
-                <div className="absolute -bottom-8 -left-10 rounded-2xl border border-white/15 bg-white/12 p-4 shadow-xl backdrop-blur">
-                  <div className="flex items-center gap-3">
-                    <ShieldCheck className="h-8 w-8 text-emerald-300" />
-                    <div>
-                      <p className="font-semibold">Pas de faux patrimoine</p>
-                      <p className="text-sm text-slate-300">Vous ajoutez vos vrais soldes.</p>
                     </div>
                   </div>
                 </div>
@@ -147,9 +132,9 @@ const LandingPage: React.FC<LandingPageProps> = ({ onLogin, onRegister }) => {
         <section className="relative z-10 -mt-10 px-4 pb-12 sm:px-6 lg:px-8">
           <div className="mx-auto grid max-w-7xl gap-4 rounded-2xl border border-white/10 bg-white p-4 text-slate-950 shadow-xl md:grid-cols-3">
             {[
-              ['Clair dès le premier jour', 'Un onboarding court guide l’utilisateur vers son premier compte.'],
-              ['Moins de clics', 'Les actions fréquentes restent accessibles depuis l’accueil et la navigation.'],
-              ['Prêt pour la suite', 'Imports, règles et objectifs sont disponibles sans encombrer le quotidien.'],
+              ['Clair des le premier jour', "Un onboarding court guide l'utilisateur vers son premier compte."],
+              ['Moins de clics', "Les actions frequentes restent accessibles depuis l'accueil et la navigation."],
+              ['Pret pour la suite', 'Imports, regles et objectifs sont disponibles sans encombrer le quotidien.'],
             ].map(([title, text]) => (
               <div key={title} className="rounded-xl bg-slate-50 p-5">
                 <h2 className="font-semibold">{title}</h2>
