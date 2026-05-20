@@ -267,7 +267,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onViewChange }) => {
         </div>
       </section>
 
-      <div className="flex flex-col gap-3 rounded-xl border border-gray-200 bg-white/80 p-3 shadow-sm backdrop-blur dark:border-gray-800 dark:bg-gray-900/80 md:flex-row md:items-center md:justify-between">
+      <div className="relative z-30 flex flex-col gap-3 rounded-xl border border-gray-200 bg-white/80 p-3 shadow-sm backdrop-blur dark:border-gray-800 dark:bg-gray-900/80 md:flex-row md:items-center md:justify-between">
         <div className="flex flex-wrap items-center gap-3">
           <div className="flex bg-gray-100 dark:bg-gray-700 rounded-lg p-1">
             <button
@@ -294,7 +294,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onViewChange }) => {
             </button>
           </div>
 
-          <div className="relative">
+          <div className="relative z-40">
             <button
               onClick={() => setShowAccountFilter(!showAccountFilter)}
               className="flex items-center space-x-2 px-3 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
@@ -306,7 +306,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onViewChange }) => {
             </button>
 
             {showAccountFilter && (
-              <div className="absolute right-0 mt-2 w-64 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg z-10">
+              <div className="absolute right-0 z-50 mt-2 w-64 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-xl">
                 <div className="p-3 border-b border-gray-200 dark:border-gray-700">
                   <button
                     onClick={toggleAllAccounts}
@@ -355,7 +355,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onViewChange }) => {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="relative z-0 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {stats.map((stat) => {
           const Icon = stat.icon;
           return (
