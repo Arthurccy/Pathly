@@ -151,9 +151,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           .from('user_settings')
           .select('*')
           .eq('user_id', authUser.id)
-          .single();
+          .maybeSingle();
         
-        if (error && error.code !== 'PGRST116') {
+        if (error) {
           console.warn('⚠️ Could not load user settings:', error.message);
         } else {
           settings = data;
@@ -399,12 +399,16 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         Object.entries(settingsData).filter(([_, v]) => v !== undefined)
       );
 
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from('user_settings')
         .upsert({
           user_id: user.id,
           ...cleanedData,
-        });
+        }, {
+          onConflict: 'user_id',
+        })
+        .select('*')
+        .single();
 
       if (error) {
         console.error('❌ Error updating user settings:', error);
@@ -414,7 +418,16 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       // Update local user state
       setUser({
         ...user,
-        settings: {
+        settings: data ? {
+          fiscalYearStart: data.fiscal_year_start,
+          monthStartDay: data.month_start_day ?? 1,
+          defaultPeriod: data.default_period,
+          currency: data.currency,
+          dateFormat: data.date_format,
+          theme: data.theme,
+          language: data.language,
+          notifications: data.notifications,
+        } : {
           ...user.settings!,
           ...newSettings,
         },

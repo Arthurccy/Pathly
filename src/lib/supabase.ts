@@ -364,6 +364,7 @@ export interface Database {
           id: string
           user_id: string
           fiscal_year_start: number
+          month_start_day: number
           default_period: string
           currency: string
           date_format: string
@@ -377,6 +378,7 @@ export interface Database {
           id?: string
           user_id: string
           fiscal_year_start?: number
+          month_start_day?: number
           default_period?: string
           currency?: string
           date_format?: string
@@ -390,6 +392,7 @@ export interface Database {
           id?: string
           user_id?: string
           fiscal_year_start?: number
+          month_start_day?: number
           default_period?: string
           currency?: string
           date_format?: string
