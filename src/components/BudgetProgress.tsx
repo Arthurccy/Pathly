@@ -1,6 +1,8 @@
 import React from 'react';
-import { startOfMonth, endOfMonth, startOfYear, endOfYear } from 'date-fns';
+import { startOfYear, endOfYear } from 'date-fns';
 import { useBudget } from '../contexts/BudgetContext';
+import { useAuth } from '../contexts/AuthContext';
+import { getCustomMonthPeriod } from '../utils/dateUtils';
 
 interface BudgetProgressProps {
   viewMode?: 'monthly' | 'yearly';
@@ -8,10 +10,13 @@ interface BudgetProgressProps {
 
 const BudgetProgress: React.FC<BudgetProgressProps> = ({ viewMode = 'monthly' }) => {
   const { transactions, categories, budgets, selectedAccountIds } = useBudget();
+  const { user } = useAuth();
   
+  const monthStartDay = user?.settings?.monthStartDay || 1;
   const currentDate = new Date();
-  const periodStart = viewMode === 'monthly' ? startOfMonth(currentDate) : startOfYear(currentDate);
-  const periodEnd = viewMode === 'monthly' ? endOfMonth(currentDate) : endOfYear(currentDate);
+  const customMonthPeriod = getCustomMonthPeriod(currentDate, monthStartDay);
+  const periodStart = viewMode === 'monthly' ? customMonthPeriod.start : startOfYear(currentDate);
+  const periodEnd = viewMode === 'monthly' ? customMonthPeriod.end : endOfYear(currentDate);
   
   const currentPeriodBudgets = budgets.filter(
     b => b.period === viewMode && b.isActive &&

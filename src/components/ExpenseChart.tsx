@@ -1,8 +1,10 @@
 import React from 'react';
 import { Doughnut } from 'react-chartjs-2';
 import { Chart as ChartJS, ArcElement, Tooltip, Legend } from 'chart.js';
-import { startOfMonth, endOfMonth, startOfYear, endOfYear } from 'date-fns';
+import { startOfYear, endOfYear } from 'date-fns';
 import { useBudget } from '../contexts/BudgetContext';
+import { useAuth } from '../contexts/AuthContext';
+import { getCustomMonthPeriod } from '../utils/dateUtils';
 
 ChartJS.register(ArcElement, Tooltip, Legend);
 
@@ -13,9 +15,12 @@ interface ExpenseChartProps {
 const ExpenseChart: React.FC<ExpenseChartProps> = ({ viewMode = 'monthly' }) => {
   const { transactions, categories, selectedAccountIds } = useBudget();
   
+  const { user } = useAuth();
+  const monthStartDay = user?.settings?.monthStartDay || 1;
   const currentDate = new Date();
-  const periodStart = viewMode === 'monthly' ? startOfMonth(currentDate) : startOfYear(currentDate);
-  const periodEnd = viewMode === 'monthly' ? endOfMonth(currentDate) : endOfYear(currentDate);
+  const currentMonthPeriod = getCustomMonthPeriod(currentDate, monthStartDay);
+  const periodStart = viewMode === 'monthly' ? currentMonthPeriod.start : startOfYear(currentDate);
+  const periodEnd = viewMode === 'monthly' ? currentMonthPeriod.end : endOfYear(currentDate);
   
   const expenseTransactions = transactions.filter(
     t => t.type === 'expense' && 

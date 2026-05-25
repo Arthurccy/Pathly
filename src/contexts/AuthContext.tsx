@@ -167,6 +167,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         ...authUser,
         settings: settings ? {
           fiscalYearStart: settings.fiscal_year_start,
+          monthStartDay: settings.month_start_day ?? 1,
           defaultPeriod: settings.default_period,
           currency: settings.currency,
           dateFormat: settings.date_format,
@@ -175,6 +176,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           notifications: settings.notifications,
         } : {
           fiscalYearStart: 1,
+          monthStartDay: 1,
           defaultPeriod: 'monthly',
           currency: 'EUR',
           dateFormat: 'dd/MM/yyyy',
@@ -242,6 +244,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   const getDefaultSettings = (): UserSettings => ({
     fiscalYearStart: 1,
+    monthStartDay: 1,
     defaultPeriod: 'monthly',
     currency: 'EUR',
     dateFormat: 'dd/MM/yyyy',
@@ -256,6 +259,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   const getDefaultSettingsForDB = () => ({
     fiscal_year_start: 1,
+    month_start_day: 1,
     default_period: 'monthly',
     currency: 'EUR',
     date_format: 'dd/MM/yyyy',
@@ -381,6 +385,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     try {
       const settingsData = {
         fiscal_year_start: newSettings.fiscalYearStart,
+        month_start_day: newSettings.monthStartDay,
         default_period: newSettings.defaultPeriod,
         currency: newSettings.currency,
         date_format: newSettings.dateFormat,

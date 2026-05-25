@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { format, startOfMonth, endOfMonth, startOfYear, endOfYear, subMonths, subYears } from 'date-fns';
+import { format, startOfYear, endOfYear, subMonths, subYears } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { 
   TrendingUp, 
@@ -15,6 +15,8 @@ import {
   Wallet
 } from 'lucide-react';
 import { useBudget } from '../contexts/BudgetContext';
+import { useAuth } from '../contexts/AuthContext';
+import { getCustomMonthPeriod, getPreviousCustomMonthPeriod } from '../utils/dateUtils';
 import ExpenseChart from './ExpenseChart';
 import RecentTransactions from './RecentTransactions';
 import BudgetProgress from './BudgetProgress';
@@ -39,23 +41,23 @@ const Dashboard: React.FC<DashboardProps> = ({ onViewChange }) => {
     setSelectedAccountIds,
     getFinancialSummary
   } = useBudget();
+  const { user } = useAuth();
   
   const [viewMode, setViewMode] = useState<'monthly' | 'yearly'>('monthly');
   const [showAccountFilter, setShowAccountFilter] = useState(false);
   
+  const monthStartDay = user?.settings?.monthStartDay || 1;
   const currentDate = new Date();
-  const monthStart = startOfMonth(currentDate);
-  const monthEnd = endOfMonth(currentDate);
+  const currentMonthPeriod = getCustomMonthPeriod(currentDate, monthStartDay);
   const yearStart = startOfYear(currentDate);
   const yearEnd = endOfYear(currentDate);
   
-  const periodStart = viewMode === 'monthly' ? monthStart : yearStart;
-  const periodEnd = viewMode === 'monthly' ? monthEnd : yearEnd;
+  const periodStart = viewMode === 'monthly' ? currentMonthPeriod.start : yearStart;
+  const periodEnd = viewMode === 'monthly' ? currentMonthPeriod.end : yearEnd;
   
-  // Calculate previous period for comparison
-  const previousDate = viewMode === 'monthly' ? subMonths(currentDate, 1) : subYears(currentDate, 1);
-  const previousPeriodStart = viewMode === 'monthly' ? startOfMonth(previousDate) : startOfYear(previousDate);
-  const previousPeriodEnd = viewMode === 'monthly' ? endOfMonth(previousDate) : endOfYear(previousDate);
+  const previousMonthPeriod = getPreviousCustomMonthPeriod(currentDate, monthStartDay);
+  const previousPeriodStart = viewMode === 'monthly' ? previousMonthPeriod.start : startOfYear(subYears(currentDate, 1));
+  const previousPeriodEnd = viewMode === 'monthly' ? previousMonthPeriod.end : endOfYear(subYears(currentDate, 1));
   
   const filteredTransactions = transactions.filter(
     t => t.date >= periodStart && 

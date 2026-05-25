@@ -11,6 +11,7 @@ export interface User {
 
 export interface UserSettings {
   fiscalYearStart: number; // Month (1-12)
+  monthStartDay: number; // Day of month (1-31)
   defaultPeriod: 'weekly' | 'monthly' | 'yearly';
   currency: string;
   dateFormat: string;

@@ -131,6 +131,7 @@ CREATE TABLE IF NOT EXISTS user_settings (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL UNIQUE,
   fiscal_year_start INTEGER NOT NULL DEFAULT 1 CHECK (fiscal_year_start >= 1 AND fiscal_year_start <= 12),
+  month_start_day INTEGER NOT NULL DEFAULT 1 CHECK (month_start_day >= 1 AND month_start_day <= 31),
   default_period TEXT NOT NULL DEFAULT 'monthly' CHECK (default_period IN ('weekly', 'monthly', 'yearly')),
   currency TEXT NOT NULL DEFAULT 'EUR',
   date_format TEXT NOT NULL DEFAULT 'dd/MM/yyyy',

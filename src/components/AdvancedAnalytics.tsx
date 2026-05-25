@@ -1,19 +1,28 @@
 import React, { useState, useMemo } from 'react';
 import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import { TrendingUp, Calendar, Filter, Download, Eye } from 'lucide-react';
-import { format, startOfYear, endOfYear, eachMonthOfInterval, startOfMonth, endOfMonth } from 'date-fns';
+import { format, startOfYear, endOfYear } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { useBudget } from '../contexts/BudgetContext';
+import { useAuth } from '../contexts/AuthContext';
+import { getCustomMonthPeriod } from '../utils/dateUtils';
 
 const AdvancedAnalytics: React.FC = () => {
   const { transactions, categories, accounts, selectedAccountIds } = useBudget();
+  const { user } = useAuth();
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   const [viewType, setViewType] = useState<'monthly' | 'category' | 'account'>('monthly');
   const [chartType, setChartType] = useState<'bar' | 'line' | 'pie'>('bar');
 
+  const monthStartDay = user?.settings?.monthStartDay || 1;
   const yearStart = startOfYear(new Date(selectedYear, 0, 1));
   const yearEnd = endOfYear(new Date(selectedYear, 0, 1));
-  const months = eachMonthOfInterval({ start: yearStart, end: yearEnd });
+  const months = useMemo(
+    () => Array.from({ length: 12 }, (_, index) =>
+      getCustomMonthPeriod(new Date(selectedYear, index, monthStartDay), monthStartDay)
+    ),
+    [selectedYear, monthStartDay]
+  );
 
   const filteredTransactions = transactions.filter(t => 
     t.date >= yearStart && 
@@ -24,8 +33,8 @@ const AdvancedAnalytics: React.FC = () => {
   // Monthly data
   const monthlyData = useMemo(() => {
     return months.map(month => {
-      const monthStart = startOfMonth(month);
-      const monthEnd = endOfMonth(month);
+      const monthStart = month.start;
+      const monthEnd = month.end;
       
       const monthTransactions = filteredTransactions.filter(t => 
         t.date >= monthStart && t.date <= monthEnd
@@ -44,8 +53,8 @@ const AdvancedAnalytics: React.FC = () => {
         .reduce((sum, t) => sum + t.amount, 0);
 
       return {
-        month: format(month, 'MMM', { locale: fr }),
-        fullMonth: format(month, 'MMMM yyyy', { locale: fr }),
+        month: format(month.start, 'MMM', { locale: fr }),
+        fullMonth: format(month.start, 'MMMM yyyy', { locale: fr }),
         income,
         expenses,
         savings,

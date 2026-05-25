@@ -10,6 +10,7 @@ const UserSettings: React.FC = () => {
   
   const [settings, setSettings] = useState<Partial<UserSettingsType>>({
     fiscalYearStart: user?.settings?.fiscalYearStart || 1,
+    monthStartDay: user?.settings?.monthStartDay || 1,
     defaultPeriod: user?.settings?.defaultPeriod || 'monthly',
     currency: user?.settings?.currency || 'EUR',
     dateFormat: user?.settings?.dateFormat || 'dd/MM/yyyy',
@@ -126,6 +127,23 @@ const UserSettings: React.FC = () => {
                 {months.map(month => (
                   <option key={month.value} value={month.value}>
                     {month.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                Début du mois
+              </label>
+              <select
+                value={settings.monthStartDay}
+                onChange={(e) => setSettings({ ...settings, monthStartDay: parseInt(e.target.value) })}
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
+              >
+                {Array.from({ length: 31 }, (_, index) => index + 1).map((day) => (
+                  <option key={day} value={day}>
+                    {day}
                   </option>
                 ))}
               </select>
