@@ -17,3 +17,6 @@ END $$;
 
 CREATE UNIQUE INDEX IF NOT EXISTS idx_user_settings_user_id_unique
   ON user_settings(user_id);
+
+-- Ask PostgREST/Supabase API to refresh its schema cache after the ALTER TABLE.
+NOTIFY pgrst, 'reload schema';

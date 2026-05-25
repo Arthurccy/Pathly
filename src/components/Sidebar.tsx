@@ -8,6 +8,7 @@ import {
   FileText,
   HelpCircle,
   LayoutDashboard,
+  ListChecks,
   Menu,
   Plus,
   Repeat,
@@ -30,6 +31,7 @@ const groups = [
     items: [
       { id: 'dashboard', label: 'Accueil', icon: LayoutDashboard },
       { id: 'add-transaction', label: 'Ajouter', icon: Plus, highlight: true },
+      { id: 'transactions', label: 'Transactions', icon: ListChecks },
       { id: 'accounts', label: 'Comptes', icon: Wallet },
       { id: 'calendar', label: 'Calendrier', icon: Calendar },
     ],
