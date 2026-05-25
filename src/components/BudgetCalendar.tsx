@@ -226,7 +226,7 @@ const BudgetCalendar: React.FC = () => {
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-5">
-          <p className="text-sm text-gray-500 dark:text-gray-400">Solde actuel</p>
+          <p className="text-sm text-gray-500 dark:text-gray-400">Solde compte courant</p>
           <p className="mt-1 text-2xl font-semibold text-gray-900 dark:text-white">
             {projectedBaseBalance.toFixed(2)} €
           </p>
@@ -236,7 +236,7 @@ const BudgetCalendar: React.FC = () => {
         </div>
 
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-5">
-          <p className="text-sm text-gray-500 dark:text-gray-400">Entrées prévues</p>
+          <p className="text-sm text-gray-500 dark:text-gray-400">Entrées à venir</p>
           <p className="mt-1 text-2xl font-semibold text-green-600 dark:text-green-400">
             +{projectedIncoming.toFixed(2)} €
           </p>
@@ -246,22 +246,22 @@ const BudgetCalendar: React.FC = () => {
         </div>
 
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-5">
-          <p className="text-sm text-gray-500 dark:text-gray-400">Ponctions prévues</p>
+          <p className="text-sm text-gray-500 dark:text-gray-400">Ponctions à venir</p>
           <p className="mt-1 text-2xl font-semibold text-red-600 dark:text-red-400">
-            -{projectedDeductions.toFixed(2)} €
+            {projectedDeductions > 0 ? '-' : ''}{projectedDeductions.toFixed(2)} €
           </p>
           <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-            Transactions planifiées et dettes
+            Mouvements planifiés et dettes
           </p>
         </div>
 
         <div className="bg-gray-950 dark:bg-white rounded-lg shadow-sm p-5">
-          <p className="text-sm text-gray-300 dark:text-gray-600">Solde prévisionnel</p>
+          <p className="text-sm text-gray-300 dark:text-gray-600">Solde courant prévu</p>
           <p className={`mt-1 text-2xl font-semibold ${projectedBalance >= 0 ? 'text-emerald-300 dark:text-emerald-700' : 'text-red-300 dark:text-red-700'}`}>
             {projectedBalance.toFixed(2)} €
           </p>
           <p className="mt-1 text-xs text-gray-400 dark:text-gray-500">
-            Avant le prochain mois budgétaire
+            Au {format(projectionEnd, 'dd MMM', { locale: fr })}
           </p>
         </div>
       </div>
