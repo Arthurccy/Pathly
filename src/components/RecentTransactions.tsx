@@ -71,7 +71,9 @@ const RecentTransactions: React.FC = () => {
         categoryId: formData.categoryId,
         type: formData.type,
         date: new Date(formData.date),
-        status: editingTransaction.status,
+        status: editingTransaction.isRecurring || formData.date > new Date().toISOString().split('T')[0]
+          ? 'scheduled'
+          : 'completed',
         isRecurring: editingTransaction.isRecurring,
       });
       closeEditor();

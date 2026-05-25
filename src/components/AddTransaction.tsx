@@ -65,7 +65,9 @@ const AddTransaction: React.FC = () => {
         categoryId: formData.categoryId,
         type: formData.type,
         date: new Date(formData.isRecurring ? formData.nextDate : formData.date),
-        status: formData.isRecurring ? 'scheduled' : 'completed',
+        status: formData.isRecurring || formData.date > new Date().toISOString().split('T')[0]
+          ? 'scheduled'
+          : 'completed',
         isRecurring: formData.isRecurring,
       };
 

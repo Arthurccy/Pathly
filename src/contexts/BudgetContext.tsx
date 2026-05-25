@@ -29,7 +29,8 @@ import {
   addYears,
   isBefore,
   isAfter,
-  isSameDay
+  isSameDay,
+  startOfDay
 } from 'date-fns';
 
 const BudgetContext = createContext<BudgetContextType | undefined>(undefined);
@@ -167,6 +168,12 @@ export const BudgetProvider: React.FC<BudgetProviderProps> = ({ children }) => {
       setMigrationStatus('pending');
     }
   }, [user?.id]);
+
+  useEffect(() => {
+    if (!user || transactions.length === 0 || accounts.length === 0) return;
+
+    reconcileScheduledTransactionStatuses();
+  }, [user?.id, transactions, accounts]);
 
   const loadUserData = async (userId = user?.id) => {
     if (!userId) return;
@@ -427,8 +434,13 @@ export const BudgetProvider: React.FC<BudgetProviderProps> = ({ children }) => {
       
       setTransactions(prev => prev.map(t => t.id === id ? updatedTransaction : t));
 
-      // Update account balances if amount or account changed
-      if (updates.amount !== undefined || updates.accountId !== undefined || updates.type !== undefined) {
+      // Update account balances if amount, account, type or completion status changed
+      if (
+        updates.amount !== undefined ||
+        updates.accountId !== undefined ||
+        updates.type !== undefined ||
+        updates.status !== undefined
+      ) {
         // Revert old transaction effect (only if it was completed)
         if (oldTransaction.status === 'completed') {
           await updateAccountBalance(
@@ -480,6 +492,36 @@ export const BudgetProvider: React.FC<BudgetProviderProps> = ({ children }) => {
       t.date >= startDate && 
       t.date <= endDate
     );
+  };
+
+  const reconcileScheduledTransactionStatuses = async () => {
+    const today = startOfDay(new Date());
+    const dueTransactions = transactions.filter(transaction =>
+      transaction.status === 'scheduled' &&
+      !transaction.isRecurring &&
+      !isAfter(startOfDay(transaction.date), today)
+    );
+    const futureCompletedTransactions = transactions.filter(transaction =>
+      transaction.status === 'completed' &&
+      !transaction.isRecurring &&
+      isAfter(startOfDay(transaction.date), today)
+    );
+
+    for (const transaction of dueTransactions) {
+      try {
+        await updateTransaction(transaction.id, { status: 'completed' });
+      } catch (error) {
+        console.error('Error completing scheduled transaction:', error);
+      }
+    }
+
+    for (const transaction of futureCompletedTransactions) {
+      try {
+        await updateTransaction(transaction.id, { status: 'scheduled' });
+      } catch (error) {
+        console.error('Error scheduling future transaction:', error);
+      }
+    }
   };
 
   // Account functions
