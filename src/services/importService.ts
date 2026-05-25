@@ -28,6 +28,47 @@ class ImportService {
       .trim();
   }
 
+  private extractCommunityPattern(description: string): string {
+    return this.normalizeText(description)
+      .replace(/\b\d{1,2}[/-]\d{1,2}([/-]\d{2,4})?\b/g, ' ')
+      .replace(/\b\d+[,.]\d{2}\b/g, ' ')
+      .replace(/\b\d{3,}\b/g, ' ')
+      .replace(/[^\p{L}\p{N}\s.'-]/gu, ' ')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .slice(0, 80);
+  }
+
+  parseRawText(rawText: string): CSVRow[] {
+    const dateRegex = /\b(?:\d{4}-\d{2}-\d{2}|\d{2}[/-]\d{2}[/-]\d{2,4})\b/;
+    const amountRegex = /[-+]?\d[\d\s]*(?:[,.]\d{2})\s*(?:€|eur)?/i;
+
+    return rawText
+      .split(/\r?\n/)
+      .map(line => line.trim())
+      .filter(Boolean)
+      .map(line => {
+        const date = line.match(dateRegex)?.[0] || '';
+        const amountMatches = [...line.matchAll(new RegExp(amountRegex, 'gi'))];
+        const amount = amountMatches[amountMatches.length - 1]?.[0] || '';
+        let description = line;
+
+        if (date) description = description.replace(date, ' ');
+        if (amount) description = description.replace(amount, ' ');
+        description = description
+          .replace(/\b(carte|cb|visa|mastercard|sepa|prelevement|virement|paiement)\b/gi, ' ')
+          .replace(/\s+/g, ' ')
+          .trim();
+
+        return {
+          Date: date,
+          Description: description || line,
+          Montant: amount,
+          Original: line,
+        };
+      });
+  }
+
   // Generate duplicate hash
   private generateDuplicateHash(userId: string, date: Date, amount: number, description: string): string {
     const dateStr = date.toISOString().split('T')[0];
@@ -221,7 +262,8 @@ class ImportService {
               categoryName: category.name,
               confidence,
               reason: `Règle: "${rule.pattern}"`,
-              ruleId: rule.id
+              ruleId: rule.id,
+              source: 'personal'
             });
           }
         }
@@ -240,7 +282,8 @@ class ImportService {
                 categoryName: category.name,
                 confidence,
                 reason: `Règle: "${rule.pattern}"`,
-                ruleId: rule.id
+                ruleId: rule.id,
+                source: 'personal'
               });
             }
           }
@@ -256,7 +299,8 @@ class ImportService {
               categoryId: alias.categoryId,
               categoryName: category.name,
               confidence: 0.95,
-              reason: `Alias: "${alias.alias}"`
+              reason: `Alias: "${alias.alias}"`,
+              source: 'alias'
             });
           }
         }
@@ -273,6 +317,86 @@ class ImportService {
       }
 
       return transaction;
+    });
+  }
+
+  async applyCommunitySuggestions(
+    transactions: ParsedTransaction[],
+    categories: Category[]
+  ): Promise<ParsedTransaction[]> {
+    const patterns = Array.from(new Set(
+      transactions
+        .filter(transaction => !transaction.categoryId && transaction.description)
+        .map(transaction => this.extractCommunityPattern(transaction.description))
+        .filter(pattern => pattern.length >= 3)
+    ));
+
+    if (patterns.length === 0) return transactions;
+
+    let rows: any[] = [];
+    try {
+      const { data, error } = await supabase
+        .from('community_rules')
+        .select('*')
+        .in('normalized_pattern', patterns)
+        .order('confidence_score', { ascending: false });
+
+      if (error) {
+        console.warn('ImportService: community_rules fetch error (ignored):', error.message);
+        return transactions;
+      }
+      rows = data || [];
+    } catch (e: any) {
+      console.warn('ImportService: community_rules fetch exception (ignored):', e?.message || e);
+      return transactions;
+    }
+
+    const rulesByPattern = new Map<string, any[]>();
+    for (const row of rows) {
+      const items = rulesByPattern.get(row.normalized_pattern) || [];
+      items.push(row);
+      rulesByPattern.set(row.normalized_pattern, items);
+    }
+
+    const localCategoriesByKey = new Map(
+      categories.map(category => [
+        `${this.normalizeText(category.name)}:${category.type}`,
+        category,
+      ])
+    );
+
+    return transactions.map(transaction => {
+      if (transaction.categoryId || !transaction.description) return transaction;
+
+      const pattern = this.extractCommunityPattern(transaction.description);
+      const matches = rulesByPattern.get(pattern) || [];
+      const communitySuggestions: CategorySuggestion[] = [];
+
+      for (const rule of matches.slice(0, 3)) {
+        const category = localCategoriesByKey.get(
+          `${this.normalizeText(rule.suggested_category_name)}:${rule.suggested_category_type}`
+        );
+        if (!category) continue;
+
+        communitySuggestions.push({
+          categoryId: category.id,
+          categoryName: category.name,
+          confidence: parseFloat(rule.confidence_score),
+          reason: 'Suggestion Pathly',
+          ruleId: rule.id,
+          source: 'community',
+        });
+      }
+
+      const suggestions = [...(transaction.suggestions || []), ...communitySuggestions]
+        .sort((a, b) => b.confidence - a.confidence)
+        .slice(0, 3);
+
+      return {
+        ...transaction,
+        suggestions,
+        categoryId: suggestions[0]?.confidence >= 0.9 ? suggestions[0].categoryId : transaction.categoryId,
+      };
     });
   }
 
@@ -450,6 +574,71 @@ class ImportService {
     }
 
     return { imported, skipped, duplicates, errors };
+  }
+
+  async submitCommunityLearning(
+    transactions: ParsedTransaction[],
+    userId: string,
+    categories: Category[]
+  ): Promise<void> {
+    const categoryById = new Map(categories.map(category => [category.id, category]));
+    const confirmed = transactions.filter(transaction =>
+      transaction.errors.length === 0 &&
+      transaction.description &&
+      transaction.categoryId &&
+      transaction.isSelected !== false
+    );
+
+    for (const transaction of confirmed) {
+      const category = categoryById.get(transaction.categoryId!);
+      const normalizedPattern = this.extractCommunityPattern(transaction.description);
+      if (!category || normalizedPattern.length < 3) continue;
+
+      try {
+        const { data, error } = await supabase
+          .from('community_rules')
+          .upsert({
+            normalized_pattern: normalizedPattern,
+            suggested_category_name: category.name,
+            suggested_category_type: category.type,
+            locale: 'fr',
+          }, {
+            onConflict: 'normalized_pattern,suggested_category_name,suggested_category_type,locale',
+          })
+          .select('*')
+          .single();
+
+        if (error) {
+          console.warn('ImportService: community rule upsert error (ignored):', error.message);
+          continue;
+        }
+
+        const confirmations = (data.confirmations_count || 0) + 1;
+        const corrections = data.corrections_count || 0;
+        const confidence = Math.min(0.98, Math.max(0.6, confirmations / (confirmations + corrections + 1)));
+
+        await supabase
+          .from('community_rules')
+          .update({
+            confirmations_count: confirmations,
+            confidence_score: confidence,
+          })
+          .eq('id', data.id);
+
+        await supabase
+          .from('rule_feedback')
+          .insert({
+            user_id: userId,
+            community_rule_id: data.id,
+            normalized_pattern: normalizedPattern,
+            accepted: true,
+            corrected_category_name: category.name,
+            corrected_category_type: category.type,
+          });
+      } catch (e: any) {
+        console.warn('ImportService: community learning exception (ignored):', e?.message || e);
+      }
+    }
   }
 
   // Create import job record

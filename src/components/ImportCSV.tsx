@@ -45,6 +45,7 @@ const ImportCSV: React.FC = () => {
   });
 
   const [fileName, setFileName] = useState<string>('');
+  const [rawText, setRawText] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
   const [processedCount, setProcessedCount] = useState(0);
   const [importTotal, setImportTotal] = useState(0);
@@ -111,6 +112,25 @@ const ImportCSV: React.FC = () => {
     }
   };
 
+  const handleRawTextImport = () => {
+    const data = importService.parseRawText(rawText);
+    if (data.length === 0) {
+      alert('Collez au moins une ligne de relevé bancaire');
+      return;
+    }
+
+    setCsvData(data);
+    setFileName('Copier-coller');
+    setMapping({
+      date: 'Date',
+      description: 'Description',
+      amount: 'Montant',
+      account: '',
+      category: '',
+    });
+    setStep('mapping');
+  };
+
   const handleMappingComplete = async () => {
     if (!mapping.date || !mapping.description || !mapping.amount) {
       alert('Veuillez mapper au minimum les colonnes Date, Description et Montant');
@@ -147,6 +167,15 @@ const ImportCSV: React.FC = () => {
         } catch (e) {
           console.warn('[ImportCSV] applyCategorization failed, continuing without rules', e);
           processedTransactions = transactions;
+        }
+
+        try {
+          processedTransactions = await Promise.race([
+            importService.applyCommunitySuggestions(processedTransactions, categories),
+            new Promise<ParsedTransaction[]>(resolve => setTimeout(() => resolve(processedTransactions), 6000))
+          ]);
+        } catch (e) {
+          console.warn('[ImportCSV] applyCommunitySuggestions failed, continuing without community suggestions', e);
         }
       }
 
@@ -263,6 +292,16 @@ const ImportCSV: React.FC = () => {
         settings.skipDuplicates,
         (done, total) => setProcessedCount(done)
       );
+
+      try {
+        await importService.submitCommunityLearning(
+          transactionsToImport,
+          user.id,
+          categories
+        );
+      } catch (e) {
+        console.warn('[ImportCSV] submitCommunityLearning failed (ignored)', e);
+      }
 
       // Update import job
       if (jobId) {
@@ -422,6 +461,28 @@ const ImportCSV: React.FC = () => {
                 onChange={handleFileUpload}
                 className="hidden"
               />
+            </div>
+
+            <div className="rounded-lg border border-gray-200 p-4 dark:border-gray-700">
+              <h4 className="mb-2 font-medium text-gray-900 dark:text-white">
+                Ou coller un relevé brut
+              </h4>
+              <textarea
+                value={rawText}
+                onChange={(e) => setRawText(e.target.value)}
+                rows={6}
+                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-transparent focus:ring-2 focus:ring-green-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
+                placeholder={'Ex:\n24/05/2026 CARREFOUR CITY -23,45\n25/05/2026 VIREMENT SALAIRE +1550,00'}
+              />
+              <div className="mt-3 flex justify-end">
+                <button
+                  type="button"
+                  onClick={handleRawTextImport}
+                  className="rounded-lg bg-green-600 px-4 py-2 text-white transition-colors hover:bg-green-700"
+                >
+                  Analyser le texte
+                </button>
+              </div>
             </div>
 
             {/* Settings */}
