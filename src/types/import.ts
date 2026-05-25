@@ -65,6 +65,7 @@ export interface CategorySuggestion {
   confidence: number;
   reason: string;
   ruleId?: string;
+  source?: 'personal' | 'alias' | 'community';
 }
 
 export interface ParsedTransaction {
