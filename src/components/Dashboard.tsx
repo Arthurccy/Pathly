@@ -125,6 +125,12 @@ const Dashboard: React.FC<DashboardProps> = ({ onViewChange }) => {
   const totalGoals = savingsGoals.length;
 
   const totalDebt = debts.reduce((sum, d) => sum + d.remainingAmount, 0);
+  const currentAccountBalance = accounts
+    .filter(a =>
+      a.type === 'checking' &&
+      (selectedAccountIds.length === 0 || selectedAccountIds.includes(a.id))
+    )
+    .reduce((sum, a) => sum + a.balance, 0);
   const netWorth = accounts
     .filter(a => selectedAccountIds.length === 0 || selectedAccountIds.includes(a.id))
     .reduce((sum, a) => sum + a.balance, 0) - totalDebt;
@@ -147,7 +153,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onViewChange }) => {
       change: expensesChange,
     },
     {
-      title: 'Solde restant',
+      title: 'Reste du mois',
       value: `${balance.toFixed(2)} €`,
       icon: DollarSign,
       color: balance >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400',
@@ -206,7 +212,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onViewChange }) => {
               Votre argent, en clair.
             </h1>
             <p className="mt-2 max-w-2xl text-sm text-gray-600 dark:text-gray-400">
-              Ajoutez une opération en un clic, gardez vos comptes sous les yeux et voyez tout de suite ce qu'il reste pour avancer.
+              Ajoutez une opération en un clic, gardez vos comptes sous les yeux et voyez tout de suite le reste du mois.
             </p>
 
             <div className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-3">
@@ -233,7 +239,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onViewChange }) => {
           </div>
 
           <div className="rounded-xl bg-gray-950 p-5 text-white shadow-sm dark:bg-white dark:text-gray-950">
-            <p className="text-sm text-gray-300 dark:text-gray-600">Solde disponible</p>
+            <p className="text-sm text-gray-300 dark:text-gray-600">Reste du mois</p>
             <p className={`mt-2 text-4xl font-bold ${balance >= 0 ? 'text-emerald-300 dark:text-emerald-700' : 'text-red-300 dark:text-red-700'}`}>
               {balance.toFixed(2)} €
             </p>
@@ -247,7 +253,11 @@ const Dashboard: React.FC<DashboardProps> = ({ onViewChange }) => {
                 <p className="font-semibold text-red-300 dark:text-red-700">{totalExpenses.toFixed(2)} €</p>
               </div>
               <div>
-                <p className="text-gray-400 dark:text-gray-500">Patrimoine</p>
+                <p className="text-gray-400 dark:text-gray-500">Compte courant</p>
+                <p className="font-semibold">{currentAccountBalance.toFixed(2)} €</p>
+              </div>
+              <div>
+                <p className="text-gray-400 dark:text-gray-500">Patrimoine net</p>
                 <p className="font-semibold">{netWorth.toFixed(2)} €</p>
               </div>
               <div>
