@@ -26,6 +26,7 @@ const ExpenseChart: React.FC<ExpenseChartProps> = ({ viewMode = 'monthly' }) => 
   
   const expenseTransactions = transactions.filter(
     t => t.type === 'expense' && 
+         t.status === 'completed' &&
          t.date >= periodStart && 
          t.date <= periodEnd &&
          (selectedAccountIds.length === 0 || selectedAccountIds.includes(t.accountId))

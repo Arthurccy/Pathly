@@ -135,6 +135,7 @@ const BudgetProgress: React.FC<BudgetProgressProps> = ({ viewMode = 'monthly' })
       .filter(t => 
         t.categoryId === budget.categoryId && 
         t.type === 'expense' && 
+        t.status === 'completed' &&
         t.date >= periodStart && 
         t.date <= periodEnd &&
         (selectedAccountIds.length === 0 || selectedAccountIds.includes(t.accountId))
@@ -151,6 +152,7 @@ const BudgetProgress: React.FC<BudgetProgressProps> = ({ viewMode = 'monthly' })
       spent,
       percentage: Math.min(percentage, 100),
       isOverBudget: spent > budget.amount,
+      isUnplanned: false,
     };
   });
 
@@ -166,6 +168,7 @@ const BudgetProgress: React.FC<BudgetProgressProps> = ({ viewMode = 'monthly' })
       .filter(t => 
         t.categoryId === category.id && 
         t.type === 'expense' && 
+        t.status === 'completed' &&
         t.date >= periodStart && 
         t.date <= periodEnd &&
         (selectedAccountIds.length === 0 || selectedAccountIds.includes(t.accountId))
@@ -183,11 +186,52 @@ const BudgetProgress: React.FC<BudgetProgressProps> = ({ viewMode = 'monthly' })
       spent,
       percentage: Math.min(percentage, 100),
       isOverBudget: spent > budgetAmount,
+      isUnplanned: false,
     });
+  });
+
+  const budgetedCategoryIds = new Set(budgetProgress.map(item => item.categoryId));
+  const unplannedCategories = categories
+    .filter(category =>
+      category.type === 'expense' &&
+      !budgetedCategoryIds.has(category.id)
+    )
+    .map(category => {
+      const spent = transactions
+        .filter(t =>
+          t.categoryId === category.id &&
+          t.type === 'expense' &&
+          t.status === 'completed' &&
+          t.date >= periodStart &&
+          t.date <= periodEnd &&
+          (selectedAccountIds.length === 0 || selectedAccountIds.includes(t.accountId))
+        )
+        .reduce((sum, t) => sum + t.amount, 0);
+
+      return {
+        categoryId: category.id,
+        category: category.name,
+        color: category.color,
+        budgeted: 0,
+        spent,
+        percentage: spent > 0 ? 100 : 0,
+        isOverBudget: spent > 0,
+        isUnplanned: true,
+      };
+    })
+    .filter(item => item.spent > 0);
+
+  budgetProgress.push(...unplannedCategories);
+  budgetProgress.sort((a, b) => {
+    if (a.isUnplanned !== b.isUnplanned) return a.isUnplanned ? -1 : 1;
+    return b.spent - a.spent;
   });
 
   const totalBudgeted = budgetProgress.reduce((sum, item) => sum + item.budgeted, 0);
   const totalSpent = budgetProgress.reduce((sum, item) => sum + item.spent, 0);
+  const totalUnplannedSpent = budgetProgress
+    .filter(item => item.isUnplanned)
+    .reduce((sum, item) => sum + item.spent, 0);
   const remainingBudgets = budgetProgress.reduce(
     (sum, item) => sum + Math.max(item.budgeted - item.spent, 0),
     0
@@ -201,6 +245,7 @@ const BudgetProgress: React.FC<BudgetProgressProps> = ({ viewMode = 'monthly' })
         .filter(transaction =>
           transaction.categoryId === selectedCategoryId &&
           transaction.type === 'expense' &&
+          transaction.status === 'completed' &&
           transaction.date >= periodStart &&
           transaction.date <= periodEnd &&
           (selectedAccountIds.length === 0 || selectedAccountIds.includes(transaction.accountId))
@@ -246,6 +291,17 @@ const BudgetProgress: React.FC<BudgetProgressProps> = ({ viewMode = 'monthly' })
           </p>
         </div>
       </div>
+
+      {totalUnplannedSpent > 0 && (
+        <div className="mb-5 rounded-lg border border-red-200 bg-red-50 p-4 dark:border-red-900/60 dark:bg-red-900/20">
+          <p className="text-sm font-medium text-red-800 dark:text-red-200">
+            Dépenses non prévues: {totalUnplannedSpent.toFixed(2)} €
+          </p>
+          <p className="mt-1 text-xs text-red-700 dark:text-red-300">
+            Ces catégories ont eu des dépenses sur la période mais aucun budget défini.
+          </p>
+        </div>
+      )}
       
       {budgetProgress.length > 0 ? (
         <div className="space-y-4">
@@ -265,11 +321,19 @@ const BudgetProgress: React.FC<BudgetProgressProps> = ({ viewMode = 'monthly' })
                   <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
                     {item.category}
                   </span>
+                  {item.isUnplanned && (
+                    <span className="rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-700 dark:bg-red-900/30 dark:text-red-300">
+                      Non prévu
+                    </span>
+                  )}
                 </div>
                 <span className={`text-sm font-medium ${
                   item.isOverBudget ? 'text-red-600 dark:text-red-400' : 'text-gray-600 dark:text-gray-400'
                 }`}>
-                  {item.spent.toFixed(2)} € / {item.budgeted.toFixed(2)} €
+                  {item.isUnplanned
+                    ? `${item.spent.toFixed(2)} €`
+                    : `${item.spent.toFixed(2)} € / ${item.budgeted.toFixed(2)} €`
+                  }
                 </span>
               </div>
               
@@ -288,7 +352,11 @@ const BudgetProgress: React.FC<BudgetProgressProps> = ({ viewMode = 'monthly' })
               
               <div className="flex justify-between text-xs text-gray-500 dark:text-gray-400">
                 <span>{item.percentage.toFixed(1)}% utilisé</span>
-                {item.isOverBudget ? (
+                {item.isUnplanned ? (
+                  <span className="text-red-600 dark:text-red-400 font-medium">
+                    Hors budget
+                  </span>
+                ) : item.isOverBudget ? (
                   <span className="text-red-600 dark:text-red-400 font-medium">
                     Dépassement de {(item.spent - item.budgeted).toFixed(2)} €
                   </span>
