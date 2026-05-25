@@ -1,16 +1,17 @@
 import React, { useState } from 'react';
-import { format, startOfYear, endOfYear } from 'date-fns';
+import { addDays, addMonths, addWeeks, addYears, format, startOfDay, startOfYear, endOfYear } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { useBudget } from '../contexts/BudgetContext';
 import { useAuth } from '../contexts/AuthContext';
 import { getCustomMonthPeriod } from '../utils/dateUtils';
+import { Transaction } from '../types';
 
 interface BudgetProgressProps {
   viewMode?: 'monthly' | 'yearly';
 }
 
 const BudgetProgress: React.FC<BudgetProgressProps> = ({ viewMode = 'monthly' }) => {
-  const { transactions, categories, budgets, accounts, selectedAccountIds } = useBudget();
+  const { transactions, categories, budgets, accounts, debts, selectedAccountIds } = useBudget();
   const { user } = useAuth();
   const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
   
@@ -19,6 +20,109 @@ const BudgetProgress: React.FC<BudgetProgressProps> = ({ viewMode = 'monthly' })
   const customMonthPeriod = getCustomMonthPeriod(currentDate, monthStartDay);
   const periodStart = viewMode === 'monthly' ? customMonthPeriod.start : startOfYear(currentDate);
   const periodEnd = viewMode === 'monthly' ? customMonthPeriod.end : endOfYear(currentDate);
+  const today = startOfDay(currentDate);
+  const selectedAccountSet = new Set(selectedAccountIds);
+  const shouldIncludeAccount = (accountId: string) =>
+    selectedAccountIds.length === 0 || selectedAccountSet.has(accountId);
+  const checkingAccountIds = new Set(
+    accounts
+      .filter(account => account.isActive && account.type === 'checking' && shouldIncludeAccount(account.id))
+      .map(account => account.id)
+  );
+  const currentAccountBalance = accounts
+    .filter(account => checkingAccountIds.has(account.id))
+    .reduce((sum, account) => sum + account.balance, 0);
+  const getTransactionImpact = (transaction: Transaction) => {
+    const isCheckingTransaction = checkingAccountIds.has(transaction.accountId);
+
+    if (transaction.type === 'transfer') {
+      if (!isCheckingTransaction) return 0;
+      return transaction.description.toLowerCase().includes('depuis')
+        ? transaction.amount
+        : -transaction.amount;
+    }
+
+    if (!isCheckingTransaction) return 0;
+    if (transaction.type === 'income' || transaction.type === 'refund') return transaction.amount;
+    if (transaction.type === 'expense' || transaction.type === 'bill' || transaction.type === 'savings') return -transaction.amount;
+    return 0;
+  };
+  const getNextOccurrenceDate = (date: Date, transaction: Transaction) => {
+    const pattern = transaction.recurringPattern;
+    if (!pattern) return null;
+
+    switch (pattern.frequency) {
+      case 'daily':
+        return addDays(date, pattern.interval);
+      case 'weekly':
+        return addWeeks(date, pattern.interval);
+      case 'monthly':
+        return addMonths(date, pattern.interval);
+      case 'quarterly':
+        return addMonths(date, pattern.interval * 3);
+      case 'yearly':
+        return addYears(date, pattern.interval);
+      default:
+        return addMonths(date, 1);
+    }
+  };
+  const addImpactToProjection = (
+    projection: { incoming: number; deductions: number },
+    impact: number
+  ) => impact > 0
+    ? { ...projection, incoming: projection.incoming + impact }
+    : { ...projection, deductions: projection.deductions + Math.abs(impact) };
+  const upcomingTransactionProjection = transactions.reduce((projection, transaction) => {
+    const impact = getTransactionImpact(transaction);
+    if (impact === 0) return projection;
+
+    if (!transaction.isRecurring || !transaction.recurringPattern?.isActive) {
+      const transactionDate = startOfDay(transaction.date);
+      if (
+        transaction.status === 'scheduled' &&
+        transactionDate >= today &&
+        transactionDate <= periodEnd
+      ) {
+        return addImpactToProjection(projection, impact);
+      }
+      return projection;
+    }
+
+    const pattern = transaction.recurringPattern;
+    let nextDate = startOfDay(pattern.nextDate);
+    let occurrenceCount = pattern.currentOccurrence || 0;
+    let recurringProjection = projection;
+
+    while (nextDate <= periodEnd) {
+      const hasReachedEndDate = pattern.endDate && nextDate > startOfDay(pattern.endDate);
+      const hasReachedMaxOccurrences = pattern.maxOccurrences && occurrenceCount >= pattern.maxOccurrences;
+      if (hasReachedEndDate || hasReachedMaxOccurrences) break;
+
+      if (nextDate >= today) {
+        recurringProjection = addImpactToProjection(recurringProjection, impact);
+      }
+
+      const followingDate = getNextOccurrenceDate(nextDate, transaction);
+      if (!followingDate || followingDate <= nextDate) break;
+      nextDate = startOfDay(followingDate);
+      occurrenceCount += 1;
+    }
+
+    return recurringProjection;
+  }, { incoming: 0, deductions: 0 });
+  const upcomingDebtPayments = debts
+    .filter(debt =>
+      debt.isActive &&
+      checkingAccountIds.has(debt.accountId) &&
+      startOfDay(debt.dueDate) >= today &&
+      startOfDay(debt.dueDate) <= periodEnd
+    )
+    .reduce((sum, debt) => sum + debt.minimumPayment, 0);
+  const projectedCurrentBalance =
+    currentAccountBalance +
+    upcomingTransactionProjection.incoming -
+    upcomingTransactionProjection.deductions -
+    upcomingDebtPayments;
   
   const currentPeriodBudgets = budgets.filter(
     b => b.period === viewMode && b.isActive &&
@@ -84,6 +188,11 @@ const BudgetProgress: React.FC<BudgetProgressProps> = ({ viewMode = 'monthly' })
 
   const totalBudgeted = budgetProgress.reduce((sum, item) => sum + item.budgeted, 0);
   const totalSpent = budgetProgress.reduce((sum, item) => sum + item.spent, 0);
+  const remainingBudgets = budgetProgress.reduce(
+    (sum, item) => sum + Math.max(item.budgeted - item.spent, 0),
+    0
+  );
+  const projectedAfterBudgets = projectedCurrentBalance - remainingBudgets;
   const selectedBudgetCategory = selectedCategoryId
     ? categories.find(category => category.id === selectedCategoryId)
     : null;
@@ -111,6 +220,29 @@ const BudgetProgress: React.FC<BudgetProgressProps> = ({ viewMode = 'monthly' })
           </p>
           <p className="text-xl font-bold text-gray-900 dark:text-white">
             {totalSpent.toFixed(2)} € / {totalBudgeted.toFixed(2)} €
+          </p>
+        </div>
+      </div>
+
+      <div className="mb-5 grid grid-cols-1 gap-3 sm:grid-cols-3">
+        <div className="rounded-lg border border-gray-200 bg-gray-50 p-4 dark:border-gray-700 dark:bg-gray-900/50">
+          <p className="text-sm text-gray-500 dark:text-gray-400">Solde courant prévu</p>
+          <p className="mt-1 text-xl font-semibold text-gray-900 dark:text-white">
+            {projectedCurrentBalance.toFixed(2)} €
+          </p>
+        </div>
+
+        <div className="rounded-lg border border-gray-200 bg-gray-50 p-4 dark:border-gray-700 dark:bg-gray-900/50">
+          <p className="text-sm text-gray-500 dark:text-gray-400">Budgets restants</p>
+          <p className="mt-1 text-xl font-semibold text-orange-600 dark:text-orange-400">
+            -{remainingBudgets.toFixed(2)} €
+          </p>
+        </div>
+
+        <div className="rounded-lg bg-gray-950 p-4 text-white dark:bg-white dark:text-gray-950">
+          <p className="text-sm text-gray-300 dark:text-gray-600">Après budgets</p>
+          <p className={`mt-1 text-xl font-semibold ${projectedAfterBudgets >= 0 ? 'text-emerald-300 dark:text-emerald-700' : 'text-red-300 dark:text-red-700'}`}>
+            {projectedAfterBudgets.toFixed(2)} €
           </p>
         </div>
       </div>
