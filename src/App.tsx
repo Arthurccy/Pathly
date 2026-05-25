@@ -6,6 +6,7 @@ import Auth from './components/Auth';
 import LandingPage from './components/LandingPage';
 import Dashboard from './components/Dashboard';
 import AddTransaction from './components/AddTransaction';
+import RecentTransactions from './components/RecentTransactions';
 import RecurringTransactions from './components/RecurringTransactions';
 import BudgetCalendar from './components/BudgetCalendar';
 import CategoryManager from './components/CategoryManager';
@@ -74,6 +75,8 @@ const AppContent: React.FC = () => {
         return <Dashboard onViewChange={setCurrentView} />;
       case 'add-transaction':
         return <AddTransaction />;
+      case 'transactions':
+        return <RecentTransactions limit={0} title="Transactions" />;
       case 'recurring-transactions':
         return <RecurringTransactions />;
       case 'calendar':

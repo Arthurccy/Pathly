@@ -412,6 +412,14 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
       if (error) {
         console.error('❌ Error updating user settings:', error);
+        if (
+          error.code === 'PGRST204' &&
+          error.message?.includes('month_start_day')
+        ) {
+          throw new Error(
+            "La colonne month_start_day manque dans Supabase. Appliquez la migration restore_month_start_day puis réessayez."
+          );
+        }
         throw error;
       }
 

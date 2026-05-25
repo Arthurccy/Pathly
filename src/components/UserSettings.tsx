@@ -24,6 +24,7 @@ const UserSettings: React.FC = () => {
 
   const [isSaving, setIsSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
+  const [saveError, setSaveError] = useState('');
 
   useEffect(() => {
     if (!user?.settings) return;
@@ -45,12 +46,14 @@ const UserSettings: React.FC = () => {
 
   const handleSave = async () => {
     setIsSaving(true);
+    setSaveError('');
     try {
       await updateUserSettings(settings);
       setSaveSuccess(true);
       setTimeout(() => setSaveSuccess(false), 3000);
     } catch (error) {
       console.error('Failed to save settings:', error);
+      setSaveError(error instanceof Error ? error.message : 'Impossible de sauvegarder les paramètres.');
     } finally {
       setIsSaving(false);
     }
@@ -336,6 +339,11 @@ const UserSettings: React.FC = () => {
 
       {/* Save Button */}
       <div className="flex justify-end">
+        {saveError && (
+          <div className="mr-4 max-w-xl rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900/60 dark:bg-red-900/20 dark:text-red-300">
+            {saveError}
+          </div>
+        )}
         <button
           onClick={handleSave}
           disabled={isSaving}

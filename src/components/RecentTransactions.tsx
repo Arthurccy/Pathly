@@ -7,7 +7,15 @@ import type { Transaction } from '../types';
 
 const toDateInputValue = (date: Date) => date.toISOString().split('T')[0];
 
-const RecentTransactions: React.FC = () => {
+interface RecentTransactionsProps {
+  limit?: number;
+  title?: string;
+}
+
+const RecentTransactions: React.FC<RecentTransactionsProps> = ({
+  limit = 10,
+  title = 'Dernieres transactions',
+}) => {
   const { transactions, categories, accounts, updateTransaction, deleteTransaction } = useBudget();
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
   const [formData, setFormData] = useState({
@@ -21,8 +29,11 @@ const RecentTransactions: React.FC = () => {
   const [isSaving, setIsSaving] = useState(false);
 
   const recentTransactions = useMemo(
-    () => [...transactions].sort((a, b) => b.date.getTime() - a.date.getTime()).slice(0, 10),
-    [transactions]
+    () => {
+      const sortedTransactions = [...transactions].sort((a, b) => b.date.getTime() - a.date.getTime());
+      return limit ? sortedTransactions.slice(0, limit) : sortedTransactions;
+    },
+    [limit, transactions]
   );
 
   const activeAccounts = accounts.filter(account => account.isActive);
@@ -105,7 +116,7 @@ const RecentTransactions: React.FC = () => {
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700">
         <div className="p-6 border-b border-gray-200 dark:border-gray-700">
           <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-            Dernieres transactions
+            {title}
           </h3>
         </div>
 
