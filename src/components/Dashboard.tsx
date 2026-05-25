@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { format, startOfYear, endOfYear, subMonths, subYears } from 'date-fns';
+import { addDays, addMonths, addWeeks, addYears, format, startOfDay, startOfYear, endOfYear, subYears } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { 
   TrendingUp, 
@@ -17,6 +17,7 @@ import {
 import { useBudget } from '../contexts/BudgetContext';
 import { useAuth } from '../contexts/AuthContext';
 import { getCustomMonthPeriod, getPreviousCustomMonthPeriod } from '../utils/dateUtils';
+import { Transaction } from '../types';
 import ExpenseChart from './ExpenseChart';
 import RecentTransactions from './RecentTransactions';
 import BudgetProgress from './BudgetProgress';
@@ -125,12 +126,115 @@ const Dashboard: React.FC<DashboardProps> = ({ onViewChange }) => {
   const totalGoals = savingsGoals.length;
 
   const totalDebt = debts.reduce((sum, d) => sum + d.remainingAmount, 0);
+  const selectedAccountSet = new Set(selectedAccountIds);
+  const shouldIncludeAccount = (accountId: string) =>
+    selectedAccountIds.length === 0 || selectedAccountSet.has(accountId);
+  const today = startOfDay(currentDate);
   const currentAccountBalance = accounts
     .filter(a =>
+      a.isActive &&
       a.type === 'checking' &&
-      (selectedAccountIds.length === 0 || selectedAccountIds.includes(a.id))
+      shouldIncludeAccount(a.id)
     )
     .reduce((sum, a) => sum + a.balance, 0);
+  const checkingAccountIds = new Set(
+    accounts
+      .filter(account =>
+        account.isActive &&
+        account.type === 'checking' &&
+        shouldIncludeAccount(account.id)
+      )
+      .map(account => account.id)
+  );
+  const getTransactionImpact = (transaction: Transaction) => {
+    const isCheckingTransaction = checkingAccountIds.has(transaction.accountId);
+
+    if (transaction.type === 'transfer') {
+      if (!isCheckingTransaction) return 0;
+      return transaction.description.toLowerCase().includes('depuis')
+        ? transaction.amount
+        : -transaction.amount;
+    }
+
+    if (!isCheckingTransaction) return 0;
+    if (transaction.type === 'income' || transaction.type === 'refund') return transaction.amount;
+    if (transaction.type === 'expense' || transaction.type === 'bill' || transaction.type === 'savings') return -transaction.amount;
+    return 0;
+  };
+  const getNextOccurrenceDate = (date: Date, transaction: Transaction) => {
+    const pattern = transaction.recurringPattern;
+    if (!pattern) return null;
+
+    switch (pattern.frequency) {
+      case 'daily':
+        return addDays(date, pattern.interval);
+      case 'weekly':
+        return addWeeks(date, pattern.interval);
+      case 'monthly':
+        return addMonths(date, pattern.interval);
+      case 'quarterly':
+        return addMonths(date, pattern.interval * 3);
+      case 'yearly':
+        return addYears(date, pattern.interval);
+      default:
+        return addMonths(date, 1);
+    }
+  };
+  const addImpactToProjection = (
+    projection: { incoming: number; deductions: number },
+    impact: number
+  ) => impact > 0
+    ? { ...projection, incoming: projection.incoming + impact }
+    : { ...projection, deductions: projection.deductions + Math.abs(impact) };
+  const upcomingTransactionProjection = transactions.reduce((projection, transaction) => {
+    const impact = getTransactionImpact(transaction);
+    if (impact === 0) return projection;
+
+    if (!transaction.isRecurring || !transaction.recurringPattern?.isActive) {
+      const transactionDate = startOfDay(transaction.date);
+      if (
+        transaction.status === 'scheduled' &&
+        transactionDate >= today &&
+        transactionDate <= currentMonthPeriod.end
+      ) {
+        return addImpactToProjection(projection, impact);
+      }
+      return projection;
+    }
+
+    const pattern = transaction.recurringPattern;
+    let nextDate = startOfDay(pattern.nextDate);
+    let occurrenceCount = pattern.currentOccurrence || 0;
+    let recurringProjection = projection;
+
+    while (nextDate <= currentMonthPeriod.end) {
+      const hasReachedEndDate = pattern.endDate && nextDate > startOfDay(pattern.endDate);
+      const hasReachedMaxOccurrences = pattern.maxOccurrences && occurrenceCount >= pattern.maxOccurrences;
+      if (hasReachedEndDate || hasReachedMaxOccurrences) break;
+
+      if (nextDate >= today) {
+        recurringProjection = addImpactToProjection(recurringProjection, impact);
+      }
+
+      const followingDate = getNextOccurrenceDate(nextDate, transaction);
+      if (!followingDate || followingDate <= nextDate) break;
+      nextDate = startOfDay(followingDate);
+      occurrenceCount += 1;
+    }
+
+    return recurringProjection;
+  }, { incoming: 0, deductions: 0 });
+  const upcomingDebtPayments = debts
+    .filter(debt =>
+      debt.isActive &&
+      checkingAccountIds.has(debt.accountId) &&
+      startOfDay(debt.dueDate) >= today &&
+      startOfDay(debt.dueDate) <= currentMonthPeriod.end
+    )
+    .reduce((sum, debt) => sum + debt.minimumPayment, 0);
+  const projectedIncoming = upcomingTransactionProjection.incoming;
+  const projectedDeductions = upcomingTransactionProjection.deductions + upcomingDebtPayments;
+  const projectedCurrentBalance = currentAccountBalance + projectedIncoming - projectedDeductions;
   const netWorth = accounts
     .filter(a => selectedAccountIds.length === 0 || selectedAccountIds.includes(a.id))
     .reduce((sum, a) => sum + a.balance, 0) - totalDebt;
@@ -212,7 +316,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onViewChange }) => {
               Votre argent, en clair.
             </h1>
             <p className="mt-2 max-w-2xl text-sm text-gray-600 dark:text-gray-400">
-              Ajoutez une opération en un clic, gardez vos comptes sous les yeux et voyez tout de suite le résultat du mois.
+              Ajoutez une opération en un clic, gardez vos comptes sous les yeux et voyez ce qui restera sur le compte courant.
             </p>
 
             <div className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-3">
@@ -239,22 +343,22 @@ const Dashboard: React.FC<DashboardProps> = ({ onViewChange }) => {
           </div>
 
           <div className="rounded-xl bg-gray-950 p-5 text-white shadow-sm dark:bg-white dark:text-gray-950">
-            <p className="text-sm text-gray-300 dark:text-gray-600">Résultat du mois</p>
-            <p className={`mt-2 text-4xl font-bold ${balance >= 0 ? 'text-emerald-300 dark:text-emerald-700' : 'text-red-300 dark:text-red-700'}`}>
-              {balance.toFixed(2)} €
+            <p className="text-sm text-gray-300 dark:text-gray-600">Solde courant prévu</p>
+            <p className={`mt-2 text-4xl font-bold ${projectedCurrentBalance >= 0 ? 'text-emerald-300 dark:text-emerald-700' : 'text-red-300 dark:text-red-700'}`}>
+              {projectedCurrentBalance.toFixed(2)} €
             </p>
             <div className="mt-5 grid grid-cols-2 gap-3 text-sm">
               <div>
-                <p className="text-gray-400 dark:text-gray-500">Revenus</p>
-                <p className="font-semibold text-emerald-300 dark:text-emerald-700">{totalIncome.toFixed(2)} €</p>
-              </div>
-              <div>
-                <p className="text-gray-400 dark:text-gray-500">Dépenses</p>
-                <p className="font-semibold text-red-300 dark:text-red-700">{totalExpenses.toFixed(2)} €</p>
-              </div>
-              <div>
                 <p className="text-gray-400 dark:text-gray-500">Compte courant</p>
                 <p className="font-semibold">{currentAccountBalance.toFixed(2)} €</p>
+              </div>
+              <div>
+                <p className="text-gray-400 dark:text-gray-500">À venir</p>
+                <p className="font-semibold">{(projectedIncoming - projectedDeductions).toFixed(2)} €</p>
+              </div>
+              <div>
+                <p className="text-gray-400 dark:text-gray-500">Résultat du mois</p>
+                <p className="font-semibold">{balance.toFixed(2)} €</p>
               </div>
               <div>
                 <p className="text-gray-400 dark:text-gray-500">Patrimoine net</p>

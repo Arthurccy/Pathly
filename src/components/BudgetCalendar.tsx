@@ -67,12 +67,20 @@ const BudgetCalendar: React.FC = () => {
     account.type === 'checking' &&
     shouldIncludeAccount(account.id)
   );
-  const projectionAccounts = checkingAccounts.length > 0
-    ? checkingAccounts
-    : accounts.filter(account => account.isActive && shouldIncludeAccount(account.id));
-  const projectedBaseBalance = projectionAccounts.reduce((sum, account) => sum + account.balance, 0);
+  const checkingAccountIds = new Set(checkingAccounts.map(account => account.id));
+  const projectedBaseBalance = checkingAccounts.reduce((sum, account) => sum + account.balance, 0);
 
   const getTransactionImpact = (transaction: Transaction) => {
+    const isCheckingTransaction = checkingAccountIds.has(transaction.accountId);
+
+    if (transaction.type === 'transfer') {
+      if (!isCheckingTransaction) return 0;
+      return transaction.description.toLowerCase().includes('depuis')
+        ? transaction.amount
+        : -transaction.amount;
+    }
+
+    if (!isCheckingTransaction) return 0;
     if (transaction.type === 'income' || transaction.type === 'refund') return transaction.amount;
     if (transaction.type === 'expense' || transaction.type === 'bill' || transaction.type === 'savings') return -transaction.amount;
     return 0;
@@ -110,8 +118,6 @@ const BudgetCalendar: React.FC = () => {
   };
 
   const upcomingTransactionProjection = transactions.reduce((projection, transaction) => {
-    if (!shouldIncludeAccount(transaction.accountId)) return projection;
-
     const impact = getTransactionImpact(transaction);
     if (impact === 0) return projection;
 
@@ -153,7 +159,7 @@ const BudgetCalendar: React.FC = () => {
   const upcomingDebtPayments = debts
     .filter(debt =>
       debt.isActive &&
-      shouldIncludeAccount(debt.accountId) &&
+      checkingAccountIds.has(debt.accountId) &&
       startOfDay(debt.dueDate) >= today &&
       startOfDay(debt.dueDate) <= projectionEnd
     )
@@ -231,7 +237,7 @@ const BudgetCalendar: React.FC = () => {
             {projectedBaseBalance.toFixed(2)} €
           </p>
           <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-            {checkingAccounts.length > 0 ? 'Compte courant' : 'Comptes sélectionnés'}
+            Compte courant uniquement
           </p>
         </div>
 

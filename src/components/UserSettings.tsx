@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Settings, User, Palette, Globe, Bell, Save } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../hooks/useTheme';
@@ -24,6 +24,24 @@ const UserSettings: React.FC = () => {
 
   const [isSaving, setIsSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
+
+  useEffect(() => {
+    if (!user?.settings) return;
+
+    setSettings({
+      fiscalYearStart: user.settings.fiscalYearStart,
+      monthStartDay: user.settings.monthStartDay,
+      defaultPeriod: user.settings.defaultPeriod,
+      currency: user.settings.currency,
+      dateFormat: user.settings.dateFormat,
+      language: user.settings.language,
+      notifications: {
+        budgetAlerts: user.settings.notifications?.budgetAlerts ?? true,
+        recurringReminders: user.settings.notifications?.recurringReminders ?? true,
+        goalDeadlines: user.settings.notifications?.goalDeadlines ?? true,
+      },
+    });
+  }, [user?.settings]);
 
   const handleSave = async () => {
     setIsSaving(true);
