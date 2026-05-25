@@ -153,7 +153,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onViewChange }) => {
       change: expensesChange,
     },
     {
-      title: 'Reste du mois',
+      title: 'Résultat du mois',
       value: `${balance.toFixed(2)} €`,
       icon: DollarSign,
       color: balance >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400',
@@ -212,7 +212,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onViewChange }) => {
               Votre argent, en clair.
             </h1>
             <p className="mt-2 max-w-2xl text-sm text-gray-600 dark:text-gray-400">
-              Ajoutez une opération en un clic, gardez vos comptes sous les yeux et voyez tout de suite le reste du mois.
+              Ajoutez une opération en un clic, gardez vos comptes sous les yeux et voyez tout de suite le résultat du mois.
             </p>
 
             <div className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-3">
@@ -239,7 +239,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onViewChange }) => {
           </div>
 
           <div className="rounded-xl bg-gray-950 p-5 text-white shadow-sm dark:bg-white dark:text-gray-950">
-            <p className="text-sm text-gray-300 dark:text-gray-600">Reste du mois</p>
+            <p className="text-sm text-gray-300 dark:text-gray-600">Résultat du mois</p>
             <p className={`mt-2 text-4xl font-bold ${balance >= 0 ? 'text-emerald-300 dark:text-emerald-700' : 'text-red-300 dark:text-red-700'}`}>
               {balance.toFixed(2)} €
             </p>
