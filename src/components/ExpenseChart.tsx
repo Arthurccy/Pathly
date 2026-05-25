@@ -110,7 +110,7 @@ const ExpenseChart: React.FC<ExpenseChartProps> = ({ viewMode = 'monthly' }) => 
         </h3>
         <div className="text-right">
           <p className="text-sm text-gray-500 dark:text-gray-400">
-            {viewMode === 'monthly' ? 'Ce mois' : 'Cette année'}
+            {viewMode === 'monthly' ? 'Période' : 'Cette année'}
           </p>
           <p className="text-xl font-bold text-gray-900 dark:text-white">
             {totalExpenses.toFixed(2)} €

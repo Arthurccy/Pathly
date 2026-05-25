@@ -312,6 +312,9 @@ const Dashboard: React.FC<DashboardProps> = ({ onViewChange }) => {
             <p className="text-sm font-medium capitalize text-blue-700 dark:text-blue-300">
               {format(currentDate, 'MMMM yyyy', { locale: fr })}
             </p>
+            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+              Période budgétaire: {format(currentMonthPeriod.start, 'dd MMM', { locale: fr })} - {format(currentMonthPeriod.end, 'dd MMM yyyy', { locale: fr })}
+            </p>
             <h1 className="mt-2 text-3xl font-bold text-gray-950 dark:text-white">
               Votre argent, en clair.
             </h1>
@@ -518,7 +521,10 @@ const Dashboard: React.FC<DashboardProps> = ({ onViewChange }) => {
       </div>
 
       {/* Recent Transactions */}
-      <RecentTransactions />
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+        <RecentTransactions title="Dernières transactions terminées" />
+        <RecentTransactions title="Opérations à venir" mode="upcoming" />
+      </div>
     </div>
   );
 };

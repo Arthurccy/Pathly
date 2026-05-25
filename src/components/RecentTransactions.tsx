@@ -10,11 +10,13 @@ const toDateInputValue = (date: Date) => date.toISOString().split('T')[0];
 interface RecentTransactionsProps {
   limit?: number;
   title?: string;
+  mode?: 'recent' | 'upcoming' | 'all';
 }
 
 const RecentTransactions: React.FC<RecentTransactionsProps> = ({
   limit = 10,
   title = 'Dernieres transactions',
+  mode = 'recent',
 }) => {
   const { transactions, categories, accounts, updateTransaction, deleteTransaction } = useBudget();
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
@@ -30,10 +32,18 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({
 
   const recentTransactions = useMemo(
     () => {
-      const sortedTransactions = [...transactions].sort((a, b) => b.date.getTime() - a.date.getTime());
+      const sourceTransactions = transactions.filter(transaction => {
+        if (mode === 'upcoming') return transaction.status === 'scheduled';
+        if (mode === 'recent') return transaction.status === 'completed';
+        return true;
+      });
+      const sortedTransactions = [...sourceTransactions].sort((a, b) => {
+        if (mode === 'upcoming') return a.date.getTime() - b.date.getTime();
+        return b.date.getTime() - a.date.getTime();
+      });
       return limit ? sortedTransactions.slice(0, limit) : sortedTransactions;
     },
-    [limit, transactions]
+    [limit, mode, transactions]
   );
 
   const activeAccounts = accounts.filter(account => account.isActive);

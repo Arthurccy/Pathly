@@ -261,8 +261,13 @@ const BudgetProgress: React.FC<BudgetProgressProps> = ({ viewMode = 'monthly' })
         </h3>
         <div className="text-right">
           <p className="text-sm text-gray-500 dark:text-gray-400">
-            {viewMode === 'monthly' ? 'Ce mois' : 'Cette année'}
+            {viewMode === 'monthly' ? 'Période' : 'Cette année'}
           </p>
+          {viewMode === 'monthly' && (
+            <p className="text-xs text-gray-500 dark:text-gray-400">
+              {format(periodStart, 'dd MMM', { locale: fr })} - {format(periodEnd, 'dd MMM', { locale: fr })}
+            </p>
+          )}
           <p className="text-xl font-bold text-gray-900 dark:text-white">
             {totalSpent.toFixed(2)} € / {totalBudgeted.toFixed(2)} €
           </p>
