@@ -62,6 +62,9 @@ const ExpenseChart: React.FC<ExpenseChartProps> = ({ viewMode = 'monthly' }) => 
         backgroundColor: categoryBreakdown.map(category => category.color),
         borderWidth: 2,
         borderColor: '#ffffff',
+        cutout: '52%',
+        radius: '96%',
+        hoverOffset: 8,
       },
     ],
   };
@@ -75,12 +78,7 @@ const ExpenseChart: React.FC<ExpenseChartProps> = ({ viewMode = 'monthly' }) => 
     },
     plugins: {
       legend: {
-        position: 'bottom' as const,
-        labels: {
-          padding: 20,
-          usePointStyle: true,
-          color: document.documentElement.classList.contains('dark') ? '#D1D5DB' : '#374151',
-        },
+        display: false,
       },
       tooltip: {
         callbacks: {
@@ -126,8 +124,28 @@ const ExpenseChart: React.FC<ExpenseChartProps> = ({ viewMode = 'monthly' }) => 
       </div>
       
       {hasData ? (
-        <div className="relative h-72 min-h-0 w-full overflow-hidden">
-          <Doughnut data={data} options={options} />
+        <div className="space-y-4">
+          <div className="relative mx-auto h-72 min-h-0 w-full max-w-[420px] overflow-hidden sm:h-96">
+            <Doughnut data={data} options={options} />
+          </div>
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+            {categoryBreakdown.map(category => (
+              <button
+                key={category.id}
+                type="button"
+                onClick={() => setSelectedCategoryId(category.id)}
+                className="flex items-center justify-between rounded-lg px-2 py-1.5 text-left text-sm transition hover:bg-gray-50 dark:hover:bg-gray-700/50"
+              >
+                <span className="flex min-w-0 items-center gap-2">
+                  <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: category.color }} />
+                  <span className="truncate text-gray-700 dark:text-gray-300">{category.name}</span>
+                </span>
+                <span className="ml-3 whitespace-nowrap font-medium text-gray-900 dark:text-white">
+                  {category.amount.toFixed(2)} €
+                </span>
+              </button>
+            ))}
+          </div>
         </div>
       ) : (
         <div className="h-64 flex items-center justify-center text-gray-500 dark:text-gray-400">
