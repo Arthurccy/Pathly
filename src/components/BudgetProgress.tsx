@@ -232,10 +232,21 @@ const BudgetProgress: React.FC<BudgetProgressProps> = ({ viewMode = 'monthly' })
   const totalUnplannedSpent = budgetProgress
     .filter(item => item.isUnplanned)
     .reduce((sum, item) => sum + item.spent, 0);
-  const remainingBudgets = budgetProgress.reduce(
+  const rawRemainingBudgets = budgetProgress.reduce(
     (sum, item) => sum + Math.max(item.budgeted - item.spent, 0),
     0
   );
+  const scheduledBudgetedDeductions = transactions
+    .filter(transaction =>
+      transaction.type === 'expense' &&
+      transaction.status === 'scheduled' &&
+      checkingAccountIds.has(transaction.accountId) &&
+      transaction.date >= today &&
+      transaction.date <= periodEnd &&
+      budgetProgress.some(item => !item.isUnplanned && item.categoryId === transaction.categoryId)
+    )
+    .reduce((sum, transaction) => sum + transaction.amount, 0);
+  const remainingBudgets = Math.max(rawRemainingBudgets - scheduledBudgetedDeductions, 0);
   const projectedAfterBudgets = projectedCurrentBalance - remainingBudgets;
   const selectedBudgetCategory = selectedCategoryId
     ? categories.find(category => category.id === selectedCategoryId)
@@ -283,10 +294,15 @@ const BudgetProgress: React.FC<BudgetProgressProps> = ({ viewMode = 'monthly' })
         </div>
 
         <div className="rounded-lg border border-gray-200 bg-gray-50 p-4 dark:border-gray-700 dark:bg-gray-900/50">
-          <p className="text-sm text-gray-500 dark:text-gray-400">Budgets restants</p>
+          <p className="text-sm text-gray-500 dark:text-gray-400">Budgets restants non planifiés</p>
           <p className="mt-1 text-xl font-semibold text-orange-600 dark:text-orange-400">
             -{remainingBudgets.toFixed(2)} €
           </p>
+          {scheduledBudgetedDeductions > 0 && (
+            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+              {scheduledBudgetedDeductions.toFixed(2)} € déjà prévus
+            </p>
+          )}
         </div>
 
         <div className="rounded-lg bg-gray-950 p-4 text-white dark:bg-white dark:text-gray-950">

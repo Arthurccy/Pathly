@@ -69,6 +69,10 @@ const ExpenseChart: React.FC<ExpenseChartProps> = ({ viewMode = 'monthly' }) => 
   const options = {
     responsive: true,
     maintainAspectRatio: false,
+    resizeDelay: 100,
+    layout: {
+      padding: 8,
+    },
     plugins: {
       legend: {
         position: 'bottom' as const,
@@ -88,6 +92,9 @@ const ExpenseChart: React.FC<ExpenseChartProps> = ({ viewMode = 'monthly' }) => 
           },
         },
       },
+    },
+    animation: {
+      duration: 250,
     },
     onClick: (_event: unknown, elements: any[]) => {
       const element = elements[0];
@@ -119,7 +126,7 @@ const ExpenseChart: React.FC<ExpenseChartProps> = ({ viewMode = 'monthly' }) => 
       </div>
       
       {hasData ? (
-        <div className="h-64">
+        <div className="relative h-72 min-h-0 w-full overflow-hidden">
           <Doughnut data={data} options={options} />
         </div>
       ) : (
