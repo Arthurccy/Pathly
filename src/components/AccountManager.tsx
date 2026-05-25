@@ -14,7 +14,8 @@ import {
   EyeOff,
   RefreshCw,
   History,
-  Calendar
+  Calendar,
+  ArrowRightLeft
 } from 'lucide-react';
 import { useBudget } from '../contexts/BudgetContext';
 import { BankAccount } from '../types';
@@ -22,10 +23,12 @@ import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 
 const AccountManager: React.FC = () => {
-  const { accounts, addAccount, updateAccount, deleteAccount, addTransaction } = useBudget();
+  const { accounts, addAccount, updateAccount, deleteAccount, addTransaction, transferBetweenAccounts } = useBudget();
   const [showForm, setShowForm] = useState(false);
   const [editingAccount, setEditingAccount] = useState<BankAccount | null>(null);
   const [showBalanceModal, setShowBalanceModal] = useState<string | null>(null);
+  const [showTransferModal, setShowTransferModal] = useState(false);
+  const [isTransferring, setIsTransferring] = useState(false);
   
   const [formData, setFormData] = useState({
     name: '',
@@ -42,6 +45,13 @@ const AccountManager: React.FC = () => {
     comment: '',
     date: new Date().toISOString().split('T')[0],
     updateType: 'manual' as 'manual' | 'transaction'
+  });
+
+  const [transferData, setTransferData] = useState({
+    fromAccountId: '',
+    toAccountId: '',
+    amount: '',
+    description: '',
   });
 
   const accountTypes = [
@@ -140,6 +150,70 @@ const AccountManager: React.FC = () => {
     });
   };
 
+  const openTransferModal = (fromAccountId?: string) => {
+    const activeAccounts = accounts.filter(account => account.isActive);
+    const sourceAccountId = fromAccountId || activeAccounts[0]?.id || '';
+    const destinationAccountId = activeAccounts.find(account => account.id !== sourceAccountId)?.id || '';
+
+    setTransferData({
+      fromAccountId: sourceAccountId,
+      toAccountId: destinationAccountId,
+      amount: '',
+      description: '',
+    });
+    setShowTransferModal(true);
+  };
+
+  const handleTransfer = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    const amount = parseFloat(transferData.amount);
+    const fromAccount = accounts.find(account => account.id === transferData.fromAccountId);
+    const toAccount = accounts.find(account => account.id === transferData.toAccountId);
+
+    if (!fromAccount || !toAccount) {
+      alert('Veuillez sélectionner deux comptes valides');
+      return;
+    }
+
+    if (fromAccount.id === toAccount.id) {
+      alert('Le compte de départ et le compte de destination doivent être différents');
+      return;
+    }
+
+    if (!Number.isFinite(amount) || amount <= 0) {
+      alert('Veuillez saisir un montant positif');
+      return;
+    }
+
+    if (fromAccount.currency !== toAccount.currency) {
+      alert('Les transferts entre devises différentes ne sont pas encore pris en charge');
+      return;
+    }
+
+    try {
+      setIsTransferring(true);
+      await transferBetweenAccounts(
+        fromAccount.id,
+        toAccount.id,
+        amount,
+        transferData.description.trim() || 'Transfert entre comptes'
+      );
+      setShowTransferModal(false);
+      setTransferData({
+        fromAccountId: '',
+        toAccountId: '',
+        amount: '',
+        description: '',
+      });
+    } catch (error) {
+      console.error('Error transferring money:', error);
+      alert("Impossible d'effectuer le transfert. Veuillez réessayer.");
+    } finally {
+      setIsTransferring(false);
+    }
+  };
+
   const resetForm = () => {
     setFormData({
       name: '',
@@ -219,13 +293,24 @@ const AccountManager: React.FC = () => {
           </h1>
         </div>
         
-        <button
-          onClick={() => setShowForm(true)}
-          className="flex items-center space-x-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition-colors"
-        >
-          <Plus className="h-5 w-5" />
-          <span>Nouveau compte</span>
-        </button>
+        <div className="flex items-center space-x-3">
+          <button
+            onClick={() => openTransferModal()}
+            disabled={accounts.filter(account => account.isActive).length < 2}
+            className="flex items-center space-x-2 bg-emerald-600 hover:bg-emerald-700 disabled:bg-emerald-300 disabled:cursor-not-allowed text-white px-4 py-2 rounded-lg transition-colors"
+          >
+            <ArrowRightLeft className="h-5 w-5" />
+            <span>Transférer</span>
+          </button>
+
+          <button
+            onClick={() => setShowForm(true)}
+            className="flex items-center space-x-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition-colors"
+          >
+            <Plus className="h-5 w-5" />
+            <span>Nouveau compte</span>
+          </button>
+        </div>
       </div>
 
       {/* Summary Cards */}
@@ -492,6 +577,15 @@ const AccountManager: React.FC = () => {
                         
                         <div className="flex items-center space-x-1">
                           <button
+                            onClick={() => openTransferModal(account.id)}
+                            disabled={accounts.filter(item => item.isActive).length < 2 || !account.isActive}
+                            className="p-1 text-emerald-600 hover:text-emerald-700 disabled:text-gray-300 disabled:cursor-not-allowed dark:text-emerald-400"
+                            title="Transférer depuis ce compte"
+                          >
+                            <ArrowRightLeft className="h-4 w-4" />
+                          </button>
+
+                          <button
                             onClick={() => openBalanceModal(account.id)}
                             className="p-1 text-purple-600 hover:text-purple-700 dark:text-purple-400"
                             title="Modifier le solde"
@@ -665,6 +759,124 @@ const AccountManager: React.FC = () => {
                 Mettre à jour
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Transfer Modal */}
+      {showTransferModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-lg w-full mx-4">
+            <form onSubmit={handleTransfer}>
+              <div className="p-6 border-b border-gray-200 dark:border-gray-700">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center">
+                    <ArrowRightLeft className="h-5 w-5 mr-2" />
+                    Transférer entre comptes
+                  </h3>
+                  <button
+                    type="button"
+                    onClick={() => setShowTransferModal(false)}
+                    className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                  >
+                    ×
+                  </button>
+                </div>
+              </div>
+
+              <div className="p-6 space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Compte de départ *
+                  </label>
+                  <select
+                    value={transferData.fromAccountId}
+                    onChange={(e) => {
+                      const nextFromId = e.target.value;
+                      const nextToId = transferData.toAccountId === nextFromId
+                        ? accounts.find(account => account.isActive && account.id !== nextFromId)?.id || ''
+                        : transferData.toAccountId;
+
+                      setTransferData({ ...transferData, fromAccountId: nextFromId, toAccountId: nextToId });
+                    }}
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
+                    required
+                  >
+                    {accounts.filter(account => account.isActive).map(account => (
+                      <option key={account.id} value={account.id}>
+                        {account.name} - {account.balance.toFixed(2)} {account.currency}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Compte de destination *
+                  </label>
+                  <select
+                    value={transferData.toAccountId}
+                    onChange={(e) => setTransferData({ ...transferData, toAccountId: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
+                    required
+                  >
+                    {accounts
+                      .filter(account => account.isActive && account.id !== transferData.fromAccountId)
+                      .map(account => (
+                        <option key={account.id} value={account.id}>
+                          {account.name} - {account.balance.toFixed(2)} {account.currency}
+                        </option>
+                      ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Montant *
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={transferData.amount}
+                    onChange={(e) => setTransferData({ ...transferData, amount: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
+                    placeholder="0.00"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Description
+                  </label>
+                  <input
+                    type="text"
+                    value={transferData.description}
+                    onChange={(e) => setTransferData({ ...transferData, description: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
+                    placeholder="Ex: Mise de côté, remboursement, virement interne"
+                  />
+                </div>
+              </div>
+
+              <div className="p-6 border-t border-gray-200 dark:border-gray-700 flex justify-end space-x-3">
+                <button
+                  type="button"
+                  onClick={() => setShowTransferModal(false)}
+                  className="px-4 py-2 text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-lg transition-colors"
+                >
+                  Annuler
+                </button>
+                <button
+                  type="submit"
+                  disabled={isTransferring}
+                  className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:bg-emerald-300 disabled:cursor-not-allowed text-white rounded-lg transition-colors"
+                >
+                  {isTransferring ? 'Transfert...' : 'Transférer'}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

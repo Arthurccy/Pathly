@@ -552,14 +552,47 @@ export const BudgetProvider: React.FC<BudgetProviderProps> = ({ children }) => {
     if (!user) return;
 
     try {
+      const fromAccount = accounts.find(a => a.id === fromAccountId);
+      const toAccount = accounts.find(a => a.id === toAccountId);
+
+      if (!fromAccount || !toAccount) {
+        throw new Error('Compte introuvable pour ce transfert');
+      }
+
+      if (fromAccountId === toAccountId) {
+        throw new Error('Les comptes de départ et de destination doivent être différents');
+      }
+
+      if (amount <= 0 || !Number.isFinite(amount)) {
+        throw new Error('Le montant du transfert doit être positif');
+      }
+
+      let transferCategory = categories.find(category =>
+        category.name.trim().toLowerCase() === 'transferts'
+      );
+
+      if (!transferCategory) {
+        transferCategory = await supabaseService.createCategory({
+          userId: user.id,
+          name: 'Transferts',
+          icon: 'ArrowRightLeft',
+          color: '#059669',
+          type: 'expense',
+          order: categories.length,
+          isActive: true,
+          description: 'Mouvements internes entre comptes',
+        });
+        setCategories(prev => [...prev, transferCategory!]);
+      }
+
       // Create transfer transactions
       const transferOut = await supabaseService.createTransaction({
         userId: user.id,
         accountId: fromAccountId,
         amount,
-        description: `Virement vers ${accounts.find(a => a.id === toAccountId)?.name} - ${description}`,
+        description: `Virement vers ${toAccount.name} - ${description}`,
         date: new Date(),
-        categoryId: 'transfer',
+        categoryId: transferCategory.id,
         type: 'transfer',
         status: 'completed',
         isRecurring: false,
@@ -570,9 +603,9 @@ export const BudgetProvider: React.FC<BudgetProviderProps> = ({ children }) => {
         userId: user.id,
         accountId: toAccountId,
         amount,
-        description: `Virement depuis ${accounts.find(a => a.id === fromAccountId)?.name} - ${description}`,
+        description: `Virement depuis ${fromAccount.name} - ${description}`,
         date: new Date(),
-        categoryId: 'transfer',
+        categoryId: transferCategory.id,
         type: 'transfer',
         status: 'completed',
         isRecurring: false,
