@@ -76,7 +76,7 @@ const AppContent: React.FC = () => {
       case 'add-transaction':
         return <AddTransaction />;
       case 'transactions':
-        return <RecentTransactions limit={0} title="Transactions" />;
+        return <RecentTransactions limit={0} title="Transactions" mode="all" />;
       case 'recurring-transactions':
         return <RecurringTransactions />;
       case 'calendar':
