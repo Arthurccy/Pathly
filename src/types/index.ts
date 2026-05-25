@@ -72,8 +72,8 @@ export interface Transaction {
 }
 
 export interface RecurringPattern {
-  frequency: 'daily' | 'weekly' | 'monthly' | 'yearly';
-  interval: number; // Every X days/weeks/months/years
+  frequency: 'daily' | 'weekly' | 'monthly' | 'quarterly' | 'yearly';
+  interval: number; // Every X days/weeks/months/quarters/years
   endDate?: Date;
   nextDate: Date;
   lastGenerated?: Date;

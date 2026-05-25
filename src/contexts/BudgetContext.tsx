@@ -865,6 +865,9 @@ export const BudgetProvider: React.FC<BudgetProviderProps> = ({ children }) => {
           case 'monthly':
             nextDate = addMonths(pattern.nextDate, pattern.interval);
             break;
+          case 'quarterly':
+            nextDate = addMonths(pattern.nextDate, pattern.interval * 3);
+            break;
           case 'yearly':
             nextDate = addYears(pattern.nextDate, pattern.interval);
             break;

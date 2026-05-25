@@ -17,7 +17,7 @@ const RecurringTransactions: React.FC = () => {
     categoryId: '',
     accountId: '',
     type: 'expense' as 'expense' | 'income',
-    frequency: 'monthly' as 'daily' | 'weekly' | 'monthly' | 'yearly',
+    frequency: 'monthly' as 'daily' | 'weekly' | 'monthly' | 'quarterly' | 'yearly',
     interval: 1,
     nextDate: new Date().toISOString().split('T')[0],
     endDate: '',
@@ -31,6 +31,7 @@ const RecurringTransactions: React.FC = () => {
       daily: interval === 1 ? 'Quotidien' : `Tous les ${interval} jours`,
       weekly: interval === 1 ? 'Hebdomadaire' : `Toutes les ${interval} semaines`,
       monthly: interval === 1 ? 'Mensuel' : `Tous les ${interval} mois`,
+      quarterly: interval === 1 ? 'Trimestriel' : `Tous les ${interval} trimestres`,
       yearly: interval === 1 ? 'Annuel' : `Tous les ${interval} ans`,
     };
     return labels[frequency as keyof typeof labels] || frequency;
@@ -47,6 +48,8 @@ const RecurringTransactions: React.FC = () => {
         return addWeeks(next, interval);
       case 'monthly':
         return addMonths(next, interval);
+      case 'quarterly':
+        return addMonths(next, interval * 3);
       case 'yearly':
         return addYears(next, interval);
       default:
