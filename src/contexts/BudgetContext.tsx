@@ -97,6 +97,20 @@ const dedupeAccounts = (items: BankAccount[]): BankAccount[] => {
   });
 };
 
+const getAccountBalanceImpact = (transaction: Pick<Transaction, 'type' | 'amount' | 'description'>) => {
+  if (transaction.type === 'income' || transaction.type === 'refund' || transaction.type === 'savings_withdrawal') {
+    return transaction.amount;
+  }
+
+  if (transaction.type === 'transfer') {
+    return transaction.description.toLowerCase().includes('depuis')
+      ? transaction.amount
+      : -transaction.amount;
+  }
+
+  return -transaction.amount;
+};
+
 const normalizeCategoryRefs = (
   categoryItems: Category[],
   transactionItems: Transaction[],
@@ -414,7 +428,7 @@ export const BudgetProvider: React.FC<BudgetProviderProps> = ({ children }) => {
       if (newTransaction.status === 'completed') {
         await updateAccountBalance(
           transaction.accountId, 
-          transaction.type === 'income' ? transaction.amount : -transaction.amount
+          getAccountBalanceImpact(newTransaction)
         );
       }
     } catch (error) {
@@ -445,7 +459,7 @@ export const BudgetProvider: React.FC<BudgetProviderProps> = ({ children }) => {
         if (oldTransaction.status === 'completed') {
           await updateAccountBalance(
             oldTransaction.accountId, 
-            oldTransaction.type === 'income' ? -oldTransaction.amount : oldTransaction.amount
+            -getAccountBalanceImpact(oldTransaction)
           );
         }
         
@@ -453,7 +467,7 @@ export const BudgetProvider: React.FC<BudgetProviderProps> = ({ children }) => {
         if (updatedTransaction.status === 'completed') {
           await updateAccountBalance(
             updatedTransaction.accountId, 
-            updatedTransaction.type === 'income' ? updatedTransaction.amount : -updatedTransaction.amount
+            getAccountBalanceImpact(updatedTransaction)
           );
         }
       }
@@ -477,7 +491,7 @@ export const BudgetProvider: React.FC<BudgetProviderProps> = ({ children }) => {
       if (transaction.status === 'completed') {
         await updateAccountBalance(
           transaction.accountId, 
-          transaction.type === 'income' ? -transaction.amount : transaction.amount
+          -getAccountBalanceImpact(transaction)
         );
       }
     } catch (error) {

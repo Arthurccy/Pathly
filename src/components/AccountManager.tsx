@@ -307,6 +307,9 @@ const AccountManager: React.FC = () => {
   const bankGap = selectedHistoryAccount && Number.isFinite(bankBalance)
     ? bankBalance - selectedHistoryAccount.balance
     : null;
+  const expectedOpeningBalance = selectedHistoryAccount && Number.isFinite(bankBalance)
+    ? bankBalance - completedHistoryImpact
+    : null;
 
   const totalBalance = accounts
     .filter(a => a.isActive && a.type !== 'credit')
@@ -754,11 +757,21 @@ const AccountManager: React.FC = () => {
                     />
                   </div>
                   {bankGap !== null && (
-                    <div className="rounded-xl bg-white px-4 py-3 text-sm shadow-sm dark:bg-gray-900">
-                      <p className="text-gray-500 dark:text-gray-400">Écart à retrouver</p>
-                      <p className={`text-lg font-semibold ${bankGap >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}>
-                        {bankGap >= 0 ? '+' : ''}{bankGap.toFixed(2)} {selectedHistoryAccount.currency}
-                      </p>
+                    <div className="grid gap-2 rounded-xl bg-white px-4 py-3 text-sm shadow-sm dark:bg-gray-900">
+                      <div>
+                        <p className="text-gray-500 dark:text-gray-400">Écart à retrouver</p>
+                        <p className={`text-lg font-semibold ${bankGap >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}>
+                          {bankGap >= 0 ? '+' : ''}{bankGap.toFixed(2)} {selectedHistoryAccount.currency}
+                        </p>
+                      </div>
+                      {expectedOpeningBalance !== null && (
+                        <div className="border-t border-gray-100 pt-2 dark:border-gray-800">
+                          <p className="text-gray-500 dark:text-gray-400">Solde avant historique attendu</p>
+                          <p className="font-semibold text-gray-950 dark:text-white">
+                            {expectedOpeningBalance.toFixed(2)} {selectedHistoryAccount.currency}
+                          </p>
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
