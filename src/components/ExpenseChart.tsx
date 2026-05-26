@@ -217,12 +217,6 @@ const ExpenseChart: React.FC<ExpenseChartProps> = ({ viewMode = 'monthly' }) => 
   const remainingIncome = baseIncome - totalOutgoings;
   const plannedTransactionsCount = cashFlowTransactions.filter(t => t.status === 'scheduled' || t.status === 'pending').length + debtPaymentItems.length;
 
-  const MAX_WATERFALL_DEDUCTIONS = 8;
-  const displayedOutgoings = outgoingItems.slice(0, MAX_WATERFALL_DEDUCTIONS);
-  const otherOutgoingsAmount = outgoingItems
-    .slice(MAX_WATERFALL_DEDUCTIONS)
-    .reduce((sum, item) => sum + item.amount, 0);
-
   let runningBalance = baseIncome;
   const waterfallItems: {
     label: string;
@@ -240,7 +234,7 @@ const ExpenseChart: React.FC<ExpenseChartProps> = ({ viewMode = 'monthly' }) => 
     },
   ];
 
-  displayedOutgoings.forEach(item => {
+  outgoingItems.forEach(item => {
     const start = runningBalance;
     runningBalance -= item.amount;
     const label = `${format(item.date, 'dd MMM', { locale: fr })} · ${item.description} (${item.statusLabel})`;
@@ -253,18 +247,6 @@ const ExpenseChart: React.FC<ExpenseChartProps> = ({ viewMode = 'monthly' }) => 
       color: item.color,
     });
   });
-
-  if (otherOutgoingsAmount > 0) {
-    const start = runningBalance;
-    runningBalance -= otherOutgoingsAmount;
-    waterfallItems.push({
-      label: 'Autres sorties',
-      shortLabel: 'Autres',
-      value: -otherOutgoingsAmount,
-      range: [Math.min(start, runningBalance), Math.max(start, runningBalance)],
-      color: '#EA580C',
-    });
-  }
 
   waterfallItems.push({
     label: 'Reste en fin de période',
@@ -314,7 +296,7 @@ const ExpenseChart: React.FC<ExpenseChartProps> = ({ viewMode = 'monthly' }) => 
           autoSkip: false,
           callback: (_value: string | number, index: number) => {
             const label = waterfallItems[index]?.shortLabel || '';
-            return label.length > 12 ? `${label.slice(0, 12)}...` : label;
+            return label.length > 18 ? `${label.slice(0, 18)}...` : label;
           },
         },
         grid: {
@@ -426,7 +408,7 @@ const ExpenseChart: React.FC<ExpenseChartProps> = ({ viewMode = 'monthly' }) => 
               </div>
             </div>
             <div className="mt-4 overflow-x-auto pb-3">
-              <div className="h-72" style={{ minWidth: `${Math.max(720, waterfallItems.length * 130)}px` }}>
+              <div className="h-72" style={{ minWidth: `${Math.max(720, waterfallItems.length * 170)}px` }}>
                 <Bar data={waterfallData} options={waterfallOptions as any} />
               </div>
             </div>
