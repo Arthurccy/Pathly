@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { CreditCard, Plus, Save } from 'lucide-react';
+import { AlertCircle, CheckCircle2, CreditCard, Plus, Save, X } from 'lucide-react';
 import * as LucideIcons from 'lucide-react';
 import { useBudget } from '../contexts/BudgetContext';
 
@@ -20,6 +20,11 @@ const AddTransaction: React.FC = () => {
     maxOccurrences: '',
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [notice, setNotice] = useState<{
+    type: 'success' | 'error';
+    title: string;
+    message: string;
+  } | null>(null);
 
   const activeAccounts = useMemo(
     () => accounts.filter(account => account.isActive),
@@ -41,17 +46,29 @@ const AddTransaction: React.FC = () => {
     e.preventDefault();
 
     if (!formData.amount || !formData.description || !formData.accountId || !formData.categoryId) {
-      alert('Veuillez remplir tous les champs obligatoires');
+      setNotice({
+        type: 'error',
+        title: 'Champs manquants',
+        message: 'Renseignez le montant, la description, le compte et la categorie.',
+      });
       return;
     }
 
     if (formData.isRecurring && !formData.nextDate) {
-      alert('Veuillez sélectionner la date de la prochaine occurrence');
+      setNotice({
+        type: 'error',
+        title: 'Date manquante',
+        message: 'Selectionnez la date de la prochaine occurrence.',
+      });
       return;
     }
 
     if (!activeAccounts.some(account => account.id === formData.accountId)) {
-      alert('Veuillez sélectionner un compte valide');
+      setNotice({
+        type: 'error',
+        title: 'Compte invalide',
+        message: 'Selectionnez un compte actif avant d enregistrer.',
+      });
       return;
     }
 
@@ -100,10 +117,20 @@ const AddTransaction: React.FC = () => {
         maxOccurrences: '',
       }));
 
-      alert('Transaction ajoutée avec succès !');
+      setNotice({
+        type: 'success',
+        title: 'Transaction ajoutee',
+        message: formData.date > new Date().toISOString().split('T')[0] || formData.isRecurring
+          ? 'Elle est bien planifiee dans vos operations a venir.'
+          : 'Elle est bien enregistree dans vos transactions.',
+      });
     } catch (error) {
       console.error('Error submitting transaction:', error);
-      alert("Impossible d'ajouter la transaction. Vérifiez les champs puis réessayez.");
+      setNotice({
+        type: 'error',
+        title: 'Enregistrement impossible',
+        message: 'Verifiez les champs puis reessayez.',
+      });
     } finally {
       setIsSubmitting(false);
     }
@@ -112,27 +139,27 @@ const AddTransaction: React.FC = () => {
   const availableCategories = categories.filter(c => c.type === formData.type);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6">
       <div className="flex items-center space-x-3">
         <div className="p-2 bg-blue-100 dark:bg-blue-900/20 rounded-lg">
           <Plus className="h-6 w-6 text-blue-600 dark:text-blue-400" />
         </div>
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
+        <h1 className="text-xl font-bold text-gray-900 dark:text-white sm:text-2xl">
           Ajouter une transaction
         </h1>
       </div>
 
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+      <div className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-800 sm:p-6">
         <form onSubmit={handleSubmit} className="space-y-6">
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
               Type de transaction *
             </label>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-2 gap-2 sm:gap-3">
               <button
                 type="button"
                 onClick={() => setFormData({ ...formData, type: 'expense', categoryId: '' })}
-                className={`p-4 rounded-lg border-2 transition-all ${
+                  className={`rounded-xl border-2 p-3 transition-all sm:p-4 ${
                   formData.type === 'expense'
                     ? 'border-red-500 bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300'
                     : 'border-gray-200 dark:border-gray-600 hover:border-gray-300 dark:hover:border-gray-500'
@@ -146,7 +173,7 @@ const AddTransaction: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setFormData({ ...formData, type: 'income', categoryId: '' })}
-                className={`p-4 rounded-lg border-2 transition-all ${
+                  className={`rounded-xl border-2 p-3 transition-all sm:p-4 ${
                   formData.type === 'income'
                     ? 'border-green-500 bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-300'
                     : 'border-gray-200 dark:border-gray-600 hover:border-gray-300 dark:hover:border-gray-500'
@@ -223,7 +250,7 @@ const AddTransaction: React.FC = () => {
             <label htmlFor="category" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
               Catégorie *
             </label>
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 sm:gap-3 lg:grid-cols-4">
               {availableCategories.map((category) => {
                 const IconComponent = (LucideIcons as any)[category.icon] || LucideIcons.DollarSign;
                 return (
@@ -231,7 +258,7 @@ const AddTransaction: React.FC = () => {
                     key={category.id}
                     type="button"
                     onClick={() => setFormData({ ...formData, categoryId: category.id })}
-                    className={`p-4 rounded-lg border-2 transition-all ${
+                    className={`rounded-xl border-2 p-3 transition-all sm:p-4 ${
                       formData.categoryId === category.id
                         ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
                         : 'border-gray-200 dark:border-gray-600 hover:border-gray-300 dark:hover:border-gray-500'
@@ -379,6 +406,45 @@ const AddTransaction: React.FC = () => {
           </button>
         </form>
       </div>
+
+      {notice && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/40 p-0 backdrop-blur-sm sm:items-center sm:p-4">
+          <div className="w-full max-w-md rounded-t-3xl bg-white p-6 shadow-2xl dark:bg-gray-900 sm:rounded-3xl">
+            <div className="flex items-start justify-between gap-4">
+              <div className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-full ${
+                notice.type === 'success'
+                  ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300'
+                  : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300'
+              }`}>
+                {notice.type === 'success' ? <CheckCircle2 className="h-6 w-6" /> : <AlertCircle className="h-6 w-6" />}
+              </div>
+              <button
+                type="button"
+                onClick={() => setNotice(null)}
+                className="rounded-full p-2 text-gray-400 transition hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-gray-800 dark:hover:text-gray-200"
+                aria-label="Fermer"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="mt-5">
+              <h2 className="text-xl font-semibold text-gray-950 dark:text-white">{notice.title}</h2>
+              <p className="mt-2 text-sm leading-6 text-gray-600 dark:text-gray-300">{notice.message}</p>
+            </div>
+
+            <div className="mt-6 flex justify-end">
+              <button
+                type="button"
+                onClick={() => setNotice(null)}
+                className="rounded-full bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700"
+              >
+                OK
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

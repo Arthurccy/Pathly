@@ -18,16 +18,18 @@ import {
   ArrowRightLeft
 } from 'lucide-react';
 import { useBudget } from '../contexts/BudgetContext';
-import { BankAccount } from '../types';
+import { BankAccount, Transaction } from '../types';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 
 const AccountManager: React.FC = () => {
-  const { accounts, addAccount, updateAccount, deleteAccount, addTransaction, transferBetweenAccounts } = useBudget();
+  const { accounts, categories, transactions, addAccount, updateAccount, deleteAccount, addTransaction, transferBetweenAccounts } = useBudget();
   const [showForm, setShowForm] = useState(false);
   const [editingAccount, setEditingAccount] = useState<BankAccount | null>(null);
   const [showBalanceModal, setShowBalanceModal] = useState<string | null>(null);
   const [showTransferModal, setShowTransferModal] = useState(false);
+  const [historyAccountId, setHistoryAccountId] = useState<string | null>(null);
+  const [bankBalanceInput, setBankBalanceInput] = useState('');
   const [isTransferring, setIsTransferring] = useState(false);
   
   const [formData, setFormData] = useState({
@@ -268,6 +270,43 @@ const AccountManager: React.FC = () => {
     const accountType = accountTypes.find(t => t.value === type);
     return accountType?.label || type;
   };
+
+  const getTransactionImpact = (transaction: Transaction) => {
+    if (transaction.type === 'transfer') {
+      return transaction.description.toLowerCase().includes('depuis')
+        ? transaction.amount
+        : -transaction.amount;
+    }
+
+    if (transaction.type === 'income' || transaction.type === 'refund' || transaction.type === 'savings_withdrawal') {
+      return transaction.amount;
+    }
+
+    if (transaction.type === 'expense' || transaction.type === 'bill' || transaction.type === 'savings') {
+      return -transaction.amount;
+    }
+
+    return 0;
+  };
+
+  const selectedHistoryAccount = historyAccountId
+    ? accounts.find(account => account.id === historyAccountId)
+    : null;
+  const selectedHistoryTransactions = selectedHistoryAccount
+    ? transactions
+        .filter(transaction => transaction.accountId === selectedHistoryAccount.id)
+        .sort((a, b) => b.date.getTime() - a.date.getTime())
+    : [];
+  const completedHistoryImpact = selectedHistoryTransactions
+    .filter(transaction => transaction.status === 'completed')
+    .reduce((sum, transaction) => sum + getTransactionImpact(transaction), 0);
+  const reconstructedOpeningBalance = selectedHistoryAccount
+    ? selectedHistoryAccount.balance - completedHistoryImpact
+    : 0;
+  const bankBalance = bankBalanceInput ? parseFloat(bankBalanceInput) : NaN;
+  const bankGap = selectedHistoryAccount && Number.isFinite(bankBalance)
+    ? bankBalance - selectedHistoryAccount.balance
+    : null;
 
   const totalBalance = accounts
     .filter(a => a.isActive && a.type !== 'credit')
@@ -577,6 +616,17 @@ const AccountManager: React.FC = () => {
                         
                         <div className="flex items-center space-x-1">
                           <button
+                            onClick={() => {
+                              setHistoryAccountId(account.id);
+                              setBankBalanceInput('');
+                            }}
+                            className="p-1 text-slate-600 hover:text-slate-800 dark:text-slate-300 dark:hover:text-white"
+                            title="Voir l'historique du compte"
+                          >
+                            <History className="h-4 w-4" />
+                          </button>
+
+                          <button
                             onClick={() => openTransferModal(account.id)}
                             disabled={accounts.filter(item => item.isActive).length < 2 || !account.isActive}
                             className="p-1 text-emerald-600 hover:text-emerald-700 disabled:text-gray-300 disabled:cursor-not-allowed dark:text-emerald-400"
@@ -639,6 +689,147 @@ const AccountManager: React.FC = () => {
           </div>
         )}
       </div>
+
+      {/* Account History Modal */}
+      {selectedHistoryAccount && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/50 p-0 backdrop-blur-sm sm:items-center sm:p-4">
+          <div className="max-h-[92dvh] w-full overflow-hidden rounded-t-3xl bg-white shadow-2xl dark:bg-gray-900 sm:max-w-4xl sm:rounded-3xl">
+            <div className="border-b border-gray-200 bg-white px-5 py-4 dark:border-gray-800 dark:bg-gray-900 sm:px-6">
+              <div className="flex items-start justify-between gap-4">
+                <div className="min-w-0">
+                  <p className="text-sm text-gray-500 dark:text-gray-400">Historique du compte</p>
+                  <h3 className="truncate text-xl font-semibold text-gray-950 dark:text-white">
+                    {selectedHistoryAccount.name}
+                  </h3>
+                  <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                    {selectedHistoryAccount.bankName || getAccountTypeLabel(selectedHistoryAccount.type)}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setHistoryAccountId(null)}
+                  className="rounded-full p-2 text-gray-400 transition hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-gray-800 dark:hover:text-gray-200"
+                  aria-label="Fermer"
+                >
+                  ×
+                </button>
+              </div>
+            </div>
+
+            <div className="max-h-[calc(92dvh-5rem)] overflow-y-auto p-5 sm:p-6">
+              <div className="grid gap-3 sm:grid-cols-3">
+                <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4 dark:border-gray-800 dark:bg-gray-950">
+                  <p className="text-sm text-gray-500 dark:text-gray-400">Solde Pathly</p>
+                  <p className={`mt-1 text-2xl font-semibold ${selectedHistoryAccount.balance >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}>
+                    {selectedHistoryAccount.balance.toFixed(2)} {selectedHistoryAccount.currency}
+                  </p>
+                </div>
+                <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4 dark:border-gray-800 dark:bg-gray-950">
+                  <p className="text-sm text-gray-500 dark:text-gray-400">Mouvements terminés</p>
+                  <p className={`mt-1 text-2xl font-semibold ${completedHistoryImpact >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}>
+                    {completedHistoryImpact >= 0 ? '+' : ''}{completedHistoryImpact.toFixed(2)} {selectedHistoryAccount.currency}
+                  </p>
+                </div>
+                <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4 dark:border-gray-800 dark:bg-gray-950">
+                  <p className="text-sm text-gray-500 dark:text-gray-400">Solde avant historique</p>
+                  <p className="mt-1 text-2xl font-semibold text-gray-950 dark:text-white">
+                    {reconstructedOpeningBalance.toFixed(2)} {selectedHistoryAccount.currency}
+                  </p>
+                </div>
+              </div>
+
+              <div className="mt-4 rounded-2xl border border-blue-200 bg-blue-50 p-4 dark:border-blue-900/60 dark:bg-blue-950/30">
+                <div className="grid gap-3 sm:grid-cols-[1fr_auto] sm:items-end">
+                  <div>
+                    <label className="block text-sm font-medium text-blue-950 dark:text-blue-100">
+                      Solde réel affiché par ta banque
+                    </label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={bankBalanceInput}
+                      onChange={(event) => setBankBalanceInput(event.target.value)}
+                      className="mt-2 w-full rounded-xl border border-blue-200 bg-white px-3 py-2.5 text-gray-950 focus:border-transparent focus:ring-2 focus:ring-blue-500 dark:border-blue-900 dark:bg-gray-900 dark:text-white"
+                      placeholder={`Ex: ${selectedHistoryAccount.balance.toFixed(2)}`}
+                    />
+                  </div>
+                  {bankGap !== null && (
+                    <div className="rounded-xl bg-white px-4 py-3 text-sm shadow-sm dark:bg-gray-900">
+                      <p className="text-gray-500 dark:text-gray-400">Écart à retrouver</p>
+                      <p className={`text-lg font-semibold ${bankGap >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}>
+                        {bankGap >= 0 ? '+' : ''}{bankGap.toFixed(2)} {selectedHistoryAccount.currency}
+                      </p>
+                    </div>
+                  )}
+                </div>
+                <p className="mt-3 text-sm text-blue-900 dark:text-blue-200">
+                  Si l'écart correspond à une opération absente, ajoute-la. Si c'est juste une correction de départ, utilise "Modifier le solde" avec création d'une transaction d'ajustement.
+                </p>
+              </div>
+
+              <div className="mt-6">
+                <div className="mb-3 flex items-center justify-between gap-3">
+                  <h4 className="font-semibold text-gray-950 dark:text-white">
+                    Mouvements ({selectedHistoryTransactions.length})
+                  </h4>
+                  <button
+                    type="button"
+                    onClick={() => openBalanceModal(selectedHistoryAccount.id)}
+                    className="rounded-full bg-purple-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-purple-700"
+                  >
+                    Ajuster le solde
+                  </button>
+                </div>
+
+                {selectedHistoryTransactions.length > 0 ? (
+                  <div className="space-y-3">
+                    {selectedHistoryTransactions.map(transaction => {
+                      const category = categories.find(item => item.id === transaction.categoryId);
+                      const impact = getTransactionImpact(transaction);
+                      return (
+                        <div key={transaction.id} className="rounded-2xl border border-gray-200 p-4 dark:border-gray-800">
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="min-w-0">
+                              <p className="truncate font-medium text-gray-950 dark:text-white">
+                                {transaction.description}
+                              </p>
+                              <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
+                                <span className="inline-flex items-center gap-1">
+                                  <Calendar className="h-3.5 w-3.5" />
+                                  {format(transaction.date, 'dd MMM yyyy', { locale: fr })}
+                                </span>
+                                {category && <span>{category.name}</span>}
+                                <span className={`rounded-full px-2 py-0.5 ${
+                                  transaction.status === 'completed'
+                                    ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300'
+                                    : transaction.status === 'scheduled'
+                                      ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300'
+                                      : 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300'
+                                }`}>
+                                  {transaction.status === 'completed' ? 'Terminé' : transaction.status === 'scheduled' ? 'À venir' : transaction.status}
+                                </span>
+                              </div>
+                            </div>
+                            <p className={`whitespace-nowrap text-sm font-semibold ${
+                              impact >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'
+                            }`}>
+                              {impact >= 0 ? '+' : ''}{impact.toFixed(2)} {selectedHistoryAccount.currency}
+                            </p>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="rounded-2xl border border-dashed border-gray-300 p-8 text-center text-gray-500 dark:border-gray-700 dark:text-gray-400">
+                    Aucun mouvement lié à ce compte.
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Balance Update Modal */}
       {showBalanceModal && (

@@ -305,9 +305,9 @@ const Dashboard: React.FC<DashboardProps> = ({ onViewChange }) => {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6">
       <section className="overflow-hidden rounded-2xl border border-white/70 bg-white/85 shadow-sm backdrop-blur dark:border-gray-800 dark:bg-gray-900/85">
-        <div className="grid gap-6 p-5 sm:p-6 xl:grid-cols-[1.3fr_0.7fr]">
+        <div className="grid gap-4 p-4 sm:gap-6 sm:p-6 xl:grid-cols-[1.3fr_0.7fr]">
           <div className="min-w-0">
             <p className="text-sm font-medium capitalize text-blue-700 dark:text-blue-300">
               {format(currentDate, 'MMMM yyyy', { locale: fr })}
@@ -315,14 +315,14 @@ const Dashboard: React.FC<DashboardProps> = ({ onViewChange }) => {
             <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
               Période budgétaire: {format(currentMonthPeriod.start, 'dd MMM', { locale: fr })} - {format(currentMonthPeriod.end, 'dd MMM yyyy', { locale: fr })}
             </p>
-            <h1 className="mt-2 text-3xl font-bold text-gray-950 dark:text-white">
+            <h1 className="mt-2 text-2xl font-bold text-gray-950 dark:text-white sm:text-3xl">
               Votre argent, en clair.
             </h1>
             <p className="mt-2 max-w-2xl text-sm text-gray-600 dark:text-gray-400">
               Ajoutez une opération en un clic, gardez vos comptes sous les yeux et voyez ce qui restera sur le compte courant.
             </p>
 
-            <div className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-3">
+            <div className="-mx-1 mt-5 flex gap-3 overflow-x-auto px-1 pb-1 sm:mx-0 sm:grid sm:grid-cols-3 sm:overflow-visible sm:px-0 sm:pb-0">
               {primaryActions.map(action => {
                 const Icon = action.icon;
                 return (
@@ -330,7 +330,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onViewChange }) => {
                     key={action.view}
                     type="button"
                     onClick={() => onViewChange?.(action.view)}
-                    className="flex min-h-20 items-center gap-3 rounded-xl border border-gray-200 bg-white p-4 text-left transition hover:-translate-y-0.5 hover:border-blue-200 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:border-gray-800 dark:bg-gray-950/60 dark:hover:border-blue-800"
+                    className="flex min-h-20 min-w-[12.5rem] items-center gap-3 rounded-xl border border-gray-200 bg-white p-4 text-left transition hover:-translate-y-0.5 hover:border-blue-200 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:border-gray-800 dark:bg-gray-950/60 dark:hover:border-blue-800 sm:min-w-0"
                   >
                     <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-gray-950 text-white dark:bg-white dark:text-gray-950">
                       <Icon className="h-5 w-5" />
@@ -345,9 +345,9 @@ const Dashboard: React.FC<DashboardProps> = ({ onViewChange }) => {
             </div>
           </div>
 
-          <div className="rounded-xl bg-gray-950 p-5 text-white shadow-sm dark:bg-white dark:text-gray-950">
+          <div className="rounded-2xl bg-gray-950 p-4 text-white shadow-sm dark:bg-white dark:text-gray-950 sm:p-5">
             <p className="text-sm text-gray-300 dark:text-gray-600">Solde courant prévu</p>
-            <p className={`mt-2 text-4xl font-bold ${projectedCurrentBalance >= 0 ? 'text-emerald-300 dark:text-emerald-700' : 'text-red-300 dark:text-red-700'}`}>
+            <p className={`mt-2 break-words text-3xl font-bold sm:text-4xl ${projectedCurrentBalance >= 0 ? 'text-emerald-300 dark:text-emerald-700' : 'text-red-300 dark:text-red-700'}`}>
               {projectedCurrentBalance.toFixed(2)} €
             </p>
             <div className="mt-5 grid grid-cols-2 gap-3 text-sm">
@@ -386,12 +386,12 @@ const Dashboard: React.FC<DashboardProps> = ({ onViewChange }) => {
         </div>
       </section>
 
-      <div className="relative z-30 flex flex-col gap-3 rounded-xl border border-gray-200 bg-white/80 p-3 shadow-sm backdrop-blur dark:border-gray-800 dark:bg-gray-900/80 md:flex-row md:items-center md:justify-between">
+      <div className="relative z-30 flex flex-col gap-3 rounded-xl border border-gray-200 bg-white/90 p-3 shadow-sm backdrop-blur dark:border-gray-800 dark:bg-gray-900/90 md:flex-row md:items-center md:justify-between">
         <div className="flex flex-wrap items-center gap-3">
-          <div className="flex bg-gray-100 dark:bg-gray-700 rounded-lg p-1">
+          <div className="grid w-full grid-cols-2 rounded-lg bg-gray-100 p-1 dark:bg-gray-700 sm:flex sm:w-auto">
             <button
               onClick={() => setViewMode('monthly')}
-              className={`px-3 py-1 rounded-md text-sm font-medium transition-colors ${
+              className={`rounded-md px-3 py-2 text-sm font-medium transition-colors sm:py-1 ${
                 viewMode === 'monthly'
                   ? 'bg-white dark:bg-gray-600 text-gray-900 dark:text-white shadow-sm'
                   : 'text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white'
@@ -402,7 +402,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onViewChange }) => {
             </button>
             <button
               onClick={() => setViewMode('yearly')}
-              className={`px-3 py-1 rounded-md text-sm font-medium transition-colors ${
+              className={`rounded-md px-3 py-2 text-sm font-medium transition-colors sm:py-1 ${
                 viewMode === 'yearly'
                   ? 'bg-white dark:bg-gray-600 text-gray-900 dark:text-white shadow-sm'
                   : 'text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white'
@@ -416,7 +416,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onViewChange }) => {
           <div className="relative z-40">
             <button
               onClick={() => setShowAccountFilter(!showAccountFilter)}
-              className="flex items-center space-x-2 px-3 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+              className="flex w-full items-center justify-center space-x-2 rounded-lg border border-gray-300 bg-white px-3 py-2.5 transition-colors hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:hover:bg-gray-700 sm:w-auto sm:justify-start sm:py-2"
             >
               <Filter className="h-4 w-4" />
               <span className="text-sm font-medium">
@@ -425,7 +425,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onViewChange }) => {
             </button>
 
             {showAccountFilter && (
-              <div className="absolute right-0 z-50 mt-2 w-64 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-xl">
+              <div className="absolute left-0 right-0 z-50 mt-2 rounded-2xl border border-gray-200 bg-white shadow-xl dark:border-gray-700 dark:bg-gray-800 sm:left-auto sm:w-72">
                 <div className="p-3 border-b border-gray-200 dark:border-gray-700">
                   <button
                     onClick={toggleAllAccounts}
@@ -474,13 +474,13 @@ const Dashboard: React.FC<DashboardProps> = ({ onViewChange }) => {
         </div>
       </div>
 
-      <div className="relative z-0 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="relative z-0 grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 lg:grid-cols-4">
         {stats.map((stat) => {
           const Icon = stat.icon;
           return (
             <div
               key={stat.title}
-              className="bg-white/85 dark:bg-gray-900/85 rounded-xl shadow-sm border border-gray-200 dark:border-gray-800 p-5 backdrop-blur"
+              className="rounded-xl border border-gray-200 bg-white/90 p-4 shadow-sm backdrop-blur dark:border-gray-800 dark:bg-gray-900/90 sm:p-5"
             >
               <div className="flex items-center justify-between">
                 <div className="flex items-center">
@@ -491,7 +491,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onViewChange }) => {
                     <p className="text-sm font-medium text-gray-500 dark:text-gray-400">
                       {stat.title}
                     </p>
-                    <p className="text-2xl font-semibold text-gray-900 dark:text-white">
+                    <p className="break-words text-xl font-semibold text-gray-900 dark:text-white sm:text-2xl">
                       {stat.value}
                     </p>
                   </div>

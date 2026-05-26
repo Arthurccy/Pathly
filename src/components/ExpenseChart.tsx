@@ -306,8 +306,8 @@ const ExpenseChart: React.FC<ExpenseChartProps> = ({ viewMode = 'monthly' }) => 
   };
 
   return (
-    <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6">
-      <div className="flex items-center justify-between mb-4">
+    <div className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-800 sm:p-6">
+      <div className="mb-4 flex items-center justify-between gap-4">
         <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
           Répartition des dépenses
         </h3>
@@ -323,7 +323,7 @@ const ExpenseChart: React.FC<ExpenseChartProps> = ({ viewMode = 'monthly' }) => 
 
       {hasData ? (
         <div className="space-y-4">
-          <div className="relative mx-auto h-72 min-h-0 w-full max-w-[420px] overflow-hidden sm:h-96">
+          <div className="relative mx-auto h-64 min-h-0 w-full max-w-[420px] overflow-hidden sm:h-96">
             <Doughnut data={data} options={options} />
           </div>
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
@@ -416,8 +416,8 @@ const ExpenseChart: React.FC<ExpenseChartProps> = ({ viewMode = 'monthly' }) => 
       </div>
 
       {selectedCategory && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm">
-          <div className="w-full max-w-2xl overflow-hidden rounded-2xl bg-white shadow-2xl dark:bg-gray-900">
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/60 p-0 backdrop-blur-sm sm:items-center sm:p-4">
+          <div className="max-h-[92dvh] w-full overflow-hidden rounded-t-3xl bg-white shadow-2xl dark:bg-gray-900 sm:max-w-2xl sm:rounded-2xl">
             <div className="flex items-center justify-between border-b border-gray-200 px-6 py-4 dark:border-gray-800">
               <div>
                 <h2 className="text-lg font-semibold text-gray-950 dark:text-white">{selectedCategory.name}</h2>
@@ -435,7 +435,7 @@ const ExpenseChart: React.FC<ExpenseChartProps> = ({ viewMode = 'monthly' }) => 
               </button>
             </div>
 
-            <div className="max-h-[65vh] overflow-y-auto p-6">
+            <div className="max-h-[calc(92dvh-5rem)] overflow-y-auto p-4 sm:p-6">
               <div className="space-y-3">
                 {selectedTransactions.map(transaction => {
                   const account = accounts.find(item => item.id === transaction.accountId);

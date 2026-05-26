@@ -44,24 +44,24 @@ const AccountsOverview: React.FC = () => {
   const totalBalance = filteredAccounts.reduce((sum, account) => sum + account.balance, 0);
 
   return (
-    <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700">
-      <div className="p-6 border-b border-gray-200 dark:border-gray-700">
-        <div className="flex items-center justify-between">
+    <div className="rounded-2xl border border-gray-200 bg-white shadow-sm dark:border-gray-700 dark:bg-gray-800">
+      <div className="border-b border-gray-200 p-4 dark:border-gray-700 sm:p-6">
+        <div className="flex items-start justify-between gap-4">
           <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
             Aperçu des comptes
           </h3>
           <div className="text-right">
             <p className="text-sm text-gray-500 dark:text-gray-400">Solde total</p>
-            <p className="text-2xl font-bold text-gray-900 dark:text-white">
+            <p className="break-words text-xl font-bold text-gray-900 dark:text-white sm:text-2xl">
               {totalBalance.toFixed(2)} €
             </p>
           </div>
         </div>
       </div>
 
-      <div className="p-6">
+      <div className="p-4 sm:p-6">
         {filteredAccounts.length > 0 ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-3 lg:gap-4">
             {filteredAccounts.map((account) => {
               const Icon = getAccountIcon(account.type);
               const percentage = totalBalance > 0 ? (account.balance / totalBalance) * 100 : 0;
@@ -69,7 +69,7 @@ const AccountsOverview: React.FC = () => {
               return (
                 <div
                   key={account.id}
-                  className="p-4 border border-gray-200 dark:border-gray-600 rounded-lg hover:border-gray-300 dark:hover:border-gray-500 transition-colors"
+                  className="rounded-xl border border-gray-200 p-4 transition-colors hover:border-gray-300 dark:border-gray-600 dark:hover:border-gray-500"
                 >
                   <div className="flex items-center space-x-3 mb-3">
                     <div
@@ -93,7 +93,7 @@ const AccountsOverview: React.FC = () => {
                   
                   <div className="space-y-2">
                     <div className="flex justify-between items-center">
-                      <span className="text-lg font-semibold text-gray-900 dark:text-white">
+                      <span className="break-words text-base font-semibold text-gray-900 dark:text-white sm:text-lg">
                         {account.balance.toFixed(2)} €
                       </span>
                       <span className="text-sm text-gray-500 dark:text-gray-400">
