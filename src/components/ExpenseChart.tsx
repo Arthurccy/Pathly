@@ -1,13 +1,21 @@
 import React, { useState } from 'react';
-import { Doughnut } from 'react-chartjs-2';
-import { Chart as ChartJS, ArcElement, Tooltip, Legend } from 'chart.js';
-import { format, startOfYear, endOfYear } from 'date-fns';
+import { Bar, Doughnut } from 'react-chartjs-2';
+import {
+  Chart as ChartJS,
+  ArcElement,
+  BarElement,
+  CategoryScale,
+  LinearScale,
+  Tooltip,
+  Legend,
+} from 'chart.js';
+import { endOfYear, format, startOfYear } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { useBudget } from '../contexts/BudgetContext';
 import { useAuth } from '../contexts/AuthContext';
 import { getCustomMonthPeriod } from '../utils/dateUtils';
 
-ChartJS.register(ArcElement, Tooltip, Legend);
+ChartJS.register(ArcElement, BarElement, CategoryScale, LinearScale, Tooltip, Legend);
 
 interface ExpenseChartProps {
   viewMode?: 'monthly' | 'yearly';
@@ -16,21 +24,22 @@ interface ExpenseChartProps {
 const ExpenseChart: React.FC<ExpenseChartProps> = ({ viewMode = 'monthly' }) => {
   const { transactions, categories, accounts, selectedAccountIds } = useBudget();
   const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
-  
+
   const { user } = useAuth();
   const monthStartDay = user?.settings?.monthStartDay || 1;
   const currentDate = new Date();
   const currentMonthPeriod = getCustomMonthPeriod(currentDate, monthStartDay);
   const periodStart = viewMode === 'monthly' ? currentMonthPeriod.start : startOfYear(currentDate);
   const periodEnd = viewMode === 'monthly' ? currentMonthPeriod.end : endOfYear(currentDate);
-  
-  const expenseTransactions = transactions.filter(
-    t => t.type === 'expense' && 
-         t.status === 'completed' &&
-         t.date >= periodStart && 
+
+  const periodTransactions = transactions.filter(
+    t => t.status === 'completed' &&
+         t.date >= periodStart &&
          t.date <= periodEnd &&
          (selectedAccountIds.length === 0 || selectedAccountIds.includes(t.accountId))
   );
+
+  const expenseTransactions = periodTransactions.filter(t => t.type === 'expense');
 
   const expensesByCategory = expenseTransactions.reduce((acc, transaction) => {
     const category = categories.find(c => c.id === transaction.categoryId);
@@ -106,6 +115,143 @@ const ExpenseChart: React.FC<ExpenseChartProps> = ({ viewMode = 'monthly' }) => 
 
   const hasData = categoryBreakdown.length > 0;
   const totalExpenses = categoryBreakdown.reduce((sum, category) => sum + category.amount, 0);
+  const moneyFormatter = new Intl.NumberFormat('fr-FR', {
+    style: 'currency',
+    currency: 'EUR',
+    maximumFractionDigits: 0,
+  });
+  const preciseMoneyFormatter = new Intl.NumberFormat('fr-FR', {
+    style: 'currency',
+    currency: 'EUR',
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+
+  const baseIncome = periodTransactions
+    .filter(t => t.type === 'income' || t.type === 'refund' || t.type === 'savings_withdrawal')
+    .reduce((sum, t) => sum + t.amount, 0);
+  const outgoingTransactions = periodTransactions
+    .filter(t => t.type === 'expense' || t.type === 'bill' || t.type === 'savings')
+    .sort((a, b) => a.date.getTime() - b.date.getTime());
+  const totalOutgoings = outgoingTransactions.reduce((sum, t) => sum + t.amount, 0);
+  const remainingIncome = baseIncome - totalOutgoings;
+
+  const MAX_WATERFALL_DEDUCTIONS = 8;
+  const displayedOutgoings = outgoingTransactions.slice(0, MAX_WATERFALL_DEDUCTIONS);
+  const otherOutgoingsAmount = outgoingTransactions
+    .slice(MAX_WATERFALL_DEDUCTIONS)
+    .reduce((sum, t) => sum + t.amount, 0);
+
+  let runningBalance = baseIncome;
+  const waterfallItems: {
+    label: string;
+    shortLabel: string;
+    value: number;
+    range: [number, number];
+    color: string;
+  }[] = [
+    {
+      label: 'Revenus de base',
+      shortLabel: 'Revenus',
+      value: baseIncome,
+      range: [0, baseIncome],
+      color: '#059669',
+    },
+  ];
+
+  displayedOutgoings.forEach(transaction => {
+    const start = runningBalance;
+    runningBalance -= transaction.amount;
+    const category = categories.find(c => c.id === transaction.categoryId);
+    const label = `${format(transaction.date, 'dd MMM', { locale: fr })} · ${transaction.description || category?.name || 'Sortie'}`;
+
+    waterfallItems.push({
+      label,
+      shortLabel: transaction.description || category?.name || 'Sortie',
+      value: -transaction.amount,
+      range: [Math.min(start, runningBalance), Math.max(start, runningBalance)],
+      color: transaction.type === 'savings' ? '#2563EB' : '#DC2626',
+    });
+  });
+
+  if (otherOutgoingsAmount > 0) {
+    const start = runningBalance;
+    runningBalance -= otherOutgoingsAmount;
+    waterfallItems.push({
+      label: 'Autres sorties',
+      shortLabel: 'Autres',
+      value: -otherOutgoingsAmount,
+      range: [Math.min(start, runningBalance), Math.max(start, runningBalance)],
+      color: '#EA580C',
+    });
+  }
+
+  waterfallItems.push({
+    label: 'Reste en fin de période',
+    shortLabel: 'Reste',
+    value: remainingIncome,
+    range: [Math.min(0, remainingIncome), Math.max(0, remainingIncome)],
+    color: remainingIncome >= 0 ? '#0891B2' : '#B91C1C',
+  });
+
+  const hasCashFlowData = baseIncome > 0 || totalOutgoings > 0;
+  const outgoingRatio = baseIncome > 0 ? Math.min((totalOutgoings / baseIncome) * 100, 999) : 0;
+  const waterfallData = {
+    labels: waterfallItems.map(item => item.shortLabel),
+    datasets: [
+      {
+        label: 'Impact sur le revenu',
+        data: waterfallItems.map(item => item.range),
+        backgroundColor: waterfallItems.map(item => item.color),
+        borderRadius: 6,
+        borderSkipped: false,
+      },
+    ],
+  };
+  const waterfallOptions = {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: {
+        display: false,
+      },
+      tooltip: {
+        callbacks: {
+          title: (context: any) => waterfallItems[context[0].dataIndex]?.label || '',
+          label: (context: any) => {
+            const item = waterfallItems[context.dataIndex];
+            const sign = item.value > 0 ? '+' : '';
+            return `${sign}${preciseMoneyFormatter.format(item.value)}`;
+          },
+        },
+      },
+    },
+    scales: {
+      x: {
+        ticks: {
+          color: document.documentElement.classList.contains('dark') ? '#D1D5DB' : '#4B5563',
+          maxRotation: 0,
+          autoSkip: false,
+          callback: (_value: string | number, index: number) => {
+            const label = waterfallItems[index]?.shortLabel || '';
+            return label.length > 12 ? `${label.slice(0, 12)}...` : label;
+          },
+        },
+        grid: {
+          display: false,
+        },
+      },
+      y: {
+        ticks: {
+          color: document.documentElement.classList.contains('dark') ? '#D1D5DB' : '#4B5563',
+          callback: (value: string | number) => moneyFormatter.format(Number(value)),
+        },
+        grid: {
+          color: document.documentElement.classList.contains('dark') ? '#374151' : '#E5E7EB',
+        },
+      },
+    },
+  };
 
   return (
     <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6">
@@ -122,7 +268,7 @@ const ExpenseChart: React.FC<ExpenseChartProps> = ({ viewMode = 'monthly' }) => 
           </p>
         </div>
       </div>
-      
+
       {hasData ? (
         <div className="space-y-4">
           <div className="relative mx-auto h-72 min-h-0 w-full max-w-[420px] overflow-hidden sm:h-96">
@@ -157,6 +303,56 @@ const ExpenseChart: React.FC<ExpenseChartProps> = ({ viewMode = 'monthly' }) => 
           </div>
         </div>
       )}
+
+      <div className="mt-6 border-t border-gray-200 pt-5 dark:border-gray-700">
+        <div className="mb-4 flex items-start justify-between gap-4">
+          <div>
+            <h4 className="text-base font-semibold text-gray-900 dark:text-white">
+              Impact des sorties sur vos revenus
+            </h4>
+            <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+              {viewMode === 'monthly' ? 'Du début à la fin du mois' : 'Du début à la fin de l’année'}
+            </p>
+          </div>
+          <div className="text-right">
+            <p className="text-sm text-gray-500 dark:text-gray-400">Reste</p>
+            <p className={`text-xl font-bold ${remainingIncome >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}>
+              {remainingIncome.toFixed(2)} €
+            </p>
+          </div>
+        </div>
+
+        {hasCashFlowData ? (
+          <>
+            <div className="grid grid-cols-3 gap-3 text-sm">
+              <div className="rounded-lg bg-emerald-50 p-3 dark:bg-emerald-900/20">
+                <p className="text-gray-500 dark:text-gray-400">Revenus</p>
+                <p className="font-semibold text-emerald-700 dark:text-emerald-300">{baseIncome.toFixed(2)} €</p>
+              </div>
+              <div className="rounded-lg bg-red-50 p-3 dark:bg-red-900/20">
+                <p className="text-gray-500 dark:text-gray-400">Sorties</p>
+                <p className="font-semibold text-red-700 dark:text-red-300">-{totalOutgoings.toFixed(2)} €</p>
+              </div>
+              <div className="rounded-lg bg-sky-50 p-3 dark:bg-sky-900/20">
+                <p className="text-gray-500 dark:text-gray-400">Réduction</p>
+                <p className="font-semibold text-sky-700 dark:text-sky-300">{outgoingRatio.toFixed(0)}%</p>
+              </div>
+            </div>
+            <div className="mt-4 h-72">
+              <Bar data={waterfallData} options={waterfallOptions as any} />
+            </div>
+          </>
+        ) : (
+          <div className="flex h-48 items-center justify-center text-gray-500 dark:text-gray-400">
+            <div className="text-center">
+              <p className="text-lg mb-2">
+                Aucun revenu ou sortie {viewMode === 'monthly' ? 'ce mois-ci' : 'cette année'}
+              </p>
+              <p className="text-sm">Ajoutez des transactions pour voir l’évolution du reste disponible</p>
+            </div>
+          </div>
+        )}
+      </div>
 
       {selectedCategory && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm">
