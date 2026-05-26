@@ -32,14 +32,20 @@ const ExpenseChart: React.FC<ExpenseChartProps> = ({ viewMode = 'monthly' }) => 
   const periodStart = viewMode === 'monthly' ? currentMonthPeriod.start : startOfYear(currentDate);
   const periodEnd = viewMode === 'monthly' ? currentMonthPeriod.end : endOfYear(currentDate);
 
-  const periodTransactions = transactions.filter(
+  const completedPeriodTransactions = transactions.filter(
     t => t.status === 'completed' &&
          t.date >= periodStart &&
          t.date <= periodEnd &&
          (selectedAccountIds.length === 0 || selectedAccountIds.includes(t.accountId))
   );
+  const cashFlowTransactions = transactions.filter(
+    t => t.status !== 'cancelled' &&
+         t.date >= periodStart &&
+         t.date <= periodEnd &&
+         (selectedAccountIds.length === 0 || selectedAccountIds.includes(t.accountId))
+  );
 
-  const expenseTransactions = periodTransactions.filter(t => t.type === 'expense');
+  const expenseTransactions = completedPeriodTransactions.filter(t => t.type === 'expense');
 
   const expensesByCategory = expenseTransactions.reduce((acc, transaction) => {
     const category = categories.find(c => c.id === transaction.categoryId);
@@ -127,14 +133,15 @@ const ExpenseChart: React.FC<ExpenseChartProps> = ({ viewMode = 'monthly' }) => 
     maximumFractionDigits: 2,
   });
 
-  const baseIncome = periodTransactions
+  const baseIncome = cashFlowTransactions
     .filter(t => t.type === 'income' || t.type === 'refund' || t.type === 'savings_withdrawal')
     .reduce((sum, t) => sum + t.amount, 0);
-  const outgoingTransactions = periodTransactions
+  const outgoingTransactions = cashFlowTransactions
     .filter(t => t.type === 'expense' || t.type === 'bill' || t.type === 'savings')
     .sort((a, b) => a.date.getTime() - b.date.getTime());
   const totalOutgoings = outgoingTransactions.reduce((sum, t) => sum + t.amount, 0);
   const remainingIncome = baseIncome - totalOutgoings;
+  const plannedTransactionsCount = cashFlowTransactions.filter(t => t.status === 'scheduled' || t.status === 'pending').length;
 
   const MAX_WATERFALL_DEDUCTIONS = 8;
   const displayedOutgoings = outgoingTransactions.slice(0, MAX_WATERFALL_DEDUCTIONS);
@@ -163,7 +170,12 @@ const ExpenseChart: React.FC<ExpenseChartProps> = ({ viewMode = 'monthly' }) => 
     const start = runningBalance;
     runningBalance -= transaction.amount;
     const category = categories.find(c => c.id === transaction.categoryId);
-    const label = `${format(transaction.date, 'dd MMM', { locale: fr })} · ${transaction.description || category?.name || 'Sortie'}`;
+    const statusLabel = transaction.status === 'scheduled'
+      ? 'planifiée'
+      : transaction.status === 'pending'
+        ? 'en attente'
+        : 'terminée';
+    const label = `${format(transaction.date, 'dd MMM', { locale: fr })} · ${transaction.description || category?.name || 'Sortie'} (${statusLabel})`;
 
     waterfallItems.push({
       label,
@@ -313,6 +325,9 @@ const ExpenseChart: React.FC<ExpenseChartProps> = ({ viewMode = 'monthly' }) => 
             <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
               {viewMode === 'monthly' ? 'Du début à la fin du mois' : 'Du début à la fin de l’année'}
             </p>
+            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+              Inclut les opérations terminées, en attente et planifiées.
+            </p>
           </div>
           <div className="text-right">
             <p className="text-sm text-gray-500 dark:text-gray-400">Reste</p>
@@ -324,7 +339,7 @@ const ExpenseChart: React.FC<ExpenseChartProps> = ({ viewMode = 'monthly' }) => 
 
         {hasCashFlowData ? (
           <>
-            <div className="grid grid-cols-3 gap-3 text-sm">
+            <div className="grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">
               <div className="rounded-lg bg-emerald-50 p-3 dark:bg-emerald-900/20">
                 <p className="text-gray-500 dark:text-gray-400">Revenus</p>
                 <p className="font-semibold text-emerald-700 dark:text-emerald-300">{baseIncome.toFixed(2)} €</p>
@@ -336,6 +351,10 @@ const ExpenseChart: React.FC<ExpenseChartProps> = ({ viewMode = 'monthly' }) => 
               <div className="rounded-lg bg-sky-50 p-3 dark:bg-sky-900/20">
                 <p className="text-gray-500 dark:text-gray-400">Réduction</p>
                 <p className="font-semibold text-sky-700 dark:text-sky-300">{outgoingRatio.toFixed(0)}%</p>
+              </div>
+              <div className="rounded-lg bg-amber-50 p-3 dark:bg-amber-900/20">
+                <p className="text-gray-500 dark:text-gray-400">À venir</p>
+                <p className="font-semibold text-amber-700 dark:text-amber-300">{plannedTransactionsCount}</p>
               </div>
             </div>
             <div className="mt-4 h-72">

@@ -27,13 +27,14 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({
     categoryId: '',
     type: 'expense' as 'expense' | 'income',
     date: '',
+    status: 'completed' as 'pending' | 'completed' | 'scheduled',
   });
   const [isSaving, setIsSaving] = useState(false);
 
   const recentTransactions = useMemo(
     () => {
       const sourceTransactions = transactions.filter(transaction => {
-        if (mode === 'upcoming') return transaction.status === 'scheduled';
+        if (mode === 'upcoming') return transaction.status === 'scheduled' || transaction.status === 'pending';
         if (mode === 'recent') return transaction.status === 'completed';
         return true;
       });
@@ -58,6 +59,7 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({
       categoryId: transaction.categoryId,
       type: transaction.type === 'income' ? 'income' : 'expense',
       date: toDateInputValue(transaction.date),
+      status: transaction.status === 'cancelled' ? 'pending' : transaction.status,
     });
   };
 
@@ -92,9 +94,7 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({
         categoryId: formData.categoryId,
         type: formData.type,
         date: new Date(formData.date),
-        status: editingTransaction.isRecurring || formData.date > new Date().toISOString().split('T')[0]
-          ? 'scheduled'
-          : 'completed',
+        status: formData.status,
         isRecurring: editingTransaction.isRecurring,
       });
       closeEditor();
@@ -168,6 +168,14 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({
                         <span className="text-xs text-gray-500 dark:text-gray-400">
                           {format(transaction.date, 'dd MMM yyyy', { locale: fr })}
                         </span>
+                        {transaction.status !== 'completed' && (
+                          <>
+                            <span className="text-xs text-gray-400 dark:text-gray-500">-</span>
+                            <span className="text-xs font-medium text-blue-600 dark:text-blue-400">
+                              {transaction.status === 'scheduled' ? 'Planifiée' : 'En attente'}
+                            </span>
+                          </>
+                        )}
                       </div>
                     </div>
 
@@ -329,6 +337,50 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({
                       </option>
                     ))}
                   </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                  Statut
+                </label>
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+                  <button
+                    type="button"
+                    onClick={() => setFormData({ ...formData, status: 'pending' })}
+                    className={`inline-flex items-center justify-center gap-2 rounded-lg border px-4 py-3 text-sm font-medium transition ${
+                      formData.status === 'pending'
+                        ? 'border-amber-500 bg-amber-50 text-amber-700 dark:bg-amber-900/20 dark:text-amber-300'
+                        : 'border-gray-200 text-gray-700 hover:border-gray-300 dark:border-gray-700 dark:text-gray-300'
+                    }`}
+                  >
+                    <LucideIcons.Clock className="h-4 w-4" />
+                    En attente
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setFormData({ ...formData, status: 'scheduled' })}
+                    className={`inline-flex items-center justify-center gap-2 rounded-lg border px-4 py-3 text-sm font-medium transition ${
+                      formData.status === 'scheduled'
+                        ? 'border-blue-500 bg-blue-50 text-blue-700 dark:bg-blue-900/20 dark:text-blue-300'
+                        : 'border-gray-200 text-gray-700 hover:border-gray-300 dark:border-gray-700 dark:text-gray-300'
+                    }`}
+                  >
+                    <LucideIcons.CalendarClock className="h-4 w-4" />
+                    Planifiée
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setFormData({ ...formData, status: 'completed' })}
+                    className={`inline-flex items-center justify-center gap-2 rounded-lg border px-4 py-3 text-sm font-medium transition ${
+                      formData.status === 'completed'
+                        ? 'border-emerald-500 bg-emerald-50 text-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-300'
+                        : 'border-gray-200 text-gray-700 hover:border-gray-300 dark:border-gray-700 dark:text-gray-300'
+                    }`}
+                  >
+                    <LucideIcons.CheckCircle2 className="h-4 w-4" />
+                    Terminé
+                  </button>
                 </div>
               </div>
 
