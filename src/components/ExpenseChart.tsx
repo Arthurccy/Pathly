@@ -9,7 +9,7 @@ import {
   Tooltip,
   Legend,
 } from 'chart.js';
-import { endOfYear, format, startOfYear } from 'date-fns';
+import { addMonths, endOfYear, format, lastDayOfMonth, startOfYear } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { useBudget } from '../contexts/BudgetContext';
 import { useAuth } from '../contexts/AuthContext';
@@ -22,7 +22,7 @@ interface ExpenseChartProps {
 }
 
 const ExpenseChart: React.FC<ExpenseChartProps> = ({ viewMode = 'monthly' }) => {
-  const { transactions, categories, accounts, selectedAccountIds } = useBudget();
+  const { transactions, categories, accounts, debts, selectedAccountIds } = useBudget();
   const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
 
   const { user } = useAuth();
@@ -148,15 +148,80 @@ const ExpenseChart: React.FC<ExpenseChartProps> = ({ viewMode = 'monthly' }) => 
   const outgoingTransactions = cashFlowTransactions
     .filter(t => t.type === 'expense' || t.type === 'bill' || t.type === 'savings' || isSavingsTransferOut(t))
     .sort((a, b) => a.date.getTime() - b.date.getTime());
-  const totalOutgoings = outgoingTransactions.reduce((sum, t) => sum + t.amount, 0);
+  const getMonthlyPaymentDate = (year: number, month: number, day: number) => {
+    const monthStart = new Date(year, month, 1);
+    const safeDay = Math.min(day, lastDayOfMonth(monthStart).getDate());
+    return new Date(year, month, safeDay);
+  };
+  const debtPaymentItems = debts
+    .filter(debt =>
+      debt.isActive &&
+      debt.minimumPayment > 0 &&
+      debt.remainingAmount > 0 &&
+      (selectedAccountIds.length === 0 || selectedAccountIds.includes(debt.accountId))
+    )
+    .flatMap(debt => {
+      const items: {
+        date: Date;
+        amount: number;
+        description: string;
+        statusLabel: string;
+        color: string;
+      }[] = [];
+      const paymentDay = debt.paymentDay || debt.dueDate.getDate();
+      let cursor = getMonthlyPaymentDate(debt.dueDate.getFullYear(), debt.dueDate.getMonth(), paymentDay);
+
+      while (cursor < debt.dueDate) {
+        cursor = addMonths(cursor, 1);
+      }
+      while (cursor < periodStart) {
+        cursor = addMonths(cursor, 1);
+      }
+
+      let remainingDebt = debt.remainingAmount;
+      while (cursor <= periodEnd && remainingDebt > 0) {
+        const amount = Math.min(debt.minimumPayment, remainingDebt);
+        items.push({
+          date: cursor,
+          amount,
+          description: `Paiement dette - ${debt.name}`,
+          statusLabel: 'planifiée',
+          color: '#9333EA',
+        });
+        remainingDebt -= amount;
+        cursor = addMonths(cursor, 1);
+      }
+
+      return items;
+    });
+  const outgoingItems = [
+    ...outgoingTransactions.map(transaction => {
+      const category = categories.find(c => c.id === transaction.categoryId);
+      const statusLabel = transaction.status === 'scheduled'
+        ? 'planifiée'
+        : transaction.status === 'pending'
+          ? 'en attente'
+          : 'terminée';
+
+      return {
+        date: transaction.date,
+        amount: transaction.amount,
+        description: transaction.description || category?.name || 'Sortie',
+        statusLabel,
+        color: transaction.type === 'savings' || isSavingsTransferOut(transaction) ? '#2563EB' : '#DC2626',
+      };
+    }),
+    ...debtPaymentItems,
+  ].sort((a, b) => a.date.getTime() - b.date.getTime());
+  const totalOutgoings = outgoingItems.reduce((sum, item) => sum + item.amount, 0);
   const remainingIncome = baseIncome - totalOutgoings;
-  const plannedTransactionsCount = cashFlowTransactions.filter(t => t.status === 'scheduled' || t.status === 'pending').length;
+  const plannedTransactionsCount = cashFlowTransactions.filter(t => t.status === 'scheduled' || t.status === 'pending').length + debtPaymentItems.length;
 
   const MAX_WATERFALL_DEDUCTIONS = 8;
-  const displayedOutgoings = outgoingTransactions.slice(0, MAX_WATERFALL_DEDUCTIONS);
-  const otherOutgoingsAmount = outgoingTransactions
+  const displayedOutgoings = outgoingItems.slice(0, MAX_WATERFALL_DEDUCTIONS);
+  const otherOutgoingsAmount = outgoingItems
     .slice(MAX_WATERFALL_DEDUCTIONS)
-    .reduce((sum, t) => sum + t.amount, 0);
+    .reduce((sum, item) => sum + item.amount, 0);
 
   let runningBalance = baseIncome;
   const waterfallItems: {
@@ -175,23 +240,17 @@ const ExpenseChart: React.FC<ExpenseChartProps> = ({ viewMode = 'monthly' }) => 
     },
   ];
 
-  displayedOutgoings.forEach(transaction => {
+  displayedOutgoings.forEach(item => {
     const start = runningBalance;
-    runningBalance -= transaction.amount;
-    const category = categories.find(c => c.id === transaction.categoryId);
-    const statusLabel = transaction.status === 'scheduled'
-      ? 'planifiée'
-      : transaction.status === 'pending'
-        ? 'en attente'
-        : 'terminée';
-    const label = `${format(transaction.date, 'dd MMM', { locale: fr })} · ${transaction.description || category?.name || 'Sortie'} (${statusLabel})`;
+    runningBalance -= item.amount;
+    const label = `${format(item.date, 'dd MMM', { locale: fr })} · ${item.description} (${item.statusLabel})`;
 
     waterfallItems.push({
       label,
-      shortLabel: transaction.description || category?.name || 'Sortie',
-      value: -transaction.amount,
+      shortLabel: item.description,
+      value: -item.amount,
       range: [Math.min(start, runningBalance), Math.max(start, runningBalance)],
-      color: transaction.type === 'savings' || isSavingsTransferOut(transaction) ? '#2563EB' : '#DC2626',
+      color: item.color,
     });
   });
 
@@ -335,7 +394,7 @@ const ExpenseChart: React.FC<ExpenseChartProps> = ({ viewMode = 'monthly' }) => 
               {viewMode === 'monthly' ? 'Du début à la fin du mois' : 'Du début à la fin de l’année'}
             </p>
             <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-              Inclut les opérations terminées, en attente et planifiées.
+              Inclut les opérations terminées, en attente, planifiées et les échéances de dettes.
             </p>
           </div>
           <div className="text-right">
@@ -366,8 +425,10 @@ const ExpenseChart: React.FC<ExpenseChartProps> = ({ viewMode = 'monthly' }) => 
                 <p className="font-semibold text-amber-700 dark:text-amber-300">{plannedTransactionsCount}</p>
               </div>
             </div>
-            <div className="mt-4 h-72">
-              <Bar data={waterfallData} options={waterfallOptions as any} />
+            <div className="mt-4 overflow-x-auto pb-3">
+              <div className="h-72" style={{ minWidth: `${Math.max(720, waterfallItems.length * 130)}px` }}>
+                <Bar data={waterfallData} options={waterfallOptions as any} />
+              </div>
             </div>
           </>
         ) : (
