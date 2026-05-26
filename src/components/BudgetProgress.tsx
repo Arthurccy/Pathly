@@ -134,6 +134,7 @@ const BudgetProgress: React.FC<BudgetProgressProps> = ({ viewMode = 'monthly' })
       t.categoryId === categoryId &&
       t.type === 'expense' &&
       t.status === 'completed' &&
+      categories.find(category => category.id === t.categoryId)?.excludeFromReports !== true &&
       t.date >= periodStart &&
       t.date <= periodEnd &&
       (selectedAccountIds.length === 0 || selectedAccountIds.includes(t.accountId))
@@ -145,6 +146,7 @@ const BudgetProgress: React.FC<BudgetProgressProps> = ({ viewMode = 'monthly' })
       t.categoryId === categoryId &&
       t.type === 'expense' &&
       t.status === 'scheduled' &&
+      categories.find(category => category.id === t.categoryId)?.excludeFromReports !== true &&
       checkingAccountIds.has(t.accountId) &&
       t.date >= today &&
       t.date <= periodEnd
@@ -153,6 +155,7 @@ const BudgetProgress: React.FC<BudgetProgressProps> = ({ viewMode = 'monthly' })
 
   const budgetProgress = currentPeriodBudgets.map(budget => {
     const category = categories.find(c => c.id === budget.categoryId);
+    if (category?.excludeFromReports) return null;
     const spent = getCompletedExpensesForCategory(budget.categoryId);
     const planned = getPlannedExpensesForCategory(budget.categoryId);
     const committed = spent + planned;
@@ -171,11 +174,12 @@ const BudgetProgress: React.FC<BudgetProgressProps> = ({ viewMode = 'monthly' })
       isOverBudget: committed > budget.amount,
       isUnplanned: false,
     };
-  });
+  }).filter((item): item is NonNullable<typeof item> => item !== null);
 
   // Add categories with default budgets but no explicit budget set
   const categoriesWithDefaultBudgets = categories.filter(c => 
     c.type === 'expense' && 
+    !c.excludeFromReports &&
     c.budget && 
     !currentPeriodBudgets.some(b => b.categoryId === c.id)
   );
@@ -206,6 +210,7 @@ const BudgetProgress: React.FC<BudgetProgressProps> = ({ viewMode = 'monthly' })
   const unplannedCategories = categories
     .filter(category =>
       category.type === 'expense' &&
+      !category.excludeFromReports &&
       !budgetedCategoryIds.has(category.id)
     )
     .map(category => {

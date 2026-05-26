@@ -36,6 +36,7 @@ export interface Category {
   isActive: boolean;
   budget?: number; // Default budget amount
   description?: string;
+  excludeFromReports?: boolean; // Ignore in dashboards and analytics
 }
 
 export interface BankAccount {

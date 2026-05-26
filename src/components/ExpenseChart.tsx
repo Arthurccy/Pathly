@@ -31,17 +31,26 @@ const ExpenseChart: React.FC<ExpenseChartProps> = ({ viewMode = 'monthly' }) => 
   const currentMonthPeriod = getCustomMonthPeriod(currentDate, monthStartDay);
   const periodStart = viewMode === 'monthly' ? currentMonthPeriod.start : startOfYear(currentDate);
   const periodEnd = viewMode === 'monthly' ? currentMonthPeriod.end : endOfYear(currentDate);
+  const reportableCategoryIds = new Set(
+    categories
+      .filter(category => !category.excludeFromReports)
+      .map(category => category.id)
+  );
+  const isReportableTransaction = (transaction: typeof transactions[number]) =>
+    reportableCategoryIds.has(transaction.categoryId);
 
   const completedPeriodTransactions = transactions.filter(
     t => t.status === 'completed' &&
          t.date >= periodStart &&
          t.date <= periodEnd &&
+         isReportableTransaction(t) &&
          (selectedAccountIds.length === 0 || selectedAccountIds.includes(t.accountId))
   );
   const cashFlowTransactions = transactions.filter(
     t => t.status !== 'cancelled' &&
          t.date >= periodStart &&
          t.date <= periodEnd &&
+         isReportableTransaction(t) &&
          (selectedAccountIds.length === 0 || selectedAccountIds.includes(t.accountId))
   );
 

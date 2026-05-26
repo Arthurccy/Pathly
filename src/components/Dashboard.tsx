@@ -55,6 +55,13 @@ const Dashboard: React.FC<DashboardProps> = ({ onViewChange }) => {
   
   const periodStart = viewMode === 'monthly' ? currentMonthPeriod.start : yearStart;
   const periodEnd = viewMode === 'monthly' ? currentMonthPeriod.end : yearEnd;
+  const reportableCategoryIds = new Set(
+    categories
+      .filter(category => !category.excludeFromReports)
+      .map(category => category.id)
+  );
+  const isReportableTransaction = (transaction: Transaction) =>
+    reportableCategoryIds.has(transaction.categoryId);
   
   const previousMonthPeriod = getPreviousCustomMonthPeriod(currentDate, monthStartDay);
   const previousPeriodStart = viewMode === 'monthly' ? previousMonthPeriod.start : startOfYear(subYears(currentDate, 1));
@@ -64,6 +71,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onViewChange }) => {
     t => t.date >= periodStart && 
          t.date <= periodEnd &&
          t.status === 'completed' &&
+         isReportableTransaction(t) &&
          (selectedAccountIds.length === 0 || selectedAccountIds.includes(t.accountId))
   );
   
@@ -71,6 +79,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onViewChange }) => {
     t => t.date >= previousPeriodStart && 
          t.date <= previousPeriodEnd &&
          t.status === 'completed' &&
+         isReportableTransaction(t) &&
          (selectedAccountIds.length === 0 || selectedAccountIds.includes(t.accountId))
   );
   
