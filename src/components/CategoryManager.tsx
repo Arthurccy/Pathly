@@ -26,6 +26,7 @@ const CategoryManager: React.FC = () => {
     type: 'expense' as Category['type'],
     budget: '',
     description: '',
+    excludeFromReports: false,
   });
 
   const iconOptions = [
@@ -59,6 +60,7 @@ const CategoryManager: React.FC = () => {
       type: formData.type,
       budget: formData.budget ? parseFloat(formData.budget) : undefined,
       description: formData.description.trim() || undefined,
+      excludeFromReports: formData.excludeFromReports,
       order: editingCategory ? editingCategory.order : categories.filter(c => c.type === formData.type).length,
       isActive: true,
     };
@@ -77,6 +79,7 @@ const CategoryManager: React.FC = () => {
       type: 'expense',
       budget: '',
       description: '',
+      excludeFromReports: false,
     });
     setShowForm(false);
     setEditingCategory(null);
@@ -91,6 +94,7 @@ const CategoryManager: React.FC = () => {
       type: category.type,
       budget: category.budget?.toString() || '',
       description: category.description || '',
+      excludeFromReports: category.excludeFromReports || false,
     });
     setShowForm(true);
   };
@@ -241,6 +245,23 @@ const CategoryManager: React.FC = () => {
               </div>
             </div>
 
+            <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-gray-200 bg-gray-50 p-4 dark:border-gray-700 dark:bg-gray-900/50">
+              <input
+                type="checkbox"
+                checked={formData.excludeFromReports}
+                onChange={(e) => setFormData({ ...formData, excludeFromReports: e.target.checked })}
+                className="mt-1 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+              />
+              <span>
+                <span className="block text-sm font-medium text-gray-900 dark:text-white">
+                  Exclure des tableaux de bord
+                </span>
+                <span className="mt-1 block text-xs text-gray-500 dark:text-gray-400">
+                  Utile pour les corrections de solde, remboursements techniques ou écritures qui ne sont pas de vrais revenus/dépenses.
+                </span>
+              </span>
+            </label>
+
             {/* Icon Selection */}
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
@@ -299,10 +320,11 @@ const CategoryManager: React.FC = () => {
                     name: '',
                     icon: 'DollarSign',
                     color: '#3B82F6',
-                    type: 'expense',
-                    budget: '',
-                    description: '',
-                  });
+                  type: 'expense',
+                  budget: '',
+                  description: '',
+                  excludeFromReports: false,
+                });
                 }}
                 className="px-4 py-2 text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-lg transition-colors"
               >
@@ -363,6 +385,11 @@ const CategoryManager: React.FC = () => {
                             {!category.isActive && (
                               <span className="text-xs px-2 py-1 rounded-full bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-400">
                                 Désactivée
+                              </span>
+                            )}
+                            {category.excludeFromReports && (
+                              <span className="rounded-full bg-slate-100 px-2 py-1 text-xs text-slate-700 dark:bg-slate-800 dark:text-slate-300">
+                                Hors stats
                               </span>
                             )}
                           </div>

@@ -37,6 +37,7 @@ const convertDatabaseToApp = {
     isActive: row.is_active,
     budget: row.budget ? parseFloat(row.budget) : undefined,
     description: row.description,
+    excludeFromReports: row.exclude_from_reports || false,
   }),
 
   transaction: (row: any): Transaction => ({
@@ -148,6 +149,7 @@ const convertAppToDatabase = {
     is_active: category.isActive,
     budget: category.budget,
     description: category.description,
+    exclude_from_reports: category.excludeFromReports,
   }),
 
   transaction: (transaction: Omit<Transaction, 'id'> | Partial<Transaction>): any => ({

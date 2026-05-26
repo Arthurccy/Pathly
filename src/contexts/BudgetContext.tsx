@@ -508,6 +508,9 @@ export const BudgetProvider: React.FC<BudgetProviderProps> = ({ children }) => {
     );
   };
 
+  const isExcludedFromReports = (transaction: Transaction) =>
+    categories.find(category => category.id === transaction.categoryId)?.excludeFromReports === true;
+
   const reconcileScheduledTransactionStatuses = async () => {
     const today = startOfDay(new Date());
     const dueTransactions = transactions.filter(transaction =>
@@ -1043,6 +1046,7 @@ export const BudgetProvider: React.FC<BudgetProviderProps> = ({ children }) => {
   const getFinancialSummary = (startDate: Date, endDate: Date): FinancialSummary => {
     const periodTransactions = transactions.filter(t => 
       t.date >= startDate && t.date <= endDate &&
+      !isExcludedFromReports(t) &&
       (selectedAccountIds.length === 0 || selectedAccountIds.includes(t.accountId))
     );
 
@@ -1123,28 +1127,34 @@ export const BudgetProvider: React.FC<BudgetProviderProps> = ({ children }) => {
     const startDate = new Date();
     
     for (let i = 0; i < months; i++) {
-      const monthStart = addMonths(startDate, i);
+      const monthStart = startOfMonth(addMonths(startDate, i));
       const monthEnd = endOfMonth(monthStart);
       
       const monthTransactions = transactions.filter(t => 
         t.date >= monthStart && t.date <= monthEnd &&
+        t.status === 'completed' &&
+        !isExcludedFromReports(t) &&
         (selectedAccountIds.length === 0 || selectedAccountIds.includes(t.accountId))
       );
 
-      const scheduledTransactions = getScheduledTransactions(monthStart, monthEnd);
+      const scheduledTransactions = getScheduledTransactions(monthStart, monthEnd)
+        .filter(t =>
+          !isExcludedFromReports(t) &&
+          (selectedAccountIds.length === 0 || selectedAccountIds.includes(t.accountId))
+        );
 
       const income = monthTransactions
-        .filter(t => t.type === 'income')
+        .filter(t => t.type === 'income' || t.type === 'refund' || t.type === 'savings_withdrawal')
         .reduce((sum, t) => sum + t.amount, 0) +
         scheduledTransactions
-        .filter(t => t.type === 'income')
+        .filter(t => t.type === 'income' || t.type === 'refund' || t.type === 'savings_withdrawal')
         .reduce((sum, t) => sum + t.amount, 0);
         
       const expenses = monthTransactions
-        .filter(t => t.type === 'expense')
+        .filter(t => t.type === 'expense' || t.type === 'bill')
         .reduce((sum, t) => sum + t.amount, 0) +
         scheduledTransactions
-        .filter(t => t.type === 'expense')
+        .filter(t => t.type === 'expense' || t.type === 'bill')
         .reduce((sum, t) => sum + t.amount, 0);
         
       const savings = monthTransactions
