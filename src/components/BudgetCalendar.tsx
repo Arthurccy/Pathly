@@ -218,22 +218,22 @@ const BudgetCalendar: React.FC = () => {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6">
       <div className="flex items-center justify-between">
         <div className="flex items-center space-x-3">
           <div className="p-2 bg-blue-100 dark:bg-blue-900/20 rounded-lg">
             <CalendarIcon className="h-6 w-6 text-blue-600 dark:text-blue-400" />
           </div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
+          <h1 className="text-xl font-bold text-gray-900 dark:text-white sm:text-2xl">
             Calendrier budgétaire
           </h1>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-5">
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-4 md:gap-4">
+        <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-800 sm:p-5">
           <p className="text-sm text-gray-500 dark:text-gray-400">Solde compte courant</p>
-          <p className="mt-1 text-2xl font-semibold text-gray-900 dark:text-white">
+          <p className="mt-1 break-words text-xl font-semibold text-gray-900 dark:text-white sm:text-2xl">
             {projectedBaseBalance.toFixed(2)} €
           </p>
           <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
@@ -241,9 +241,9 @@ const BudgetCalendar: React.FC = () => {
           </p>
         </div>
 
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-5">
+        <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-800 sm:p-5">
           <p className="text-sm text-gray-500 dark:text-gray-400">Entrées à venir</p>
-          <p className="mt-1 text-2xl font-semibold text-green-600 dark:text-green-400">
+          <p className="mt-1 break-words text-xl font-semibold text-green-600 dark:text-green-400 sm:text-2xl">
             +{projectedIncoming.toFixed(2)} €
           </p>
           <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
@@ -251,9 +251,9 @@ const BudgetCalendar: React.FC = () => {
           </p>
         </div>
 
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-5">
+        <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-800 sm:p-5">
           <p className="text-sm text-gray-500 dark:text-gray-400">Ponctions à venir</p>
-          <p className="mt-1 text-2xl font-semibold text-red-600 dark:text-red-400">
+          <p className="mt-1 break-words text-xl font-semibold text-red-600 dark:text-red-400 sm:text-2xl">
             {projectedDeductions > 0 ? '-' : ''}{projectedDeductions.toFixed(2)} €
           </p>
           <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
@@ -261,9 +261,9 @@ const BudgetCalendar: React.FC = () => {
           </p>
         </div>
 
-        <div className="bg-gray-950 dark:bg-white rounded-lg shadow-sm p-5">
+        <div className="rounded-xl bg-gray-950 p-4 shadow-sm dark:bg-white sm:p-5">
           <p className="text-sm text-gray-300 dark:text-gray-600">Solde courant prévu</p>
-          <p className={`mt-1 text-2xl font-semibold ${projectedBalance >= 0 ? 'text-emerald-300 dark:text-emerald-700' : 'text-red-300 dark:text-red-700'}`}>
+          <p className={`mt-1 break-words text-xl font-semibold sm:text-2xl ${projectedBalance >= 0 ? 'text-emerald-300 dark:text-emerald-700' : 'text-red-300 dark:text-red-700'}`}>
             {projectedBalance.toFixed(2)} €
           </p>
           <p className="mt-1 text-xs text-gray-400 dark:text-gray-500">
@@ -274,23 +274,23 @@ const BudgetCalendar: React.FC = () => {
 
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700">
         {/* Calendar Header */}
-        <div className="p-6 border-b border-gray-200 dark:border-gray-700">
-          <div className="flex items-center justify-between">
-            <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
+        <div className="border-b border-gray-200 p-4 dark:border-gray-700 sm:p-6">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <h2 className="text-lg font-semibold capitalize text-gray-900 dark:text-white sm:text-xl">
               {format(currentDate, 'MMMM yyyy', { locale: fr })}
             </h2>
             
-            <div className="flex items-center space-x-2">
+            <div className="grid grid-cols-[2.5rem_1fr_2.5rem] items-center gap-2 sm:flex sm:space-x-2">
               <button
                 onClick={() => navigateMonth('prev')}
-                className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+                className="rounded-lg p-2 transition-colors hover:bg-gray-100 dark:hover:bg-gray-700"
               >
                 <ChevronLeft className="h-5 w-5 text-gray-600 dark:text-gray-400" />
               </button>
               
               <button
                 onClick={() => setCurrentDate(new Date())}
-                className="px-3 py-1 text-sm bg-blue-100 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 rounded-lg hover:bg-blue-200 dark:hover:bg-blue-900/40 transition-colors"
+                className="rounded-lg bg-blue-100 px-3 py-2 text-sm text-blue-700 transition-colors hover:bg-blue-200 dark:bg-blue-900/20 dark:text-blue-300 dark:hover:bg-blue-900/40 sm:py-1"
               >
                 Aujourd'hui
               </button>
@@ -306,9 +306,10 @@ const BudgetCalendar: React.FC = () => {
         </div>
 
         {/* Calendar Grid */}
-        <div className="p-6">
+        <div className="overflow-x-auto p-3 sm:p-6">
+          <div className="min-w-[42rem]">
           {/* Days of week header */}
-          <div className="grid grid-cols-7 gap-1 mb-4">
+          <div className="mb-4 grid grid-cols-7 gap-1">
             {['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'].map(day => (
               <div key={day} className="p-2 text-center text-sm font-medium text-gray-500 dark:text-gray-400">
                 {day}
@@ -328,7 +329,7 @@ const BudgetCalendar: React.FC = () => {
                   key={day.toISOString()}
                   onClick={() => handleDateClick(day)}
                   className={`
-                    min-h-[80px] p-2 border border-gray-200 dark:border-gray-700 rounded-lg cursor-pointer
+                    min-h-[76px] cursor-pointer rounded-lg border border-gray-200 p-2
                     transition-colors hover:bg-gray-50 dark:hover:bg-gray-700/50
                     ${isSelected ? 'ring-2 ring-blue-500 bg-blue-50 dark:bg-blue-900/20' : ''}
                     ${!isCurrentMonth ? 'opacity-50' : ''}
@@ -379,63 +380,71 @@ const BudgetCalendar: React.FC = () => {
               );
             })}
           </div>
+          </div>
         </div>
       </div>
 
       {/* Event Details Modal */}
       {showEventDetails && selectedDate && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full mx-4 max-h-[80vh] overflow-y-auto">
-            <div className="p-6 border-b border-gray-200 dark:border-gray-700">
-              <div className="flex items-center justify-between">
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-                  {format(selectedDate, 'dd MMMM yyyy', { locale: fr })}
-                </h3>
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/45 p-0 backdrop-blur-sm sm:items-center sm:p-4">
+          <div className="max-h-[92dvh] w-full overflow-hidden rounded-t-3xl bg-white shadow-2xl dark:bg-gray-900 sm:max-w-lg sm:rounded-3xl">
+            <div className="bg-blue-600 px-6 pb-6 pt-5 text-white dark:bg-blue-500">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <p className="text-sm font-medium text-blue-100">
+                    {format(selectedDate, 'EEEE', { locale: fr })}
+                  </p>
+                  <h3 className="mt-1 text-2xl font-semibold">
+                    {format(selectedDate, 'dd MMMM yyyy', { locale: fr })}
+                  </h3>
+                </div>
                 <button
+                  type="button"
                   onClick={() => setShowEventDetails(false)}
-                  className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                  className="rounded-full p-2 text-blue-100 transition hover:bg-white/15 hover:text-white"
+                  aria-label="Fermer"
                 >
                   ×
                 </button>
               </div>
             </div>
             
-            <div className="p-6">
+            <div className="max-h-[calc(92dvh-8rem)] overflow-y-auto p-5 sm:p-6">
               {getEventsForDate(selectedDate).length > 0 ? (
-                <div className="space-y-4">
+                <div className="space-y-3">
                   {getEventsForDate(selectedDate).map((event, index) => {
                     const Icon = getEventIcon(event);
                     const category = categories.find(c => c.id === event.categoryId);
                     
                     return (
-                      <div key={index} className="flex items-start space-x-3 p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
-                        <div className={`p-2 rounded-lg ${getEventColor(event)}`}>
-                          <Icon className="h-4 w-4 text-white" />
+                      <div key={index} className="flex items-start gap-3 rounded-2xl border border-gray-200 bg-white p-4 shadow-sm transition hover:shadow-md dark:border-gray-800 dark:bg-gray-950">
+                        <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full ${getEventColor(event)}`}>
+                          <Icon className="h-5 w-5 text-white" />
                         </div>
                         
-                        <div className="flex-1">
-                          <h4 className="font-medium text-gray-900 dark:text-white">
+                        <div className="min-w-0 flex-1">
+                          <h4 className="truncate font-semibold text-gray-950 dark:text-white">
                             {event.title}
                           </h4>
                           
                           {event.amount && (
-                            <p className="text-sm text-gray-600 dark:text-gray-400">
+                            <p className="mt-1 text-sm font-semibold text-gray-700 dark:text-gray-200">
                               {event.amount.toFixed(2)} €
                             </p>
                           )}
                           
                           {category && (
-                            <p className="text-xs text-gray-500 dark:text-gray-400">
+                            <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
                               {category.name}
                             </p>
                           )}
                           
-                          <span className={`inline-block mt-1 px-2 py-1 rounded-full text-xs ${
+                          <span className={`mt-3 inline-flex rounded-full px-3 py-1 text-xs font-medium ${
                             event.status === 'completed' 
                               ? 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400'
                               : event.status === 'overdue'
                                 ? 'bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-400'
-                                : 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-400'
+                                : 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300'
                           }`}>
                             {event.status === 'completed' ? 'Terminé' : 
                              event.status === 'overdue' ? 'En retard' : 'En attente'}

@@ -123,8 +123,8 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({
 
   return (
     <>
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700">
-        <div className="p-6 border-b border-gray-200 dark:border-gray-700">
+      <div className="rounded-2xl border border-gray-200 bg-white shadow-sm dark:border-gray-700 dark:bg-gray-800">
+        <div className="border-b border-gray-200 p-4 dark:border-gray-700 sm:p-6">
           <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
             {title}
           </h3>
@@ -138,8 +138,8 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({
               const IconComponent = category ? (LucideIcons as any)[category.icon] : LucideIcons.DollarSign;
 
               return (
-                <div key={transaction.id} className="p-4 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
-                  <div className="flex items-center gap-4">
+                <div key={transaction.id} className="p-3 transition-colors hover:bg-gray-50 dark:hover:bg-gray-700/50 sm:p-4">
+                  <div className="flex items-start gap-3 sm:items-center sm:gap-4">
                     <div
                       className="p-2 rounded-lg"
                       style={{ backgroundColor: `${category?.color || '#6B7280'}20` }}
@@ -171,7 +171,7 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-3">
+                    <div className="flex shrink-0 flex-col items-end gap-2 sm:flex-row sm:items-center sm:gap-3">
                       <p className={`whitespace-nowrap text-sm font-semibold ${
                         transaction.type === 'income'
                           ? 'text-green-600 dark:text-green-400'
@@ -182,7 +182,7 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({
                       <button
                         type="button"
                         onClick={() => openEditor(transaction)}
-                        className="rounded-lg p-2 text-gray-400 transition hover:bg-gray-100 hover:text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:hover:bg-gray-700 dark:hover:text-gray-200"
+                        className="rounded-full p-2 text-gray-400 transition hover:bg-gray-100 hover:text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:hover:bg-gray-700 dark:hover:text-gray-200 sm:rounded-lg"
                         aria-label="Modifier la transaction"
                       >
                         <LucideIcons.Pencil className="h-4 w-4" />
@@ -202,9 +202,9 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({
       </div>
 
       {editingTransaction && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm">
-          <div className="w-full max-w-2xl overflow-hidden rounded-2xl bg-white shadow-2xl dark:bg-gray-900">
-            <div className="flex items-center justify-between border-b border-gray-200 px-6 py-4 dark:border-gray-800">
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/45 p-0 backdrop-blur-sm sm:items-center sm:p-4">
+          <div className="max-h-[92dvh] w-full overflow-hidden rounded-t-3xl bg-white shadow-2xl dark:bg-gray-900 sm:max-w-2xl sm:rounded-3xl">
+            <div className="flex items-center justify-between border-b border-gray-200 bg-white px-5 py-4 dark:border-gray-800 dark:bg-gray-900 sm:px-6">
               <div>
                 <h2 className="text-lg font-semibold text-gray-950 dark:text-white">Modifier la transaction</h2>
                 <p className="text-sm text-gray-500 dark:text-gray-400">Les soldes seront recalcules automatiquement.</p>
@@ -219,7 +219,7 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({
               </button>
             </div>
 
-            <form onSubmit={handleSave} className="space-y-5 p-6">
+            <form onSubmit={handleSave} className="max-h-[calc(92dvh-5rem)] space-y-5 overflow-y-auto p-5 sm:p-6">
               <div className="grid grid-cols-2 gap-3">
                 <button
                   type="button"
@@ -332,7 +332,7 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({
                 </div>
               </div>
 
-              <div className="flex flex-col-reverse gap-3 border-t border-gray-200 pt-5 dark:border-gray-800 sm:flex-row sm:items-center sm:justify-between">
+              <div className="sticky bottom-0 -mx-5 flex flex-col-reverse gap-3 border-t border-gray-200 bg-white/95 px-5 py-4 backdrop-blur dark:border-gray-800 dark:bg-gray-900/95 sm:-mx-6 sm:flex-row sm:items-center sm:justify-between sm:px-6">
                 <button
                   type="button"
                   onClick={handleDelete}

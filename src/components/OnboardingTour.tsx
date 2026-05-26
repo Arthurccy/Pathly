@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { ArrowRight, CheckCircle2, CreditCard, ListChecks, Plus, ShieldCheck, Sparkles, X } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useBudget } from '../contexts/BudgetContext';
@@ -39,6 +39,7 @@ const OnboardingTour: React.FC<OnboardingTourProps> = ({ onViewChange }) => {
   const { accounts } = useBudget();
   const [isVisible, setIsVisible] = useState(false);
   const [stepIndex, setStepIndex] = useState(0);
+  const touchStartX = useRef<number | null>(null);
 
   const storageKey = user ? `pathly-onboarding-complete:${user.id}` : '';
   const step = steps[stepIndex];
@@ -61,13 +62,36 @@ const OnboardingTour: React.FC<OnboardingTourProps> = ({ onViewChange }) => {
     }
   };
 
+  const handleTouchEnd = (x: number) => {
+    if (touchStartX.current === null) return;
+
+    const distance = touchStartX.current - x;
+    touchStartX.current = null;
+
+    if (Math.abs(distance) < 60) return;
+    if (distance > 0 && stepIndex < steps.length - 1) {
+      setStepIndex(stepIndex + 1);
+    }
+    if (distance < 0 && stepIndex > 0) {
+      setStepIndex(stepIndex - 1);
+    }
+  };
+
   if (!isVisible) return null;
 
   return (
-    <div className="fixed inset-0 z-[70] flex items-center justify-center bg-gray-950/70 p-4 backdrop-blur-sm">
-      <div className="w-full max-w-4xl overflow-hidden rounded-2xl bg-white shadow-2xl dark:bg-gray-950">
-        <div className="grid md:grid-cols-[0.9fr_1.1fr]">
-          <div className="relative min-h-[22rem] bg-gray-950 p-6 text-white dark:bg-white dark:text-gray-950">
+    <div className="fixed inset-0 z-[70] flex items-end justify-center overflow-y-auto bg-gray-950/70 p-0 backdrop-blur-sm sm:items-center sm:p-4">
+      <div
+        className="max-h-[100dvh] w-full overflow-hidden rounded-t-2xl bg-white shadow-2xl dark:bg-gray-950 sm:max-h-[calc(100dvh-2rem)] sm:max-w-4xl sm:rounded-2xl"
+        onTouchStart={(event) => {
+          touchStartX.current = event.touches[0]?.clientX ?? null;
+        }}
+        onTouchEnd={(event) => {
+          handleTouchEnd(event.changedTouches[0]?.clientX ?? 0);
+        }}
+      >
+        <div className="grid max-h-[100dvh] overflow-y-auto sm:max-h-[calc(100dvh-2rem)] md:grid-cols-[0.9fr_1.1fr]">
+          <div className="relative bg-gray-950 p-5 text-white dark:bg-white dark:text-gray-950 sm:p-6 md:min-h-[22rem]">
             <button
               type="button"
               onClick={() => complete()}
@@ -78,15 +102,15 @@ const OnboardingTour: React.FC<OnboardingTourProps> = ({ onViewChange }) => {
               <X className="h-5 w-5" />
             </button>
 
-            <div className="flex h-full flex-col justify-between">
+            <div className="flex min-h-[16rem] flex-col justify-between md:h-full">
               <div>
-                <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-white text-gray-950 dark:bg-gray-950 dark:text-white">
-                  <Icon className="h-7 w-7" />
+                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white text-gray-950 dark:bg-gray-950 dark:text-white sm:h-14 sm:w-14">
+                  <Icon className="h-6 w-6 sm:h-7 sm:w-7" />
                 </div>
-                <p className="mt-8 text-sm font-medium text-blue-200 dark:text-blue-700">
+                <p className="mt-6 text-sm font-medium text-blue-200 dark:text-blue-700 sm:mt-8">
                   Étape {stepIndex + 1} sur {steps.length}
                 </p>
-                <h2 className="mt-3 text-3xl font-bold leading-tight">
+                <h2 className="mt-3 text-2xl font-bold leading-tight sm:text-3xl">
                   {step.title}
                 </h2>
                 <p className="mt-3 text-base text-gray-300 dark:text-gray-600">
@@ -110,7 +134,7 @@ const OnboardingTour: React.FC<OnboardingTourProps> = ({ onViewChange }) => {
             </div>
           </div>
 
-          <div className="p-6 sm:p-8">
+          <div className="p-5 sm:p-8">
             <div className="rounded-xl border border-gray-200 bg-gray-50 p-4 dark:border-gray-800 dark:bg-gray-900">
               <div className="flex items-start gap-3">
                 <ShieldCheck className="mt-0.5 h-5 w-5 shrink-0 text-emerald-600 dark:text-emerald-400" />
@@ -125,7 +149,7 @@ const OnboardingTour: React.FC<OnboardingTourProps> = ({ onViewChange }) => {
               </div>
             </div>
 
-            <p className="mt-6 text-lg leading-8 text-gray-700 dark:text-gray-300">
+            <p className="mt-5 text-base leading-7 text-gray-700 dark:text-gray-300 sm:mt-6 sm:text-lg sm:leading-8">
               {step.description}
             </p>
 
@@ -144,7 +168,7 @@ const OnboardingTour: React.FC<OnboardingTourProps> = ({ onViewChange }) => {
               </div>
             </div>
 
-            <div className="mt-8 flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="sticky bottom-0 -mx-5 mt-6 flex flex-col-reverse gap-3 border-t border-gray-100 bg-white/95 px-5 py-4 backdrop-blur dark:border-gray-900 dark:bg-gray-950/95 sm:static sm:mx-0 sm:mt-8 sm:flex-row sm:items-center sm:justify-between sm:border-t-0 sm:bg-transparent sm:p-0 sm:backdrop-blur-0">
               <button
                 type="button"
                 onClick={() => complete()}
@@ -153,7 +177,7 @@ const OnboardingTour: React.FC<OnboardingTourProps> = ({ onViewChange }) => {
                 Ignorer
               </button>
 
-              <div className="flex gap-3">
+              <div className="flex flex-col gap-3 sm:flex-row">
                 {stepIndex > 0 && (
                   <button
                     type="button"

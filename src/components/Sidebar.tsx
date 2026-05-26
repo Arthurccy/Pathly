@@ -75,7 +75,7 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView = 'dashboard', onViewChan
     <>
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="lg:hidden fixed top-4 left-4 z-50 flex h-10 w-10 items-center justify-center rounded-lg bg-white dark:bg-gray-800 shadow-lg border border-gray-200 dark:border-gray-700"
+        className="fixed left-3 top-2.5 z-50 flex h-9 w-9 items-center justify-center rounded-full border border-gray-200 bg-white shadow-lg dark:border-gray-700 dark:bg-gray-800 sm:top-3 sm:h-10 sm:w-10 lg:hidden"
         aria-label={isOpen ? 'Fermer le menu' : 'Ouvrir le menu'}
       >
         {isOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
@@ -89,11 +89,11 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView = 'dashboard', onViewChan
       )}
 
       <aside className={`
-        fixed left-0 top-16 h-[calc(100vh-4rem)] w-72 bg-white/95 dark:bg-gray-900/95
+        fixed left-0 top-14 h-[calc(100dvh-3.5rem)] w-[min(18rem,86vw)] bg-white/95 dark:bg-gray-900/95
         border-r border-gray-200 dark:border-gray-800 z-40 backdrop-blur
         transform transition-transform duration-300 ease-in-out
         ${isOpen ? 'translate-x-0' : '-translate-x-full'}
-        lg:translate-x-0 overflow-y-auto
+        overflow-y-auto pb-24 lg:top-16 lg:h-[calc(100vh-4rem)] lg:w-72 lg:translate-x-0 lg:pb-0
       `}>
         <div className="p-4">
           <button
