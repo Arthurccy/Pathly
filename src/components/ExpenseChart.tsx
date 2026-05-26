@@ -9,7 +9,7 @@ import {
   Tooltip,
   Legend,
 } from 'chart.js';
-import { addMonths, endOfYear, format, lastDayOfMonth, startOfYear } from 'date-fns';
+import { addMonths, endOfYear, format, startOfYear } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { useBudget } from '../contexts/BudgetContext';
 import { useAuth } from '../contexts/AuthContext';
@@ -148,11 +148,6 @@ const ExpenseChart: React.FC<ExpenseChartProps> = ({ viewMode = 'monthly' }) => 
   const outgoingTransactions = cashFlowTransactions
     .filter(t => t.type === 'expense' || t.type === 'bill' || t.type === 'savings' || isSavingsTransferOut(t))
     .sort((a, b) => a.date.getTime() - b.date.getTime());
-  const getMonthlyPaymentDate = (year: number, month: number, day: number) => {
-    const monthStart = new Date(year, month, 1);
-    const safeDay = Math.min(day, lastDayOfMonth(monthStart).getDate());
-    return new Date(year, month, safeDay);
-  };
   const debtPaymentItems = debts
     .filter(debt =>
       debt.isActive &&
@@ -168,12 +163,7 @@ const ExpenseChart: React.FC<ExpenseChartProps> = ({ viewMode = 'monthly' }) => 
         statusLabel: string;
         color: string;
       }[] = [];
-      const paymentDay = debt.paymentDay || debt.dueDate.getDate();
-      let cursor = getMonthlyPaymentDate(debt.dueDate.getFullYear(), debt.dueDate.getMonth(), paymentDay);
-
-      while (cursor < debt.dueDate) {
-        cursor = addMonths(cursor, 1);
-      }
+      let cursor = debt.dueDate;
       while (cursor < periodStart) {
         cursor = addMonths(cursor, 1);
       }
