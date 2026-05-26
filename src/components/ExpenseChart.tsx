@@ -136,8 +136,17 @@ const ExpenseChart: React.FC<ExpenseChartProps> = ({ viewMode = 'monthly' }) => 
   const baseIncome = cashFlowTransactions
     .filter(t => t.type === 'income' || t.type === 'refund' || t.type === 'savings_withdrawal')
     .reduce((sum, t) => sum + t.amount, 0);
+  const isSavingsTransferOut = (transaction: typeof cashFlowTransactions[number]) => {
+    if (transaction.type !== 'transfer' || !transaction.transferToAccountId) return false;
+
+    const destinationAccount = accounts.find(account => account.id === transaction.transferToAccountId);
+    const destinationName = destinationAccount?.name.trim().toLowerCase() || '';
+    const isSavingsDestination = destinationAccount?.type === 'savings' || destinationName.includes('livret');
+
+    return isSavingsDestination && transaction.description.trim().toLowerCase().startsWith('virement vers');
+  };
   const outgoingTransactions = cashFlowTransactions
-    .filter(t => t.type === 'expense' || t.type === 'bill' || t.type === 'savings')
+    .filter(t => t.type === 'expense' || t.type === 'bill' || t.type === 'savings' || isSavingsTransferOut(t))
     .sort((a, b) => a.date.getTime() - b.date.getTime());
   const totalOutgoings = outgoingTransactions.reduce((sum, t) => sum + t.amount, 0);
   const remainingIncome = baseIncome - totalOutgoings;
@@ -182,7 +191,7 @@ const ExpenseChart: React.FC<ExpenseChartProps> = ({ viewMode = 'monthly' }) => 
       shortLabel: transaction.description || category?.name || 'Sortie',
       value: -transaction.amount,
       range: [Math.min(start, runningBalance), Math.max(start, runningBalance)],
-      color: transaction.type === 'savings' ? '#2563EB' : '#DC2626',
+      color: transaction.type === 'savings' || isSavingsTransferOut(transaction) ? '#2563EB' : '#DC2626',
     });
   });
 
