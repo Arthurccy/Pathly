@@ -24,25 +24,31 @@ const BudgetProgress: React.FC<BudgetProgressProps> = ({ viewMode = 'monthly' })
   const selectedAccountSet = new Set(selectedAccountIds);
   const shouldIncludeAccount = (accountId: string) =>
     selectedAccountIds.length === 0 || selectedAccountSet.has(accountId);
-  const checkingAccountIds = new Set(
+  const spendingAccountIds = new Set(
     accounts
-      .filter(account => account.isActive && account.type === 'checking' && shouldIncludeAccount(account.id))
+      .filter(account =>
+        account.isActive &&
+        account.type !== 'savings' &&
+        account.type !== 'investment' &&
+        account.type !== 'crypto' &&
+        shouldIncludeAccount(account.id)
+      )
       .map(account => account.id)
   );
   const currentAccountBalance = accounts
-    .filter(account => checkingAccountIds.has(account.id))
+    .filter(account => spendingAccountIds.has(account.id))
     .reduce((sum, account) => sum + account.balance, 0);
   const getTransactionImpact = (transaction: Transaction) => {
-    const isCheckingTransaction = checkingAccountIds.has(transaction.accountId);
+    const isSpendingAccountTransaction = spendingAccountIds.has(transaction.accountId);
 
     if (transaction.type === 'transfer') {
-      if (!isCheckingTransaction) return 0;
+      if (!isSpendingAccountTransaction) return 0;
       return transaction.description.toLowerCase().includes('depuis')
         ? transaction.amount
         : -transaction.amount;
     }
 
-    if (!isCheckingTransaction) return 0;
+    if (!isSpendingAccountTransaction) return 0;
     if (transaction.type === 'income' || transaction.type === 'refund') return transaction.amount;
     if (transaction.type === 'expense' || transaction.type === 'bill' || transaction.type === 'savings') return -transaction.amount;
     return 0;
@@ -78,10 +84,17 @@ const BudgetProgress: React.FC<BudgetProgressProps> = ({ viewMode = 'monthly' })
 
     if (!transaction.isRecurring || !transaction.recurringPattern?.isActive) {
       const transactionDate = startOfDay(transaction.date);
-      if (
+      const isUpcomingScheduled =
         transaction.status === 'scheduled' &&
         transactionDate >= today &&
-        transactionDate <= periodEnd
+        transactionDate <= periodEnd;
+      const isPendingInPeriod =
+        transaction.status === 'pending' &&
+        transactionDate >= periodStart &&
+        transactionDate <= periodEnd;
+      if (
+        isUpcomingScheduled ||
+        isPendingInPeriod
       ) {
         return addImpactToProjection(projection, impact);
       }
@@ -113,7 +126,7 @@ const BudgetProgress: React.FC<BudgetProgressProps> = ({ viewMode = 'monthly' })
   const upcomingDebtPayments = debts
     .filter(debt =>
       debt.isActive &&
-      checkingAccountIds.has(debt.accountId) &&
+      spendingAccountIds.has(debt.accountId) &&
       startOfDay(debt.dueDate) >= today &&
       startOfDay(debt.dueDate) <= periodEnd
     )
@@ -145,10 +158,10 @@ const BudgetProgress: React.FC<BudgetProgressProps> = ({ viewMode = 'monthly' })
     .filter(t =>
       t.categoryId === categoryId &&
       t.type === 'expense' &&
-      t.status === 'scheduled' &&
+      (t.status === 'scheduled' || t.status === 'pending') &&
       categories.find(category => category.id === t.categoryId)?.excludeFromReports !== true &&
-      checkingAccountIds.has(t.accountId) &&
-      t.date >= today &&
+      spendingAccountIds.has(t.accountId) &&
+      (t.status === 'pending' || t.date >= today) &&
       t.date <= periodEnd
     )
     .reduce((sum, t) => sum + t.amount, 0);
@@ -271,7 +284,7 @@ const BudgetProgress: React.FC<BudgetProgressProps> = ({ viewMode = 'monthly' })
         .filter(transaction =>
           transaction.categoryId === selectedCategoryId &&
           transaction.type === 'expense' &&
-          (transaction.status === 'completed' || transaction.status === 'scheduled') &&
+          (transaction.status === 'completed' || transaction.status === 'scheduled' || transaction.status === 'pending') &&
           transaction.date >= periodStart &&
           transaction.date <= periodEnd &&
           (selectedAccountIds.length === 0 || selectedAccountIds.includes(transaction.accountId))
@@ -470,6 +483,7 @@ const BudgetProgress: React.FC<BudgetProgressProps> = ({ viewMode = 'monthly' })
                             {format(transaction.date, 'dd MMM yyyy', { locale: fr })}
                             {account ? ` - ${account.name}` : ''}
                             {transaction.status === 'scheduled' ? ' - à venir' : ''}
+                            {transaction.status === 'pending' ? ' - en attente' : ''}
                           </p>
                         </div>
                         <p className="ml-4 whitespace-nowrap text-sm font-semibold text-red-600 dark:text-red-400">
