@@ -148,6 +148,7 @@ export const BudgetProvider: React.FC<BudgetProviderProps> = ({ children }) => {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [accounts, setAccounts] = useState<BankAccount[]>([]);
+  const accountsRef = useRef<BankAccount[]>([]);
   const [budgets, setBudgets] = useState<Budget[]>([]);
   const [savingsGoals, setSavingsGoals] = useState<SavingsGoal[]>([]);
   const [debts, setDebts] = useState<Debt[]>([]);
@@ -162,6 +163,10 @@ export const BudgetProvider: React.FC<BudgetProviderProps> = ({ children }) => {
     end: endOfMonth(new Date())
   });
   const [selectedAccountIds, setSelectedAccountIds] = useState<string[]>([]);
+
+  useEffect(() => {
+    accountsRef.current = accounts;
+  }, [accounts]);
 
   useEffect(() => {
     if (user) {
@@ -593,14 +598,15 @@ export const BudgetProvider: React.FC<BudgetProviderProps> = ({ children }) => {
   };
 
   const updateAccountBalance = async (accountId: string, amount: number) => {
-    const account = accounts.find(a => a.id === accountId);
+    const account = accountsRef.current.find(a => a.id === accountId);
     if (!account) return;
 
     try {
       const updatedAccount = await supabaseService.updateAccount(accountId, {
         balance: account.balance + amount
       });
-      setAccounts(prev => prev.map(a => a.id === accountId ? updatedAccount : a));
+      accountsRef.current = accountsRef.current.map(a => a.id === accountId ? updatedAccount : a);
+      setAccounts(accountsRef.current);
     } catch (error) {
       console.error('Error updating account balance:', error);
       throw error;
