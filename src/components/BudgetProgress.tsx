@@ -249,7 +249,20 @@ const BudgetProgress: React.FC<BudgetProgressProps> = ({ viewMode = 'monthly' })
     (sum, item) => sum + Math.max(item.budgeted - item.committed, 0),
     0
   );
-  const projectedAfterBudgets = projectedCurrentBalance - remainingBudgets;
+  const totalOverBudgetAmount = budgetProgress
+    .filter(item => !item.isUnplanned)
+    .reduce((sum, item) => sum + Math.max(item.committed - item.budgeted, 0), 0);
+  const totalBudgetGap = totalCommitted - totalBudgeted;
+  const pressureToCover = totalOverBudgetAmount + totalUnplannedSpent;
+  const uncoveredAfterReallocation = Math.max(pressureToCover - remainingBudgets, 0);
+  const budgetPlanIsOver = totalBudgetGap > 0;
+  const budgetActionMessage = budgetPlanIsOver
+    ? projectedCurrentBalance >= 0
+      ? `Ton plan de budget dépasse de ${totalBudgetGap.toFixed(2)} €. Ta trésorerie reste positive, donc tu peux réallouer ${Math.min(remainingBudgets, pressureToCover).toFixed(2)} € de budgets libres, augmenter certains budgets, ou garder une partie pour l'épargne.`
+      : `Ton plan de budget dépasse de ${totalBudgetGap.toFixed(2)} € et le solde prévu passe négatif. Il faut réduire ou décaler au moins ${Math.abs(projectedCurrentBalance).toFixed(2)} € de sorties.`
+    : projectedCurrentBalance > 0
+      ? `Ton plan tient avec ${Math.abs(totalBudgetGap).toFixed(2)} € de marge budgétaire. Tu peux garder cette marge, renforcer l'épargne ou augmenter un budget utile.`
+      : `Tes budgets tiennent sur le papier, mais le solde prévu est négatif. Le blocage vient plutôt de la trésorerie disponible que des budgets.`;
   const selectedBudgetCategory = selectedCategoryId
     ? categories.find(category => category.id === selectedCategoryId)
     : null;
@@ -294,25 +307,47 @@ const BudgetProgress: React.FC<BudgetProgressProps> = ({ viewMode = 'monthly' })
 
       <div className="mb-5 grid grid-cols-1 gap-3 sm:grid-cols-3">
         <div className="rounded-lg border border-gray-200 bg-gray-50 p-4 dark:border-gray-700 dark:bg-gray-900/50">
-          <p className="text-sm text-gray-500 dark:text-gray-400">Solde courant prévu</p>
-          <p className="mt-1 text-xl font-semibold text-gray-900 dark:text-white">
+          <p className="text-sm text-gray-500 dark:text-gray-400">Marge de trésorerie prévue</p>
+          <p className={`mt-1 text-xl font-semibold ${projectedCurrentBalance >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}>
             {projectedCurrentBalance.toFixed(2)} €
+          </p>
+          <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Après les opérations déjà prévues.</p>
+        </div>
+
+        <div className="rounded-lg border border-gray-200 bg-gray-50 p-4 dark:border-gray-700 dark:bg-gray-900/50">
+          <p className="text-sm text-gray-500 dark:text-gray-400">Écart au plan</p>
+          <p className={`mt-1 text-xl font-semibold ${budgetPlanIsOver ? 'text-red-600 dark:text-red-400' : 'text-emerald-600 dark:text-emerald-400'}`}>
+            {budgetPlanIsOver ? '-' : '+'}{Math.abs(totalBudgetGap).toFixed(2)} €
+          </p>
+          <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+            {budgetPlanIsOver ? 'Dépassements et hors budget inclus.' : 'Marge restante sur tes budgets.'}
           </p>
         </div>
 
         <div className="rounded-lg border border-gray-200 bg-gray-50 p-4 dark:border-gray-700 dark:bg-gray-900/50">
-          <p className="text-sm text-gray-500 dark:text-gray-400">Budgets encore libres</p>
-          <p className="mt-1 text-xl font-semibold text-orange-600 dark:text-orange-400">
-            -{remainingBudgets.toFixed(2)} €
+          <p className="text-sm text-gray-500 dark:text-gray-400">Réallocation possible</p>
+          <p className="mt-1 text-xl font-semibold text-blue-600 dark:text-blue-400">
+            {remainingBudgets.toFixed(2)} €
           </p>
+          <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Budgets encore libres ailleurs.</p>
         </div>
+      </div>
 
-        <div className="rounded-lg bg-gray-950 p-4 text-white dark:bg-white dark:text-gray-950">
-          <p className="text-sm text-gray-300 dark:text-gray-600">Après budgets</p>
-          <p className={`mt-1 text-xl font-semibold ${projectedAfterBudgets >= 0 ? 'text-emerald-300 dark:text-emerald-700' : 'text-red-300 dark:text-red-700'}`}>
-            {projectedAfterBudgets.toFixed(2)} €
+      <div className={`mb-5 rounded-lg border p-4 ${
+        budgetPlanIsOver
+          ? 'border-amber-200 bg-amber-50 dark:border-amber-900/60 dark:bg-amber-900/20'
+          : 'border-emerald-200 bg-emerald-50 dark:border-emerald-900/60 dark:bg-emerald-900/20'
+      }`}>
+        <p className={`text-sm font-medium ${
+          budgetPlanIsOver ? 'text-amber-900 dark:text-amber-100' : 'text-emerald-900 dark:text-emerald-100'
+        }`}>
+          {budgetActionMessage}
+        </p>
+        {budgetPlanIsOver && (
+          <p className="mt-2 text-xs text-amber-800 dark:text-amber-200">
+            À couvrir: {pressureToCover.toFixed(2)} € · budgets libres: {remainingBudgets.toFixed(2)} € · reste après réallocation: {uncoveredAfterReallocation.toFixed(2)} €
           </p>
-        </div>
+        )}
       </div>
 
       {totalUnplannedSpent > 0 && (
