@@ -262,6 +262,7 @@ const BudgetProgress: React.FC<BudgetProgressProps> = ({ viewMode = 'monthly' })
     (sum, item) => sum + Math.max(item.budgeted - item.committed, 0),
     0
   );
+  const finalProjectedAfterBudgets = projectedCurrentBalance - remainingBudgets;
   const totalOverBudgetAmount = budgetProgress
     .filter(item => !item.isUnplanned)
     .reduce((sum, item) => sum + Math.max(item.committed - item.budgeted, 0), 0);
@@ -271,10 +272,10 @@ const BudgetProgress: React.FC<BudgetProgressProps> = ({ viewMode = 'monthly' })
   const budgetPlanIsOver = totalBudgetGap > 0;
   const budgetActionMessage = budgetPlanIsOver
     ? projectedCurrentBalance >= 0
-      ? `Ton plan de budget dépasse de ${totalBudgetGap.toFixed(2)} €. Ta trésorerie reste positive, donc tu peux réallouer ${Math.min(remainingBudgets, pressureToCover).toFixed(2)} € de budgets libres, augmenter certains budgets, ou garder une partie pour l'épargne.`
+      ? `Ton plan de budget dépasse de ${totalBudgetGap.toFixed(2)} €. Si tu utilises aussi les budgets encore libres, il te resterait ${finalProjectedAfterBudgets.toFixed(2)} €. Tu peux réallouer ${Math.min(remainingBudgets, pressureToCover).toFixed(2)} €, augmenter certains budgets, ou garder une partie pour l'épargne.`
       : `Ton plan de budget dépasse de ${totalBudgetGap.toFixed(2)} € et le solde prévu passe négatif. Il faut réduire ou décaler au moins ${Math.abs(projectedCurrentBalance).toFixed(2)} € de sorties.`
     : projectedCurrentBalance > 0
-      ? `Ton plan tient avec ${Math.abs(totalBudgetGap).toFixed(2)} € de marge budgétaire. Tu peux garder cette marge, renforcer l'épargne ou augmenter un budget utile.`
+      ? `Ton plan tient avec ${Math.abs(totalBudgetGap).toFixed(2)} € de marge budgétaire. Si tu utilises aussi les budgets encore libres, il te resterait ${finalProjectedAfterBudgets.toFixed(2)} €.`
       : `Tes budgets tiennent sur le papier, mais le solde prévu est négatif. Le blocage vient plutôt de la trésorerie disponible que des budgets.`;
   const selectedBudgetCategory = selectedCategoryId
     ? categories.find(category => category.id === selectedCategoryId)
@@ -346,6 +347,20 @@ const BudgetProgress: React.FC<BudgetProgressProps> = ({ viewMode = 'monthly' })
         </div>
       </div>
 
+      <div className="mb-5 rounded-lg bg-gray-950 p-4 text-white dark:bg-white dark:text-gray-950">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p className="text-sm text-gray-300 dark:text-gray-600">Reste final estimé</p>
+            <p className="mt-1 text-xs text-gray-400 dark:text-gray-500">
+              Marge prévue {projectedCurrentBalance.toFixed(2)} € - budgets encore libres {remainingBudgets.toFixed(2)} €
+            </p>
+          </div>
+          <p className={`text-2xl font-semibold ${finalProjectedAfterBudgets >= 0 ? 'text-emerald-300 dark:text-emerald-700' : 'text-red-300 dark:text-red-700'}`}>
+            {finalProjectedAfterBudgets.toFixed(2)} €
+          </p>
+        </div>
+      </div>
+
       <div className={`mb-5 rounded-lg border p-4 ${
         budgetPlanIsOver
           ? 'border-amber-200 bg-amber-50 dark:border-amber-900/60 dark:bg-amber-900/20'
@@ -358,7 +373,7 @@ const BudgetProgress: React.FC<BudgetProgressProps> = ({ viewMode = 'monthly' })
         </p>
         {budgetPlanIsOver && (
           <p className="mt-2 text-xs text-amber-800 dark:text-amber-200">
-            À couvrir: {pressureToCover.toFixed(2)} € · budgets libres: {remainingBudgets.toFixed(2)} € · reste après réallocation: {uncoveredAfterReallocation.toFixed(2)} €
+            À couvrir: {pressureToCover.toFixed(2)} € · budgets libres: {remainingBudgets.toFixed(2)} € · dépassement encore non couvert: {uncoveredAfterReallocation.toFixed(2)} €
           </p>
         )}
       </div>
