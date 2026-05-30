@@ -598,10 +598,13 @@ export const BudgetProvider: React.FC<BudgetProviderProps> = ({ children }) => {
   };
 
   const updateAccountBalance = async (accountId: string, amount: number) => {
-    const account = accountsRef.current.find(a => a.id === accountId);
-    if (!account) return;
+    if (!user) return;
 
     try {
+      const latestAccounts = await supabaseService.getAccounts(user.id);
+      const account = latestAccounts.find(a => a.id === accountId);
+      if (!account) return;
+
       const updatedAccount = await supabaseService.updateAccount(accountId, {
         balance: account.balance + amount
       });
