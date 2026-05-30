@@ -523,25 +523,11 @@ export const BudgetProvider: React.FC<BudgetProviderProps> = ({ children }) => {
       !transaction.isRecurring &&
       !isAfter(startOfDay(transaction.date), today)
     );
-    const futureCompletedTransactions = transactions.filter(transaction =>
-      transaction.status === 'completed' &&
-      !transaction.isRecurring &&
-      isAfter(startOfDay(transaction.date), today)
-    );
-
     for (const transaction of dueTransactions) {
       try {
         await updateTransaction(transaction.id, { status: 'completed' });
       } catch (error) {
         console.error('Error completing scheduled transaction:', error);
-      }
-    }
-
-    for (const transaction of futureCompletedTransactions) {
-      try {
-        await updateTransaction(transaction.id, { status: 'scheduled' });
-      } catch (error) {
-        console.error('Error scheduling future transaction:', error);
       }
     }
   };
