@@ -46,6 +46,27 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({
     },
     [limit, mode, transactions]
   );
+  const groupedTransactions = useMemo(() => {
+    if (mode !== 'all') {
+      return [{ key: mode, title: title, transactions: recentTransactions }];
+    }
+
+    const upcoming = recentTransactions
+      .filter(transaction => transaction.status === 'scheduled')
+      .sort((a, b) => a.date.getTime() - b.date.getTime());
+    const pending = recentTransactions
+      .filter(transaction => transaction.status === 'pending')
+      .sort((a, b) => a.date.getTime() - b.date.getTime());
+    const completed = recentTransactions
+      .filter(transaction => transaction.status === 'completed')
+      .sort((a, b) => b.date.getTime() - a.date.getTime());
+
+    return [
+      { key: 'scheduled', title: 'À venir', transactions: upcoming },
+      { key: 'pending', title: 'En attente', transactions: pending },
+      { key: 'completed', title: 'Terminées', transactions: completed },
+    ].filter(group => group.transactions.length > 0);
+  }, [mode, recentTransactions, title]);
 
   const activeAccounts = accounts.filter(account => account.isActive);
   const availableCategories = categories.filter(category => category.type === formData.type);
@@ -121,6 +142,79 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({
     }
   };
 
+  const renderTransaction = (transaction: Transaction) => {
+    const category = categories.find(c => c.id === transaction.categoryId);
+    const account = accounts.find(a => a.id === transaction.accountId);
+    const IconComponent = category ? (LucideIcons as any)[category.icon] : LucideIcons.DollarSign;
+
+    return (
+      <div key={transaction.id} className="p-3 transition-colors hover:bg-gray-50 dark:hover:bg-gray-700/50 sm:p-4">
+        <div className="flex items-start gap-3 sm:items-center sm:gap-4">
+          <div
+            className="p-2 rounded-lg"
+            style={{ backgroundColor: `${category?.color || '#6B7280'}20` }}
+          >
+            <IconComponent
+              className="h-5 w-5"
+              style={{ color: category?.color || '#6B7280' }}
+            />
+          </div>
+
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-sm font-medium text-gray-900 dark:text-white">
+              {transaction.description}
+            </p>
+            <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1">
+              <span className="text-xs text-gray-500 dark:text-gray-400">
+                {category?.name || 'Sans categorie'}
+              </span>
+              {account && (
+                <>
+                  <span className="text-xs text-gray-400 dark:text-gray-500">-</span>
+                  <span className="text-xs text-gray-500 dark:text-gray-400">{account.name}</span>
+                </>
+              )}
+              <span className="text-xs text-gray-400 dark:text-gray-500">-</span>
+              <span className="text-xs text-gray-500 dark:text-gray-400">
+                {format(transaction.date, 'dd MMM yyyy', { locale: fr })}
+              </span>
+              {transaction.status !== 'completed' && (
+                <>
+                  <span className="text-xs text-gray-400 dark:text-gray-500">-</span>
+                  <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${
+                    transaction.status === 'scheduled'
+                      ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300'
+                      : 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300'
+                  }`}>
+                    {transaction.status === 'scheduled' ? 'Planifiée' : 'En attente'}
+                  </span>
+                </>
+              )}
+            </div>
+          </div>
+
+          <div className="flex shrink-0 flex-col items-end gap-2 sm:flex-row sm:items-center sm:gap-3">
+            <p className={`whitespace-nowrap text-sm font-semibold ${
+              transaction.type === 'income'
+                ? 'text-green-600 dark:text-green-400'
+                : 'text-red-600 dark:text-red-400'
+            }`}>
+              {transaction.type === 'income' ? '+' : '-'}{transaction.amount.toFixed(2)} EUR
+            </p>
+            <button
+              type="button"
+              onClick={() => openEditor(transaction)}
+              className="rounded-full p-2 text-gray-400 transition hover:bg-gray-100 hover:text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:hover:bg-gray-700 dark:hover:text-gray-200 sm:rounded-lg"
+              aria-label="Modifier la transaction"
+            >
+              <LucideIcons.Pencil className="h-4 w-4" />
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   return (
     <>
       <div className="rounded-2xl border border-gray-200 bg-white shadow-sm dark:border-gray-700 dark:bg-gray-800">
@@ -131,8 +225,28 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({
         </div>
 
         {recentTransactions.length > 0 ? (
-          <div className="divide-y divide-gray-200 dark:divide-gray-700">
-            {recentTransactions.map((transaction) => {
+          <div className={mode === 'all' ? 'space-y-4 p-3 sm:p-4' : 'divide-y divide-gray-200 dark:divide-gray-700'}>
+            {mode === 'all' ? (
+              groupedTransactions.map(group => (
+                <section key={group.key} className="overflow-hidden rounded-2xl border border-gray-200 dark:border-gray-700">
+                  <div className={`flex items-center justify-between px-4 py-3 ${
+                    group.key === 'scheduled'
+                      ? 'bg-blue-50 text-blue-900 dark:bg-blue-950/30 dark:text-blue-100'
+                      : group.key === 'pending'
+                        ? 'bg-amber-50 text-amber-900 dark:bg-amber-950/30 dark:text-amber-100'
+                        : 'bg-emerald-50 text-emerald-900 dark:bg-emerald-950/30 dark:text-emerald-100'
+                  }`}>
+                    <h4 className="text-sm font-semibold">{group.title}</h4>
+                    <span className="rounded-full bg-white/70 px-2.5 py-1 text-xs font-medium dark:bg-gray-950/30">
+                      {group.transactions.length}
+                    </span>
+                  </div>
+                  <div className="divide-y divide-gray-200 dark:divide-gray-700">
+                    {group.transactions.map(renderTransaction)}
+                  </div>
+                </section>
+              ))
+            ) : recentTransactions.map((transaction) => {
               const category = categories.find(c => c.id === transaction.categoryId);
               const account = accounts.find(a => a.id === transaction.accountId);
               const IconComponent = category ? (LucideIcons as any)[category.icon] : LucideIcons.DollarSign;
