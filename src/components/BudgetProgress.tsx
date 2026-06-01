@@ -11,7 +11,7 @@ interface BudgetProgressProps {
 }
 
 const BudgetProgress: React.FC<BudgetProgressProps> = ({ viewMode = 'monthly' }) => {
-  const { transactions, categories, budgets, accounts, debts, selectedAccountIds, getCashFlowProjection } = useBudget();
+  const { transactions, categories, budgets, accounts, debts, selectedAccountIds, getCashFlowProjection, getProjectedRecurringTransactions } = useBudget();
   const { user } = useAuth();
   const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
   
@@ -161,16 +161,59 @@ const BudgetProgress: React.FC<BudgetProgressProps> = ({ viewMode = 'monthly' })
     )
     .reduce((sum, t) => sum + t.amount, 0);
 
+  const plannedTransactionKey = (transaction: Transaction) => [
+    transaction.accountId,
+    transaction.categoryId,
+    transaction.type,
+    transaction.amount,
+    transaction.description.trim().toLowerCase(),
+    transaction.date.toISOString().split('T')[0],
+  ].join('|');
+
+  const completedPeriodTransactionKeys = new Set(
+    transactions
+      .filter(t =>
+        !t.isRecurring &&
+        t.status === 'completed' &&
+        t.date >= periodStart &&
+        t.date <= periodEnd
+      )
+      .map(plannedTransactionKey)
+  );
+
+  const actualPeriodTransactionKeys = new Set(
+    transactions
+      .filter(t =>
+        !t.isRecurring &&
+        t.date >= periodStart &&
+        t.date <= periodEnd &&
+        (t.status === 'completed' || t.status === 'scheduled' || t.status === 'pending')
+      )
+      .map(plannedTransactionKey)
+  );
+
+  const projectedRecurringExpenses = getProjectedRecurringTransactions(periodStart, periodEnd)
+    .filter(t =>
+      t.type === 'expense' &&
+      categories.find(category => category.id === t.categoryId)?.excludeFromReports !== true &&
+      spendingAccountIds.has(t.accountId) &&
+      t.date >= today &&
+      !actualPeriodTransactionKeys.has(plannedTransactionKey(t))
+    );
+
   const getPlannedExpensesForCategory = (categoryId: string) => transactions
     .filter(t =>
+      !t.isRecurring &&
       t.categoryId === categoryId &&
       t.type === 'expense' &&
       (t.status === 'scheduled' || t.status === 'pending') &&
+      !completedPeriodTransactionKeys.has(plannedTransactionKey(t)) &&
       categories.find(category => category.id === t.categoryId)?.excludeFromReports !== true &&
       spendingAccountIds.has(t.accountId) &&
       (t.status === 'pending' || t.date >= today) &&
       t.date <= periodEnd
     )
+    .concat(projectedRecurringExpenses.filter(t => t.categoryId === categoryId))
     .reduce((sum, t) => sum + t.amount, 0);
 
   const budgetProgress = currentPeriodBudgets.map(budget => {

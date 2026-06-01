@@ -1288,12 +1288,30 @@ export const BudgetProvider: React.FC<BudgetProviderProps> = ({ children }) => {
         !isExcludedFromReports(t) &&
         cashFlowAccountIds.has(t.accountId)
       );
+      const completedMonthTransactionKeys = new Set(
+        monthTransactions.map(transaction => [
+          transaction.accountId,
+          transaction.categoryId,
+          transaction.type,
+          transaction.amount,
+          transaction.description.trim().toLowerCase(),
+          transaction.date.toISOString().split('T')[0],
+        ].join('|'))
+      );
 
       const scheduledTransactions = getScheduledTransactions(monthStart, monthEnd)
         .filter(t =>
           !t.isRecurring &&
           !isExcludedFromReports(t) &&
-          cashFlowAccountIds.has(t.accountId)
+          cashFlowAccountIds.has(t.accountId) &&
+          !completedMonthTransactionKeys.has([
+            t.accountId,
+            t.categoryId,
+            t.type,
+            t.amount,
+            t.description.trim().toLowerCase(),
+            t.date.toISOString().split('T')[0],
+          ].join('|'))
         );
       const pendingTransactions = transactions.filter(t =>
         t.date >= monthStart &&
@@ -1301,12 +1319,40 @@ export const BudgetProvider: React.FC<BudgetProviderProps> = ({ children }) => {
         t.status === 'pending' &&
         !t.isRecurring &&
         !isExcludedFromReports(t) &&
-        cashFlowAccountIds.has(t.accountId)
+        cashFlowAccountIds.has(t.accountId) &&
+        !completedMonthTransactionKeys.has([
+          t.accountId,
+          t.categoryId,
+          t.type,
+          t.amount,
+          t.description.trim().toLowerCase(),
+          t.date.toISOString().split('T')[0],
+        ].join('|'))
+      );
+      const actualMonthTransactionKeys = new Set(
+        monthTransactions
+          .concat(scheduledTransactions, pendingTransactions)
+          .map(transaction => [
+            transaction.accountId,
+            transaction.categoryId,
+            transaction.type,
+            transaction.amount,
+            transaction.description.trim().toLowerCase(),
+            transaction.date.toISOString().split('T')[0],
+          ].join('|'))
       );
       const projectedRecurringTransactions = getProjectedRecurringTransactions(monthStart, monthEnd)
         .filter(t =>
           !isExcludedFromReports(t) &&
-          cashFlowAccountIds.has(t.accountId)
+          cashFlowAccountIds.has(t.accountId) &&
+          !actualMonthTransactionKeys.has([
+            t.accountId,
+            t.categoryId,
+            t.type,
+            t.amount,
+            t.description.trim().toLowerCase(),
+            t.date.toISOString().split('T')[0],
+          ].join('|'))
         );
       const plannedTransactions = scheduledTransactions.concat(pendingTransactions, projectedRecurringTransactions);
       const visibleMonthTransactions = monthTransactions.concat(plannedTransactions);
