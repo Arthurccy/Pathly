@@ -117,6 +117,7 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({
         date: new Date(formData.date),
         status: formData.status,
         isRecurring: editingTransaction.isRecurring,
+        recurringPattern: editingTransaction.recurringPattern,
       });
       closeEditor();
     } catch (error) {

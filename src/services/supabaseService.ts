@@ -354,6 +354,9 @@ export const supabaseService = {
     const cleanedUpdates = Object.fromEntries(
       Object.entries(convertAppToDatabase.transaction(updates)).filter(([_, v]) => v !== undefined)
     );
+    if (!Object.prototype.hasOwnProperty.call(updates, 'recurringPattern')) {
+      delete cleanedUpdates.recurring_pattern;
+    }
 
     const { data, error } = await supabase
       .from('transactions')

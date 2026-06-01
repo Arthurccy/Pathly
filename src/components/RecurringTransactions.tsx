@@ -25,7 +25,7 @@ const RecurringTransactions: React.FC = () => {
     maxOccurrences: '',
   });
 
-  const recurringTransactions = transactions.filter(t => t.isRecurring && t.recurringPattern);
+  const recurringTransactions = transactions.filter(t => t.isRecurring);
 
   const getFrequencyLabel = (frequency: string, interval: number) => {
     const labels = {
@@ -156,7 +156,7 @@ const RecurringTransactions: React.FC = () => {
       type: transaction.type === 'transfer' ? 'transfer' : transaction.type as 'expense' | 'income',
       frequency: transaction.recurringPattern?.frequency || 'monthly',
       interval: transaction.recurringPattern?.interval || 1,
-      nextDate: transaction.recurringPattern?.nextDate.toISOString().split('T')[0] || '',
+      nextDate: transaction.recurringPattern?.nextDate.toISOString().split('T')[0] || transaction.date.toISOString().split('T')[0],
       endDate: transaction.recurringPattern?.endDate?.toISOString().split('T')[0] || '',
       maxOccurrences: transaction.recurringPattern?.maxOccurrences?.toString() || '',
     });
@@ -467,7 +467,14 @@ const RecurringTransactions: React.FC = () => {
               const category = categories.find(c => c.id === transaction.categoryId);
               const account = accounts.find(a => a.id === transaction.accountId);
               const IconComponent = category ? (LucideIcons as any)[category.icon] : LucideIcons.DollarSign;
-              const pattern = transaction.recurringPattern!;
+              const pattern = transaction.recurringPattern;
+              const displayPattern = pattern || {
+                frequency: 'monthly' as const,
+                interval: 1,
+                nextDate: transaction.date,
+                isActive: false,
+                currentOccurrence: 0,
+              };
               
               return (
                 <div key={transaction.id} className="p-4">
@@ -489,11 +496,13 @@ const RecurringTransactions: React.FC = () => {
                             {transaction.description}
                           </h4>
                           <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
-                            pattern.isActive 
+                            pattern?.isActive 
                               ? 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400'
-                              : 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-400'
+                              : pattern
+                                ? 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-400'
+                                : 'bg-amber-100 text-amber-800 dark:bg-amber-900/20 dark:text-amber-300'
                           }`}>
-                            {pattern.isActive ? 'Actif' : 'Suspendu'}
+                            {pattern ? (pattern.isActive ? 'Actif' : 'Suspendu') : 'A configurer'}
                           </span>
                         </div>
                         
@@ -502,9 +511,9 @@ const RecurringTransactions: React.FC = () => {
                           <span>•</span>
                           <span>{account?.name}</span>
                           <span>•</span>
-                          <span>{getFrequencyLabel(pattern.frequency, pattern.interval)}</span>
+                          <span>{getFrequencyLabel(displayPattern.frequency, displayPattern.interval)}</span>
                           <span>•</span>
-                          <span>Prochaine: {format(pattern.nextDate, 'dd MMM yyyy', { locale: fr })}</span>
+                          <span>Prochaine: {format(displayPattern.nextDate, 'dd MMM yyyy', { locale: fr })}</span>
                         </div>
                       </div>
                     </div>
@@ -520,15 +529,15 @@ const RecurringTransactions: React.FC = () => {
                       
                       <div className="flex items-center space-x-1">
                         <button
-                          onClick={() => toggleRecurringStatus(transaction)}
+                          onClick={() => pattern ? toggleRecurringStatus(transaction) : editRecurring(transaction)}
                           className={`p-1 rounded ${
-                            pattern.isActive
+                            pattern?.isActive
                               ? 'text-orange-600 hover:text-orange-700 dark:text-orange-400'
                               : 'text-green-600 hover:text-green-700 dark:text-green-400'
                           }`}
-                          title={pattern.isActive ? 'Suspendre' : 'Activer'}
+                          title={pattern ? (pattern.isActive ? 'Suspendre' : 'Activer') : 'Configurer'}
                         >
-                          {pattern.isActive ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
+                          {pattern?.isActive ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
                         </button>
                         
                         <button

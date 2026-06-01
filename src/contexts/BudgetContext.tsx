@@ -1206,8 +1206,20 @@ export const BudgetProvider: React.FC<BudgetProviderProps> = ({ children }) => {
         )
         .map(account => account.id)
     );
+    const savingsAccountIds = new Set(
+      accounts
+        .filter(account =>
+          account.isActive &&
+          account.type === 'savings' &&
+          shouldIncludeAccount(account.id)
+        )
+        .map(account => account.id)
+    );
     const openingBalance = accounts
       .filter(account => cashFlowAccountIds.has(account.id))
+      .reduce((sum, account) => sum + account.balance, 0);
+    const openingSavingsBalance = accounts
+      .filter(account => savingsAccountIds.has(account.id))
       .reduce((sum, account) => sum + account.balance, 0);
     
     for (let i = 0; i < months; i++) {
@@ -1272,6 +1284,16 @@ export const BudgetProvider: React.FC<BudgetProviderProps> = ({ children }) => {
           cashFlowAccountIds.has(t.accountId) &&
           t.transferToAccountId &&
           !cashFlowAccountIds.has(t.transferToAccountId) &&
+          !t.description.toLowerCase().includes('depuis')
+        )
+        .reduce((sum, t) => sum + t.amount, 0);
+      const transferOutToSavingsAccounts = monthTransactions
+        .concat(plannedTransactions)
+        .filter(t =>
+          t.type === 'transfer' &&
+          cashFlowAccountIds.has(t.accountId) &&
+          t.transferToAccountId &&
+          savingsAccountIds.has(t.transferToAccountId) &&
           !t.description.toLowerCase().includes('depuis')
         )
         .reduce((sum, t) => sum + t.amount, 0);
@@ -1344,6 +1366,10 @@ export const BudgetProvider: React.FC<BudgetProviderProps> = ({ children }) => {
       const totalOutflows = baseExpenses + debtPaymentsForMonth + transferOutToExternalAccounts + budgetReserve + savings;
       const balance = income - totalOutflows;
       const projectedBalance = i === 0 ? openingBalance + balance : projections[i - 1].projectedBalance + balance;
+      const projectedSavingsBalance = i === 0
+        ? openingSavingsBalance + savings + transferOutToSavingsAccounts
+        : (projections[i - 1].projectedSavingsBalance || openingSavingsBalance) + savings + transferOutToSavingsAccounts;
+      const projectedTotalBalance = projectedBalance + projectedSavingsBalance;
 
       projections.push({
         date: monthStart,
@@ -1352,6 +1378,8 @@ export const BudgetProvider: React.FC<BudgetProviderProps> = ({ children }) => {
         savings,
         balance,
         projectedBalance,
+        projectedSavingsBalance,
+        projectedTotalBalance,
         baseExpenses,
         debtPayments: debtPaymentsForMonth,
         transfersOut: transferOutToExternalAccounts,

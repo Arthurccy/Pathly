@@ -30,6 +30,7 @@ const CashFlowChart: React.FC = () => {
   const { getCashFlowProjection } = useBudget();
 
   const cashFlowData = getCashFlowProjection(6);
+  const finalProjection = cashFlowData[cashFlowData.length - 1];
   const average = (selector: (item: typeof cashFlowData[number]) => number | undefined) =>
     cashFlowData.length > 0
       ? cashFlowData.reduce((sum, item) => sum + (selector(item) || 0), 0) / cashFlowData.length
@@ -55,11 +56,19 @@ const CashFlowChart: React.FC = () => {
         tension: 0.4,
       },
       {
-        label: 'Solde projeté',
+        label: 'Tr\u00e9sorerie dispo',
         data: cashFlowData.map(cf => cf.projectedBalance),
         borderColor: '#3B82F6',
         backgroundColor: 'rgba(59, 130, 246, 0.1)',
         fill: true,
+        tension: 0.4,
+      },
+      {
+        label: 'Total avec \u00e9pargne',
+        data: cashFlowData.map(cf => cf.projectedTotalBalance ?? cf.projectedBalance),
+        borderColor: '#8B5CF6',
+        backgroundColor: 'rgba(139, 92, 246, 0.08)',
+        fill: false,
         tension: 0.4,
       },
     ],
@@ -81,7 +90,7 @@ const CashFlowChart: React.FC = () => {
         callbacks: {
           label: (context: any) => {
             const value = context.parsed.y;
-            return `${context.dataset.label}: ${value.toFixed(2)} €`;
+            return `${context.dataset.label}: ${value.toFixed(2)} \u20ac`;
           },
         },
       },
@@ -101,7 +110,7 @@ const CashFlowChart: React.FC = () => {
         },
         ticks: {
           color: document.documentElement.classList.contains('dark') ? '#D1D5DB' : '#374151',
-          callback: (value: any) => `${value} €`,
+          callback: (value: any) => `${value} \u20ac`,
         },
       },
     },
@@ -110,39 +119,48 @@ const CashFlowChart: React.FC = () => {
   return (
     <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6">
       <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-        Projection de trésorerie
+        Projection de tr&eacute;sorerie
       </h3>
       <p className="mb-4 text-sm text-gray-500 dark:text-gray-400">
-        Les sorties incluent les opérations prévues, dettes, virements vers l'épargne et budgets restants consommés à 100%.
+        La tr&eacute;sorerie disponible exclut l'&eacute;pargne. Le total avec &eacute;pargne r&eacute;int&egrave;gre les comptes d'&eacute;pargne et les virements pr&eacute;vus vers le Livret A.
       </p>
 
       <div className="h-64">
         <Line data={data} options={options} />
       </div>
 
-      <div className="mt-4 grid grid-cols-1 gap-4 text-center sm:grid-cols-3">
+      <div className="mt-4 grid grid-cols-1 gap-4 text-center sm:grid-cols-2 xl:grid-cols-4">
         <div>
           <p className="text-sm text-gray-500 dark:text-gray-400">Revenus moyens</p>
           <p className="text-lg font-semibold text-green-600 dark:text-green-400">
-            {average(cf => cf.income).toFixed(0)} €
+            {average(cf => cf.income).toFixed(0)} &euro;
           </p>
         </div>
         <div>
           <p className="text-sm text-gray-500 dark:text-gray-400">Sorties moyennes</p>
           <p className="text-lg font-semibold text-red-600 dark:text-red-400">
-            {average(cf => cf.expenses).toFixed(0)} €
+            {average(cf => cf.expenses).toFixed(0)} &euro;
           </p>
           <p className="text-xs text-gray-500 dark:text-gray-400">
-            dépenses {average(cf => cf.baseExpenses).toFixed(0)} € · dettes {average(cf => cf.debtPayments).toFixed(0)} €
+            d&eacute;penses {average(cf => cf.baseExpenses).toFixed(0)} &euro; - dettes {average(cf => cf.debtPayments).toFixed(0)} &euro;
           </p>
           <p className="text-xs text-gray-500 dark:text-gray-400">
-            épargne {average(cf => cf.savings).toFixed(0)} € · virements {average(cf => cf.transfersOut).toFixed(0)} € · budgets {average(cf => cf.budgetReserve).toFixed(0)} €
+            &eacute;pargne {average(cf => cf.savings).toFixed(0)} &euro; - virements {average(cf => cf.transfersOut).toFixed(0)} &euro; - budgets {average(cf => cf.budgetReserve).toFixed(0)} &euro;
           </p>
         </div>
         <div>
-          <p className="text-sm text-gray-500 dark:text-gray-400">Solde final projeté</p>
+          <p className="text-sm text-gray-500 dark:text-gray-400">Tr&eacute;sorerie finale</p>
           <p className="text-lg font-semibold text-blue-600 dark:text-blue-400">
-            {cashFlowData[cashFlowData.length - 1]?.projectedBalance.toFixed(0) || 0} €
+            {(finalProjection?.projectedBalance ?? 0).toFixed(0)} &euro;
+          </p>
+        </div>
+        <div>
+          <p className="text-sm text-gray-500 dark:text-gray-400">Avec &eacute;pargne</p>
+          <p className="text-lg font-semibold text-violet-600 dark:text-violet-400">
+            {(finalProjection?.projectedTotalBalance ?? finalProjection?.projectedBalance ?? 0).toFixed(0)} &euro;
+          </p>
+          <p className="text-xs text-gray-500 dark:text-gray-400">
+            &eacute;pargne projet&eacute;e {(finalProjection?.projectedSavingsBalance ?? 0).toFixed(0)} &euro;
           </p>
         </div>
       </div>
