@@ -242,7 +242,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onViewChange }) => {
       startOfDay(debt.dueDate) <= currentMonthPeriod.end
     )
     .reduce((sum, debt) => sum + debt.minimumPayment, 0);
-  const monthEndProjection = getCashFlowProjection(1)[0];
+  const monthEndProjection = viewMode === 'monthly' ? undefined : getCashFlowProjection(1)[0];
   const projectedIncoming = monthEndProjection?.income ?? upcomingTransactionProjection.incoming;
   const projectedDeductions = monthEndProjection?.expenses ?? (upcomingTransactionProjection.deductions + upcomingDebtPayments);
   const projectedCurrentBalance = monthEndProjection?.projectedBalance ?? (currentAccountBalance + projectedIncoming - projectedDeductions);
