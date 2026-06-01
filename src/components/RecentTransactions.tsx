@@ -3,7 +3,7 @@ import { endOfMonth, format, startOfDay } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import * as LucideIcons from 'lucide-react';
 import { useBudget } from '../contexts/BudgetContext';
-import type { Transaction } from '../types';
+import type { Transaction, Debt } from '../types';
 
 const toDateInputValue = (date: Date) => date.toISOString().split('T')[0];
 
@@ -34,7 +34,7 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({
   mode = 'recent',
   periodEnd,
 }) => {
-  const { transactions, categories, accounts, updateTransaction, deleteTransaction, getProjectedRecurringTransactions } = useBudget();
+  const { transactions, categories, accounts, debts, updateTransaction, deleteTransaction, getProjectedRecurringTransactions } = useBudget();
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
   const [formData, setFormData] = useState({
     amount: '',
@@ -77,7 +77,34 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({
 
           return !actualTransactionKeys.has(key);
         });
-      const sourceTransactions = transactions.concat(projectedRecurringTransactions).filter(transaction => {
+
+      const upcomingDebtTransactions: Transaction[] = mode === 'upcoming'
+        ? debts
+            .filter(debt => debt.isActive && startOfDay(debt.dueDate) >= projectionStart && startOfDay(debt.dueDate) <= projectionEnd)
+            .map(debt => {
+              const debtCategory = categories.find(category => category.id === debt.categoryId) || categories.find(category => category.type === 'debt');
+
+              return {
+                id: `debt-${debt.id}`,
+                userId: '',
+                accountId: debt.accountId,
+                amount: debt.minimumPayment,
+                description: `Paiement dette: ${debt.name}`,
+                date: debt.dueDate,
+                categoryId: debtCategory?.id || '',
+                type: 'expense',
+                status: 'scheduled',
+                isRecurring: false,
+                memo: 'Dette',
+                tags: ['debt'],
+                transferToAccountId: undefined,
+                isChecked: false,
+                attachments: [],
+              } as Transaction;
+            })
+        : [];
+
+      const sourceTransactions = transactions.concat(projectedRecurringTransactions, upcomingDebtTransactions).filter(transaction => {
         if (transaction.isRecurring) return false;
         if (mode === 'upcoming') {
           const isInPeriod = startOfDay(transaction.date) <= projectionEnd;
@@ -92,7 +119,7 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({
       });
       return limit ? sortedTransactions.slice(0, limit) : sortedTransactions;
     },
-    [getProjectedRecurringTransactions, limit, mode, transactions]
+    [getProjectedRecurringTransactions, limit, mode, transactions, debts, categories]
   );
   const groupedTransactions = useMemo(() => {
     if (mode !== 'all') {
@@ -197,6 +224,7 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({
     const IconComponent = category ? (LucideIcons as any)[category.icon] : LucideIcons.DollarSign;
     const displayImpact = getTransactionDisplayImpact(transaction);
     const isProjectedRecurring = transaction.id.includes('-projected-');
+    const isDebtPayment = transaction.id.startsWith('debt-');
 
     return (
       <div key={transaction.id} className="p-3 transition-colors hover:bg-gray-50 dark:hover:bg-gray-700/50 sm:p-4">
@@ -252,7 +280,7 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({
             }`}>
               {displayImpact >= 0 ? '+' : '-'}{Math.abs(displayImpact).toFixed(2)} EUR
             </p>
-            {!isProjectedRecurring && (
+            {!isProjectedRecurring && !isDebtPayment && (
               <button
                 type="button"
                 onClick={() => openEditor(transaction)}
