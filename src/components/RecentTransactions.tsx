@@ -21,6 +21,12 @@ const getTransactionDisplayImpact = (transaction: Transaction) => {
   return -transaction.amount;
 };
 
+const isRentTransaction = (transaction: Transaction, categoryName?: string) => {
+  const description = transaction.description?.toLowerCase() || '';
+  const category = categoryName?.toLowerCase() || '';
+  return description.includes('loyer') || category.includes('loyer');
+};
+
 interface RecentTransactionsProps {
   limit?: number;
   title?: string;
@@ -34,7 +40,7 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({
   mode = 'recent',
   periodEnd,
 }) => {
-  const { transactions, categories, accounts, debts, updateTransaction, deleteTransaction, getProjectedRecurringTransactions } = useBudget();
+  const { transactions, categories, accounts, debts, addTransaction, updateTransaction, deleteTransaction, getProjectedRecurringTransactions } = useBudget();
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
   const [formData, setFormData] = useState({
     amount: '',
@@ -223,7 +229,20 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({
 
     try {
       setIsSaving(true);
-      await updateTransaction(transaction.id, { status: 'completed' });
+      const category = categories.find(c => c.id === transaction.categoryId);
+      const isRent = isRentTransaction(transaction, category?.name);
+
+      if (transaction.id.includes('-projected-') && isRent) {
+        const { id, userId, ...transactionData } = transaction as any;
+        await addTransaction({
+          ...transactionData,
+          status: 'completed',
+          isRecurring: false,
+          recurringPattern: undefined,
+        });
+      } else {
+        await updateTransaction(transaction.id, { status: 'completed' });
+      }
     } catch (error) {
       console.error('Error marking transaction completed:', error);
       alert("Impossible de marquer cette transaction comme terminée.");
@@ -239,6 +258,8 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({
     const displayImpact = getTransactionDisplayImpact(transaction);
     const isProjectedRecurring = transaction.id.includes('-projected-');
     const isDebtPayment = transaction.id.startsWith('debt-');
+    const isRent = isRentTransaction(transaction, category?.name);
+    const canMarkCompleted = transaction.status !== 'completed' && !isDebtPayment && (!isProjectedRecurring || isRent);
 
     return (
       <div key={transaction.id} className="p-3 transition-colors hover:bg-gray-50 dark:hover:bg-gray-700/50 sm:p-4">
@@ -304,7 +325,7 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({
                 <LucideIcons.Pencil className="h-4 w-4" />
               </button>
             )}
-            {!isProjectedRecurring && !isDebtPayment && transaction.status !== 'completed' && (
+            {canMarkCompleted && (
               <button
                 type="button"
                 onClick={() => handleMarkAsCompleted(transaction)}
@@ -418,7 +439,7 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({
                           <LucideIcons.Pencil className="h-4 w-4" />
                         </button>
                       )}
-                      {!isProjectedRecurring && !transaction.id.startsWith('debt-') && transaction.status !== 'completed' && (
+                      {(!isProjectedRecurring || isRentTransaction(transaction, category?.name)) && !transaction.id.startsWith('debt-') && transaction.status !== 'completed' && (
                         <button
                           type="button"
                           onClick={() => handleMarkAsCompleted(transaction)}
