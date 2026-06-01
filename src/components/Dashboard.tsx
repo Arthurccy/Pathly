@@ -246,6 +246,11 @@ const Dashboard: React.FC<DashboardProps> = ({ onViewChange }) => {
     ? getCashFlowProjection(1, currentMonthPeriod.start, monthStartDay)[0]
     : getCashFlowProjection(1)[0];
   const projectedIncoming = monthEndProjection?.income ?? upcomingTransactionProjection.incoming;
+  const projectedBaseExpenses = monthEndProjection?.baseExpenses ?? upcomingTransactionProjection.deductions;
+  const projectedDebtPayments = monthEndProjection?.debtPayments ?? upcomingDebtPayments;
+  const projectedBudgetReserve = monthEndProjection?.budgetReserve ?? 0;
+  const projectedSavingsOut = monthEndProjection?.savings ?? 0;
+  const projectedTransfersOut = monthEndProjection?.transfersOut ?? 0;
   const projectedDeductions = monthEndProjection?.expenses ?? (upcomingTransactionProjection.deductions + upcomingDebtPayments);
   const projectedCurrentBalance = monthEndProjection?.projectedBalance ?? (currentAccountBalance + projectedIncoming - projectedDeductions);
   const projectedSavingsBalance = monthEndProjection?.projectedSavingsBalance ?? 0;
@@ -389,6 +394,16 @@ const Dashboard: React.FC<DashboardProps> = ({ onViewChange }) => {
               <p className="mt-1">
                 {currentAccountBalance.toFixed(2)} € + {projectedIncoming.toFixed(2)} € - {projectedDeductions.toFixed(2)} € = {projectedCurrentBalance.toFixed(2)} €
               </p>
+              {monthEndProjection && (
+                <div className="mt-3 rounded-xl bg-white/10 p-3 text-xs text-gray-200 dark:bg-gray-950/10 dark:text-gray-400">
+                  <p className="font-medium text-white dark:text-gray-950">Décomposition</p>
+                  <p className="mt-1">Dépenses prévues : {projectedBaseExpenses.toFixed(2)} €</p>
+                  <p>Dettes prévues : {projectedDebtPayments.toFixed(2)} €</p>
+                  <p>Budgets restants : {projectedBudgetReserve.toFixed(2)} €</p>
+                  <p>Épargne prévue : {projectedSavingsOut.toFixed(2)} €</p>
+                  <p>Transferts vers comptes externes : {projectedTransfersOut.toFixed(2)} €</p>
+                </div>
+              )}
               <p className="mt-2 text-gray-400 dark:text-gray-500">
                 Fiable si le solde Pathly correspond à ta banque et si les opérations à venir, récurrences, dettes et budgets sont à jour.
               </p>
