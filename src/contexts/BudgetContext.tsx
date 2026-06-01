@@ -513,6 +513,68 @@ export const BudgetProvider: React.FC<BudgetProviderProps> = ({ children }) => {
     );
   };
 
+  const getNextRecurringDate = (date: Date, pattern: RecurringPattern) => {
+    switch (pattern.frequency) {
+      case 'daily':
+        return addDays(date, pattern.interval);
+      case 'weekly':
+        return addWeeks(date, pattern.interval);
+      case 'monthly':
+        return addMonths(date, pattern.interval);
+      case 'quarterly':
+        return addMonths(date, pattern.interval * 3);
+      case 'yearly':
+        return addYears(date, pattern.interval);
+      default:
+        return addMonths(date, 1);
+    }
+  };
+
+  const getProjectedRecurringTransactions = (startDate: Date, endDate: Date): Transaction[] => {
+    const projectedTransactions: Transaction[] = [];
+    const rangeStart = startOfDay(startDate);
+    const rangeEnd = startOfDay(endDate);
+
+    transactions
+      .filter(transaction => transaction.isRecurring && transaction.recurringPattern?.isActive)
+      .forEach(template => {
+        const pattern = template.recurringPattern!;
+        let occurrenceDate = startOfDay(pattern.nextDate);
+        let occurrenceCount = pattern.currentOccurrence || 0;
+
+        while (occurrenceDate < rangeStart) {
+          if (pattern.endDate && isAfter(occurrenceDate, startOfDay(pattern.endDate))) return;
+          if (pattern.maxOccurrences && occurrenceCount >= pattern.maxOccurrences) return;
+
+          const nextDate = getNextRecurringDate(occurrenceDate, pattern);
+          if (!nextDate || !isAfter(nextDate, occurrenceDate)) return;
+          occurrenceDate = startOfDay(nextDate);
+          occurrenceCount += 1;
+        }
+
+        while (occurrenceDate <= rangeEnd) {
+          if (pattern.endDate && isAfter(occurrenceDate, startOfDay(pattern.endDate))) break;
+          if (pattern.maxOccurrences && occurrenceCount >= pattern.maxOccurrences) break;
+
+          projectedTransactions.push({
+            ...template,
+            id: `${template.id}-projected-${occurrenceDate.toISOString()}`,
+            date: occurrenceDate,
+            status: 'scheduled',
+            isRecurring: false,
+            recurringPattern: undefined,
+          });
+
+          const nextDate = getNextRecurringDate(occurrenceDate, pattern);
+          if (!nextDate || !isAfter(nextDate, occurrenceDate)) break;
+          occurrenceDate = startOfDay(nextDate);
+          occurrenceCount += 1;
+        }
+      });
+
+    return projectedTransactions;
+  };
+
   const isExcludedFromReports = (transaction: Transaction) =>
     categories.find(category => category.id === transaction.categoryId)?.excludeFromReports === true;
 
@@ -987,7 +1049,8 @@ export const BudgetProvider: React.FC<BudgetProviderProps> = ({ children }) => {
 
     // Add transactions
     transactions
-      .filter(t => t.date >= startDate && t.date <= endDate)
+      .filter(t => !t.isRecurring && t.date >= startDate && t.date <= endDate)
+      .concat(getProjectedRecurringTransactions(startDate, endDate))
       .forEach(transaction => {
         const category = categories.find(c => c.id === transaction.categoryId);
         events.push({
@@ -1120,6 +1183,23 @@ export const BudgetProvider: React.FC<BudgetProviderProps> = ({ children }) => {
   const getCashFlowProjection = (months: number): CashFlow[] => {
     const projections: CashFlow[] = [];
     const startDate = new Date();
+    const selectedAccountSet = new Set(selectedAccountIds);
+    const shouldIncludeAccount = (accountId: string) =>
+      selectedAccountIds.length === 0 || selectedAccountSet.has(accountId);
+    const cashFlowAccountIds = new Set(
+      accounts
+        .filter(account =>
+          account.isActive &&
+          account.type !== 'savings' &&
+          account.type !== 'investment' &&
+          account.type !== 'crypto' &&
+          shouldIncludeAccount(account.id)
+        )
+        .map(account => account.id)
+    );
+    const openingBalance = accounts
+      .filter(account => cashFlowAccountIds.has(account.id))
+      .reduce((sum, account) => sum + account.balance, 0);
     
     for (let i = 0; i < months; i++) {
       const monthStart = startOfMonth(addMonths(startDate, i));
@@ -1129,38 +1209,62 @@ export const BudgetProvider: React.FC<BudgetProviderProps> = ({ children }) => {
         t.date >= monthStart && t.date <= monthEnd &&
         t.status === 'completed' &&
         !isExcludedFromReports(t) &&
-        (selectedAccountIds.length === 0 || selectedAccountIds.includes(t.accountId))
+        cashFlowAccountIds.has(t.accountId)
       );
 
       const scheduledTransactions = getScheduledTransactions(monthStart, monthEnd)
         .filter(t =>
+          !t.isRecurring &&
           !isExcludedFromReports(t) &&
-          (selectedAccountIds.length === 0 || selectedAccountIds.includes(t.accountId))
+          cashFlowAccountIds.has(t.accountId)
         );
+      const projectedRecurringTransactions = getProjectedRecurringTransactions(monthStart, monthEnd)
+        .filter(t =>
+          !isExcludedFromReports(t) &&
+          cashFlowAccountIds.has(t.accountId)
+        );
+      const plannedTransactions = scheduledTransactions.concat(projectedRecurringTransactions);
+      const debtPaymentsForMonth = debts
+        .filter(debt =>
+          debt.isActive &&
+          debt.minimumPayment > 0 &&
+          debt.remainingAmount > 0 &&
+          cashFlowAccountIds.has(debt.accountId)
+        )
+        .reduce((sum, debt) => {
+          let dueDate = startOfDay(debt.dueDate);
+          while (dueDate < monthStart) {
+            dueDate = startOfDay(addMonths(dueDate, 1));
+          }
+
+          if (dueDate > monthEnd) return sum;
+          return sum + Math.min(debt.minimumPayment, debt.remainingAmount);
+        }, 0);
 
       const income = monthTransactions
         .filter(t => t.type === 'income' || t.type === 'refund' || t.type === 'savings_withdrawal')
         .reduce((sum, t) => sum + t.amount, 0) +
-        scheduledTransactions
+        plannedTransactions
         .filter(t => t.type === 'income' || t.type === 'refund' || t.type === 'savings_withdrawal')
         .reduce((sum, t) => sum + t.amount, 0);
         
       const expenses = monthTransactions
         .filter(t => t.type === 'expense' || t.type === 'bill')
         .reduce((sum, t) => sum + t.amount, 0) +
-        scheduledTransactions
+        plannedTransactions
         .filter(t => t.type === 'expense' || t.type === 'bill')
-        .reduce((sum, t) => sum + t.amount, 0);
+        .reduce((sum, t) => sum + t.amount, 0) +
+        debtPaymentsForMonth;
         
       const savings = monthTransactions
         .filter(t => t.type === 'savings')
         .reduce((sum, t) => sum + t.amount, 0) +
-        scheduledTransactions
+        plannedTransactions
         .filter(t => t.type === 'savings')
         .reduce((sum, t) => sum + t.amount, 0);
 
       const balance = income - expenses - savings;
-      const projectedBalance = i === 0 ? balance : projections[i - 1].projectedBalance + balance;
+      const projectedBalance = i === 0 ? openingBalance + balance : projections[i - 1].projectedBalance + balance;
 
       projections.push({
         date: monthStart,
@@ -1169,7 +1273,7 @@ export const BudgetProvider: React.FC<BudgetProviderProps> = ({ children }) => {
         savings,
         balance,
         projectedBalance,
-        scheduledTransactions
+        scheduledTransactions: plannedTransactions
       });
     }
 
