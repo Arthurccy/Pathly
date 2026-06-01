@@ -418,6 +418,16 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({
                           <LucideIcons.Pencil className="h-4 w-4" />
                         </button>
                       )}
+                      {!isProjectedRecurring && !transaction.id.startsWith('debt-') && transaction.status !== 'completed' && (
+                        <button
+                          type="button"
+                          onClick={() => handleMarkAsCompleted(transaction)}
+                          className="rounded-full p-2 text-gray-400 transition hover:bg-gray-100 hover:text-gray-700 focus:outline-none focus:ring-2 focus:ring-green-500 dark:hover:bg-gray-700 dark:hover:text-gray-200 sm:rounded-lg"
+                          aria-label="Marquer comme terminé"
+                        >
+                          <LucideIcons.Check className="h-4 w-4" />
+                        </button>
+                      )}
                     </div>
                   </div>
                 </div>
