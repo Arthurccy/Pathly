@@ -16,7 +16,8 @@ const RecurringTransactions: React.FC = () => {
     description: '',
     categoryId: '',
     accountId: '',
-    type: 'expense' as 'expense' | 'income',
+    transferToAccountId: '',
+    type: 'expense' as 'expense' | 'income' | 'transfer',
     frequency: 'monthly' as 'daily' | 'weekly' | 'monthly' | 'quarterly' | 'yearly',
     interval: 1,
     nextDate: new Date().toISOString().split('T')[0],
@@ -60,10 +61,27 @@ const RecurringTransactions: React.FC = () => {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!formData.amount || !formData.description || !formData.categoryId || !formData.accountId) {
+    if (!formData.amount || !formData.description || !formData.accountId) {
       alert('Veuillez remplir tous les champs obligatoires');
       return;
     }
+    if (formData.type !== 'transfer' && !formData.categoryId) {
+      alert('Veuillez sélectionner une catégorie');
+      return;
+    }
+    if (formData.type === 'transfer' && (!formData.transferToAccountId || formData.transferToAccountId === formData.accountId)) {
+      alert('Veuillez choisir deux comptes différents pour le virement');
+      return;
+    }
+
+    const transferCategory = categories.find(category =>
+      category.name.trim().toLowerCase() === 'transferts'
+    );
+    if (formData.type === 'transfer' && !transferCategory) {
+      alert('Créez d’abord un virement simple entre comptes pour initialiser la catégorie Transferts.');
+      return;
+    }
+    const destinationAccount = accounts.find(account => account.id === formData.transferToAccountId);
 
     const recurringPattern: RecurringPattern = {
       frequency: formData.frequency,
@@ -77,14 +95,17 @@ const RecurringTransactions: React.FC = () => {
 
     const transactionData = {
       amount: parseFloat(formData.amount),
-      description: formData.description,
-      categoryId: formData.categoryId,
+      description: formData.type === 'transfer'
+        ? `Virement vers ${destinationAccount?.name || 'compte'} - ${formData.description}`
+        : formData.description,
+      categoryId: formData.type === 'transfer' ? transferCategory!.id : formData.categoryId,
       accountId: formData.accountId,
       type: formData.type,
       date: new Date(formData.nextDate),
       status: 'scheduled' as const,
       isRecurring: true,
       recurringPattern,
+      transferToAccountId: formData.type === 'transfer' ? formData.transferToAccountId : undefined,
     };
 
     if (editingTransaction) {
@@ -99,6 +120,7 @@ const RecurringTransactions: React.FC = () => {
       description: '',
       categoryId: '',
       accountId: '',
+      transferToAccountId: '',
       type: 'expense',
       frequency: 'monthly',
       interval: 1,
@@ -125,10 +147,13 @@ const RecurringTransactions: React.FC = () => {
     setEditingTransaction(transaction);
     setFormData({
       amount: transaction.amount.toString(),
-      description: transaction.description,
+      description: transaction.type === 'transfer'
+        ? transaction.description.replace(/^Virement vers .+? - /, '')
+        : transaction.description,
       categoryId: transaction.categoryId,
       accountId: transaction.accountId,
-      type: transaction.type as 'expense' | 'income',
+      transferToAccountId: transaction.transferToAccountId || '',
+      type: transaction.type === 'transfer' ? 'transfer' : transaction.type as 'expense' | 'income',
       frequency: transaction.recurringPattern?.frequency || 'monthly',
       interval: transaction.recurringPattern?.interval || 1,
       nextDate: transaction.recurringPattern?.nextDate.toISOString().split('T')[0] || '',
@@ -173,7 +198,7 @@ const RecurringTransactions: React.FC = () => {
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                   Type *
                 </label>
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-3 gap-2">
                   <button
                     type="button"
                     onClick={() => setFormData({ ...formData, type: 'expense', categoryId: '' })}
@@ -195,6 +220,17 @@ const RecurringTransactions: React.FC = () => {
                     }`}
                   >
                     Revenu
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setFormData({ ...formData, type: 'transfer', categoryId: '' })}
+                    className={`p-3 rounded-lg border-2 transition-all ${
+                      formData.type === 'transfer'
+                        ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300'
+                        : 'border-gray-200 dark:border-gray-600 hover:border-gray-300 dark:hover:border-gray-500'
+                    }`}
+                  >
+                    Virement
                   </button>
                 </div>
               </div>
@@ -253,7 +289,32 @@ const RecurringTransactions: React.FC = () => {
                 </select>
               </div>
 
+              {formData.type === 'transfer' && (
+                <div>
+                  <label htmlFor="transferToAccount" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Vers le compte *
+                  </label>
+                  <select
+                    id="transferToAccount"
+                    value={formData.transferToAccountId}
+                    onChange={(e) => setFormData({ ...formData, transferToAccountId: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
+                    required
+                  >
+                    <option value="">Sélectionner un compte</option>
+                    {accounts
+                      .filter(account => account.id !== formData.accountId)
+                      .map(account => (
+                        <option key={account.id} value={account.id}>
+                          {account.name}
+                        </option>
+                      ))}
+                  </select>
+                </div>
+              )}
+
               {/* Category */}
+              {formData.type !== 'transfer' && (
               <div>
                 <label htmlFor="category" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                   Catégorie *
@@ -275,6 +336,7 @@ const RecurringTransactions: React.FC = () => {
                     ))}
                 </select>
               </div>
+              )}
 
               {/* Frequency */}
               <div>
@@ -367,6 +429,7 @@ const RecurringTransactions: React.FC = () => {
                     description: '',
                     categoryId: '',
                     accountId: '',
+                    transferToAccountId: '',
                     type: 'expense',
                     frequency: 'monthly',
                     interval: 1,

@@ -1000,6 +1000,15 @@ export const BudgetProvider: React.FC<BudgetProviderProps> = ({ children }) => {
 
         // Create transaction in Supabase
         addTransaction(newTransactionData);
+        if (template.type === 'transfer' && template.transferToAccountId) {
+          const fromAccount = accountsRef.current.find(account => account.id === template.accountId);
+          addTransaction({
+            ...newTransactionData,
+            accountId: template.transferToAccountId,
+            description: `Virement depuis ${fromAccount?.name || 'compte'} - ${template.description.replace(/^Virement vers .+? - /, '')}`,
+            transferToAccountId: template.accountId,
+          });
+        }
         hasNewTransactions = true;
 
         // Calculate next occurrence
@@ -1248,6 +1257,16 @@ export const BudgetProvider: React.FC<BudgetProviderProps> = ({ children }) => {
         plannedTransactions
         .filter(t => t.type === 'income' || t.type === 'refund' || t.type === 'savings_withdrawal')
         .reduce((sum, t) => sum + t.amount, 0);
+      const transferOutToExternalAccounts = monthTransactions
+        .concat(plannedTransactions)
+        .filter(t =>
+          t.type === 'transfer' &&
+          cashFlowAccountIds.has(t.accountId) &&
+          t.transferToAccountId &&
+          !cashFlowAccountIds.has(t.transferToAccountId) &&
+          !t.description.toLowerCase().includes('depuis')
+        )
+        .reduce((sum, t) => sum + t.amount, 0);
         
       const expenses = monthTransactions
         .filter(t => t.type === 'expense' || t.type === 'bill')
@@ -1255,7 +1274,8 @@ export const BudgetProvider: React.FC<BudgetProviderProps> = ({ children }) => {
         plannedTransactions
         .filter(t => t.type === 'expense' || t.type === 'bill')
         .reduce((sum, t) => sum + t.amount, 0) +
-        debtPaymentsForMonth;
+        debtPaymentsForMonth +
+        transferOutToExternalAccounts;
         
       const savings = monthTransactions
         .filter(t => t.type === 'savings')
