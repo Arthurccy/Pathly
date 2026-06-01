@@ -279,7 +279,7 @@ export interface BudgetContextType {
   
   // Analytics
   getFinancialSummary: (startDate: Date, endDate: Date) => FinancialSummary;
-  getCashFlowProjection: (months: number) => CashFlow[];
+  getCashFlowProjection: (months: number, startDate?: Date, monthStartDay?: number) => CashFlow[];
   getCalendarEvents: (startDate: Date, endDate: Date) => CalendarEvent[];
   
   // Export

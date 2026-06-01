@@ -132,7 +132,9 @@ const BudgetProgress: React.FC<BudgetProgressProps> = ({ viewMode = 'monthly' })
       startOfDay(debt.dueDate) <= periodEnd
     )
     .reduce((sum, debt) => sum + debt.minimumPayment, 0);
-  const monthEndProjection = viewMode === 'monthly' ? undefined : getCashFlowProjection(1)[0];
+  const monthEndProjection = viewMode === 'monthly'
+    ? getCashFlowProjection(1, customMonthPeriod.start, monthStartDay)[0]
+    : getCashFlowProjection(1)[0];
   const projectedCurrentBalance =
     monthEndProjection?.projectedBalance ??
     (

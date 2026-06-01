@@ -17,6 +17,7 @@ import {
 import { useAuth } from './AuthContext';
 import { supabaseService } from '../services/supabaseService';
 import { db } from '../services/database';
+import { getCustomMonthEnd, getCustomMonthStart } from '../utils/dateUtils';
 import { 
   startOfMonth, 
   endOfMonth, 
@@ -1238,11 +1239,11 @@ export const BudgetProvider: React.FC<BudgetProviderProps> = ({ children }) => {
     };
   };
 
-  const getCashFlowProjection = (months: number): CashFlow[] => {
+  const getCashFlowProjection = (months: number, startDateParam?: Date, monthStartDay?: number): CashFlow[] => {
     const projections: CashFlow[] = [];
-    const startDate = new Date();
-    const today = startOfDay(startDate);
     const selectedAccountSet = new Set(selectedAccountIds);
+    const today = startOfDay(new Date());
+    const projectionStartDate = startOfDay(startDateParam ?? new Date());
     const shouldIncludeAccount = (accountId: string) =>
       selectedAccountIds.length === 0 || selectedAccountSet.has(accountId);
     const cashFlowAccountIds = new Set(
@@ -1274,8 +1275,12 @@ export const BudgetProvider: React.FC<BudgetProviderProps> = ({ children }) => {
       .reduce((sum, account) => sum + account.balance, 0);
     
     for (let i = 0; i < months; i++) {
-      const monthStart = startOfMonth(addMonths(startDate, i));
-      const monthEnd = endOfMonth(monthStart);
+      const monthStart = monthStartDay != null
+        ? (i === 0 ? projectionStartDate : getCustomMonthStart(addMonths(projectionStartDate, i), monthStartDay))
+        : startOfMonth(addMonths(projectionStartDate, i));
+      const monthEnd = monthStartDay != null
+        ? getCustomMonthEnd(monthStart, monthStartDay)
+        : endOfMonth(monthStart);
       
       const monthTransactions = transactions.filter(t => 
         t.date >= monthStart && t.date <= monthEnd &&
