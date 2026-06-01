@@ -28,8 +28,12 @@ ChartJS.register(
 
 const CashFlowChart: React.FC = () => {
   const { getCashFlowProjection } = useBudget();
-  
+
   const cashFlowData = getCashFlowProjection(6);
+  const average = (selector: (item: typeof cashFlowData[number]) => number | undefined) =>
+    cashFlowData.length > 0
+      ? cashFlowData.reduce((sum, item) => sum + (selector(item) || 0), 0) / cashFlowData.length
+      : 0;
 
   const data = {
     labels: cashFlowData.map(cf => format(cf.date, 'MMM yyyy', { locale: fr })),
@@ -43,7 +47,7 @@ const CashFlowChart: React.FC = () => {
         tension: 0.4,
       },
       {
-        label: 'Dépenses',
+        label: 'Sorties',
         data: cashFlowData.map(cf => cf.expenses),
         borderColor: '#EF4444',
         backgroundColor: 'rgba(239, 68, 68, 0.1)',
@@ -109,30 +113,31 @@ const CashFlowChart: React.FC = () => {
         Projection de trésorerie
       </h3>
       <p className="mb-4 text-sm text-gray-500 dark:text-gray-400">
-        Les dépenses incluent les opérations prévues et le reste des budgets comme s'ils étaient consommés à 100%.
+        Les sorties incluent les opérations prévues, dettes, virements vers l'épargne et budgets restants consommés à 100%.
       </p>
-      
+
       <div className="h-64">
         <Line data={data} options={options} />
       </div>
 
-      <div className="mt-4 grid grid-cols-3 gap-4 text-center">
+      <div className="mt-4 grid grid-cols-1 gap-4 text-center sm:grid-cols-3">
         <div>
           <p className="text-sm text-gray-500 dark:text-gray-400">Revenus moyens</p>
           <p className="text-lg font-semibold text-green-600 dark:text-green-400">
-            {(cashFlowData.reduce((sum, cf) => sum + cf.income, 0) / cashFlowData.length).toFixed(0)} €
+            {average(cf => cf.income).toFixed(0)} €
           </p>
         </div>
         <div>
-          <p className="text-sm text-gray-500 dark:text-gray-400">Dépenses moyennes</p>
+          <p className="text-sm text-gray-500 dark:text-gray-400">Sorties moyennes</p>
           <p className="text-lg font-semibold text-red-600 dark:text-red-400">
-            {(cashFlowData.reduce((sum, cf) => sum + cf.expenses, 0) / cashFlowData.length).toFixed(0)} €
+            {average(cf => cf.expenses).toFixed(0)} €
           </p>
-          {cashFlowData.some(cf => cf.budgetReserve && cf.budgetReserve > 0) && (
-            <p className="text-xs text-gray-500 dark:text-gray-400">
-              dont budgets restants
-            </p>
-          )}
+          <p className="text-xs text-gray-500 dark:text-gray-400">
+            dépenses {average(cf => cf.baseExpenses).toFixed(0)} € · dettes {average(cf => cf.debtPayments).toFixed(0)} €
+          </p>
+          <p className="text-xs text-gray-500 dark:text-gray-400">
+            épargne {average(cf => cf.savings).toFixed(0)} € · virements {average(cf => cf.transfersOut).toFixed(0)} € · budgets {average(cf => cf.budgetReserve).toFixed(0)} €
+          </p>
         </div>
         <div>
           <p className="text-sm text-gray-500 dark:text-gray-400">Solde final projeté</p>

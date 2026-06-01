@@ -1227,12 +1227,20 @@ export const BudgetProvider: React.FC<BudgetProviderProps> = ({ children }) => {
           !isExcludedFromReports(t) &&
           cashFlowAccountIds.has(t.accountId)
         );
+      const pendingTransactions = transactions.filter(t =>
+        t.date >= monthStart &&
+        t.date <= monthEnd &&
+        t.status === 'pending' &&
+        !t.isRecurring &&
+        !isExcludedFromReports(t) &&
+        cashFlowAccountIds.has(t.accountId)
+      );
       const projectedRecurringTransactions = getProjectedRecurringTransactions(monthStart, monthEnd)
         .filter(t =>
           !isExcludedFromReports(t) &&
           cashFlowAccountIds.has(t.accountId)
         );
-      const plannedTransactions = scheduledTransactions.concat(projectedRecurringTransactions);
+      const plannedTransactions = scheduledTransactions.concat(pendingTransactions, projectedRecurringTransactions);
       const visibleMonthTransactions = monthTransactions.concat(plannedTransactions);
       const debtPaymentsForMonth = debts
         .filter(debt =>
@@ -1268,14 +1276,12 @@ export const BudgetProvider: React.FC<BudgetProviderProps> = ({ children }) => {
         )
         .reduce((sum, t) => sum + t.amount, 0);
         
-      const expenses = monthTransactions
+      const baseExpenses = monthTransactions
         .filter(t => t.type === 'expense' || t.type === 'bill')
         .reduce((sum, t) => sum + t.amount, 0) +
         plannedTransactions
         .filter(t => t.type === 'expense' || t.type === 'bill')
-        .reduce((sum, t) => sum + t.amount, 0) +
-        debtPaymentsForMonth +
-        transferOutToExternalAccounts;
+        .reduce((sum, t) => sum + t.amount, 0);
         
       const savings = monthTransactions
         .filter(t => t.type === 'savings')
@@ -1335,17 +1341,20 @@ export const BudgetProvider: React.FC<BudgetProviderProps> = ({ children }) => {
         return sum + Math.max(budgetItem.amount - committedForCategory, 0);
       }, 0);
 
-      const expensesWithBudgetReserve = expenses + budgetReserve;
-      const balance = income - expensesWithBudgetReserve - savings;
+      const totalOutflows = baseExpenses + debtPaymentsForMonth + transferOutToExternalAccounts + budgetReserve + savings;
+      const balance = income - totalOutflows;
       const projectedBalance = i === 0 ? openingBalance + balance : projections[i - 1].projectedBalance + balance;
 
       projections.push({
         date: monthStart,
         income,
-        expenses: expensesWithBudgetReserve,
+        expenses: totalOutflows,
         savings,
         balance,
         projectedBalance,
+        baseExpenses,
+        debtPayments: debtPaymentsForMonth,
+        transfersOut: transferOutToExternalAccounts,
         budgetReserve,
         scheduledTransactions: plannedTransactions
       });
