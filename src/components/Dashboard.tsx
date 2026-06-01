@@ -34,6 +34,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onViewChange }) => {
     transactions, 
     categories, 
     accounts,
+    budgets,
     savingsGoals,
     debts,
     currentPeriod,

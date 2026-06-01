@@ -21,6 +21,7 @@ import HelpCenter from './components/HelpCenter';
 import ImportCSV from './components/ImportCSV';
 import RulesManager from './components/RulesManager';
 import OnboardingTour from './components/OnboardingTour';
+import { getCustomMonthPeriod } from './utils/dateUtils';
 
 const AppContent: React.FC = () => {
   const { user, session, isLoading } = useAuth();
@@ -69,6 +70,7 @@ const AppContent: React.FC = () => {
   }
 
   console.log('🎯 AppContent: Showing main app');
+  const currentBudgetPeriod = getCustomMonthPeriod(new Date(), user?.settings?.monthStartDay || 1);
   const renderContent = () => {
     switch (currentView) {
       case 'dashboard':
@@ -76,7 +78,7 @@ const AppContent: React.FC = () => {
       case 'add-transaction':
         return <AddTransaction />;
       case 'transactions':
-        return <RecentTransactions limit={0} title="Transactions" mode="all" />;
+        return <RecentTransactions limit={0} title="Transactions" mode="all" periodStart={currentBudgetPeriod.start} periodEnd={currentBudgetPeriod.end} />;
       case 'recurring-transactions':
         return <RecurringTransactions />;
       case 'calendar':
