@@ -30,6 +30,7 @@ const CashFlowChart: React.FC = () => {
   const { getCashFlowProjection } = useBudget();
 
   const cashFlowData = getCashFlowProjection(6);
+  const firstProjection = cashFlowData[0];
   const finalProjection = cashFlowData[cashFlowData.length - 1];
   const average = (selector: (item: typeof cashFlowData[number]) => number | undefined) =>
     cashFlowData.length > 0
@@ -122,14 +123,20 @@ const CashFlowChart: React.FC = () => {
         Projection de tr&eacute;sorerie
       </h3>
       <p className="mb-4 text-sm text-gray-500 dark:text-gray-400">
-        La tr&eacute;sorerie disponible exclut l'&eacute;pargne. Le total avec &eacute;pargne r&eacute;int&egrave;gre les comptes d'&eacute;pargne et les virements pr&eacute;vus vers le Livret A.
+        La projection part du solde courant enregistr&eacute; dans Pathly, puis ajoute les revenus pr&eacute;vus et retire les sorties, dettes, budgets restants et virements vers l'&eacute;pargne.
       </p>
 
       <div className="h-64">
         <Line data={data} options={options} />
       </div>
 
-      <div className="mt-4 grid grid-cols-1 gap-4 text-center sm:grid-cols-2 xl:grid-cols-4">
+      <div className="mt-4 grid grid-cols-1 gap-4 text-center sm:grid-cols-2 xl:grid-cols-5">
+        <div>
+          <p className="text-sm text-gray-500 dark:text-gray-400">D&eacute;part courant</p>
+          <p className={`text-lg font-semibold ${(firstProjection?.openingBalance ?? 0) >= 0 ? 'text-slate-700 dark:text-slate-200' : 'text-red-600 dark:text-red-400'}`}>
+            {(firstProjection?.openingBalance ?? 0).toFixed(0)} &euro;
+          </p>
+        </div>
         <div>
           <p className="text-sm text-gray-500 dark:text-gray-400">Revenus moyens</p>
           <p className="text-lg font-semibold text-green-600 dark:text-green-400">

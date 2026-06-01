@@ -155,6 +155,7 @@ export interface CashFlow {
   savings: number;
   balance: number;
   projectedBalance: number;
+  openingBalance?: number;
   projectedSavingsBalance?: number;
   projectedTotalBalance?: number;
   baseExpenses?: number;

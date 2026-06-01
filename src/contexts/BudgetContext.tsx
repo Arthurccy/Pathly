@@ -188,12 +188,6 @@ export const BudgetProvider: React.FC<BudgetProviderProps> = ({ children }) => {
     }
   }, [user?.id]);
 
-  useEffect(() => {
-    if (!user || transactions.length === 0 || accounts.length === 0) return;
-
-    reconcileScheduledTransactionStatuses();
-  }, [user?.id, transactions, accounts]);
-
   const loadUserData = async (userId = user?.id) => {
     if (!userId) return;
 
@@ -1378,6 +1372,7 @@ export const BudgetProvider: React.FC<BudgetProviderProps> = ({ children }) => {
         savings,
         balance,
         projectedBalance,
+        openingBalance: i === 0 ? openingBalance : projections[i - 1].projectedBalance,
         projectedSavingsBalance,
         projectedTotalBalance,
         baseExpenses,
