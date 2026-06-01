@@ -7,6 +7,20 @@ import type { Transaction } from '../types';
 
 const toDateInputValue = (date: Date) => date.toISOString().split('T')[0];
 
+const getTransactionDisplayImpact = (transaction: Transaction) => {
+  if (transaction.type === 'income' || transaction.type === 'refund' || transaction.type === 'savings_withdrawal') {
+    return transaction.amount;
+  }
+
+  if (transaction.type === 'transfer') {
+    return transaction.description.toLowerCase().includes('depuis')
+      ? transaction.amount
+      : -transaction.amount;
+  }
+
+  return -transaction.amount;
+};
+
 interface RecentTransactionsProps {
   limit?: number;
   title?: string;
@@ -34,6 +48,7 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({
   const recentTransactions = useMemo(
     () => {
       const sourceTransactions = transactions.filter(transaction => {
+        if (transaction.isRecurring) return false;
         if (mode === 'upcoming') return transaction.status === 'scheduled' || transaction.status === 'pending';
         if (mode === 'recent') return transaction.status === 'completed';
         return true;
@@ -147,6 +162,7 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({
     const category = categories.find(c => c.id === transaction.categoryId);
     const account = accounts.find(a => a.id === transaction.accountId);
     const IconComponent = category ? (LucideIcons as any)[category.icon] : LucideIcons.DollarSign;
+    const displayImpact = getTransactionDisplayImpact(transaction);
 
     return (
       <div key={transaction.id} className="p-3 transition-colors hover:bg-gray-50 dark:hover:bg-gray-700/50 sm:p-4">
@@ -196,11 +212,11 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({
 
           <div className="flex shrink-0 flex-col items-end gap-2 sm:flex-row sm:items-center sm:gap-3">
             <p className={`whitespace-nowrap text-sm font-semibold ${
-              transaction.type === 'income'
+              displayImpact >= 0
                 ? 'text-green-600 dark:text-green-400'
                 : 'text-red-600 dark:text-red-400'
             }`}>
-              {transaction.type === 'income' ? '+' : '-'}{transaction.amount.toFixed(2)} EUR
+              {displayImpact >= 0 ? '+' : '-'}{Math.abs(displayImpact).toFixed(2)} EUR
             </p>
             <button
               type="button"
@@ -251,6 +267,7 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({
               const category = categories.find(c => c.id === transaction.categoryId);
               const account = accounts.find(a => a.id === transaction.accountId);
               const IconComponent = category ? (LucideIcons as any)[category.icon] : LucideIcons.DollarSign;
+              const displayImpact = getTransactionDisplayImpact(transaction);
 
               return (
                 <div key={transaction.id} className="p-3 transition-colors hover:bg-gray-50 dark:hover:bg-gray-700/50 sm:p-4">
@@ -296,11 +313,11 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({
 
                     <div className="flex shrink-0 flex-col items-end gap-2 sm:flex-row sm:items-center sm:gap-3">
                       <p className={`whitespace-nowrap text-sm font-semibold ${
-                        transaction.type === 'income'
+                        displayImpact >= 0
                           ? 'text-green-600 dark:text-green-400'
                           : 'text-red-600 dark:text-red-400'
                       }`}>
-                        {transaction.type === 'income' ? '+' : '-'}{transaction.amount.toFixed(2)} EUR
+                        {displayImpact >= 0 ? '+' : '-'}{Math.abs(displayImpact).toFixed(2)} EUR
                       </p>
                       <button
                         type="button"

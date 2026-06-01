@@ -6,6 +6,20 @@ import { fr } from 'date-fns/locale';
 import { useBudget } from '../contexts/BudgetContext';
 import { Transaction, RecurringPattern } from '../types';
 
+const getTransactionDisplayImpact = (transaction: Transaction) => {
+  if (transaction.type === 'income' || transaction.type === 'refund' || transaction.type === 'savings_withdrawal') {
+    return transaction.amount;
+  }
+
+  if (transaction.type === 'transfer') {
+    return transaction.description.toLowerCase().includes('depuis')
+      ? transaction.amount
+      : -transaction.amount;
+  }
+
+  return -transaction.amount;
+};
+
 const RecurringTransactions: React.FC = () => {
   const { transactions, categories, accounts, addTransaction, updateTransaction, deleteTransaction } = useBudget();
   const [showForm, setShowForm] = useState(false);
@@ -468,6 +482,7 @@ const RecurringTransactions: React.FC = () => {
               const account = accounts.find(a => a.id === transaction.accountId);
               const IconComponent = category ? (LucideIcons as any)[category.icon] : LucideIcons.DollarSign;
               const pattern = transaction.recurringPattern;
+              const displayImpact = getTransactionDisplayImpact(transaction);
               const displayPattern = pattern || {
                 frequency: 'monthly' as const,
                 interval: 1,
@@ -520,11 +535,11 @@ const RecurringTransactions: React.FC = () => {
                     
                     <div className="flex items-center space-x-3">
                       <span className={`text-sm font-semibold ${
-                        transaction.type === 'income'
+                        displayImpact >= 0
                           ? 'text-green-600 dark:text-green-400'
                           : 'text-red-600 dark:text-red-400'
                       }`}>
-                        {transaction.type === 'income' ? '+' : '-'}{transaction.amount.toFixed(2)} €
+                        {displayImpact >= 0 ? '+' : '-'}{Math.abs(displayImpact).toFixed(2)} €
                       </span>
                       
                       <div className="flex items-center space-x-1">
