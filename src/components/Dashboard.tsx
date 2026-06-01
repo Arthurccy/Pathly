@@ -366,6 +366,15 @@ const Dashboard: React.FC<DashboardProps> = ({ onViewChange }) => {
             <p className="mt-2 text-xs text-gray-400 dark:text-gray-500">
               Avec prévisions, récurrences, dettes et budgets restants.
             </p>
+            <div className="mt-4 rounded-xl bg-white/10 p-3 text-xs text-gray-200 dark:bg-gray-950/10 dark:text-gray-700">
+              <p className="font-medium text-white dark:text-gray-950">Contrôle du calcul</p>
+              <p className="mt-1">
+                {currentAccountBalance.toFixed(2)} € + {projectedIncoming.toFixed(2)} € - {projectedDeductions.toFixed(2)} € = {projectedCurrentBalance.toFixed(2)} €
+              </p>
+              <p className="mt-2 text-gray-400 dark:text-gray-500">
+                Fiable si le solde Pathly correspond à ta banque et si les opérations à venir, récurrences, dettes et budgets sont à jour.
+              </p>
+            </div>
             <div className="mt-5 grid grid-cols-2 gap-3 text-sm">
               <div>
                 <p className="text-gray-400 dark:text-gray-500">Compte courant</p>

@@ -15,7 +15,8 @@ import {
   RefreshCw,
   History,
   Calendar,
-  ArrowRightLeft
+  ArrowRightLeft,
+  Utensils
 } from 'lucide-react';
 import { useBudget } from '../contexts/BudgetContext';
 import { BankAccount, Transaction } from '../types';
@@ -60,6 +61,7 @@ const AccountManager: React.FC = () => {
     { value: 'checking', label: 'Compte courant', icon: CreditCard, color: '#3B82F6' },
     { value: 'savings', label: 'Épargne', icon: PiggyBank, color: '#10B981' },
     { value: 'investment', label: 'Investissement', icon: TrendingUp, color: '#8B5CF6' },
+    { value: 'meal_voucher', label: 'Tickets restaurant', icon: Utensils, color: '#F97316' },
     { value: 'crypto', label: 'Cryptomonnaies', icon: Bitcoin, color: '#F59E0B' },
     { value: 'cash', label: 'Espèces', icon: Wallet, color: '#6B7280' },
     { value: 'credit', label: 'Crédit', icon: Building, color: '#EF4444' },

@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { addMonths, format, startOfDay } from 'date-fns';
+import { endOfMonth, format, startOfDay } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import * as LucideIcons from 'lucide-react';
 import { useBudget } from '../contexts/BudgetContext';
@@ -48,7 +48,7 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({
   const recentTransactions = useMemo(
     () => {
       const projectionStart = startOfDay(new Date());
-      const projectionEnd = addMonths(projectionStart, 2);
+      const projectionEnd = endOfMonth(projectionStart);
       const actualTransactionKeys = new Set(
         transactions
           .filter(transaction => !transaction.isRecurring)

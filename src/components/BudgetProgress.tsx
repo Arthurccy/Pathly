@@ -30,6 +30,7 @@ const BudgetProgress: React.FC<BudgetProgressProps> = ({ viewMode = 'monthly' })
         account.isActive &&
         account.type !== 'savings' &&
         account.type !== 'investment' &&
+        account.type !== 'meal_voucher' &&
         account.type !== 'crypto' &&
         shouldIncludeAccount(account.id)
       )

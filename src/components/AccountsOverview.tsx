@@ -1,5 +1,5 @@
 import React from 'react';
-import { CreditCard, Wallet, PiggyBank, TrendingUp, Plus } from 'lucide-react';
+import { CreditCard, Wallet, PiggyBank, TrendingUp, Plus, Utensils } from 'lucide-react';
 import { useBudget } from '../contexts/BudgetContext';
 
 const AccountsOverview: React.FC = () => {
@@ -13,6 +13,8 @@ const AccountsOverview: React.FC = () => {
         return PiggyBank;
       case 'investment':
         return TrendingUp;
+      case 'meal_voucher':
+        return Utensils;
       case 'cash':
         return Wallet;
       default:
@@ -28,6 +30,8 @@ const AccountsOverview: React.FC = () => {
         return 'Épargne';
       case 'investment':
         return 'Investissement';
+      case 'meal_voucher':
+        return 'Tickets restaurant';
       case 'cash':
         return 'Espèces';
       case 'credit':

@@ -43,7 +43,7 @@ export interface BankAccount {
   id: string;
   userId: string;
   name: string;
-  type: 'checking' | 'savings' | 'credit' | 'investment' | 'cash' | 'crypto';
+  type: 'checking' | 'savings' | 'credit' | 'investment' | 'cash' | 'crypto' | 'meal_voucher';
   balance: number;
   currency: string;
   color: string;

@@ -169,6 +169,13 @@ export const BudgetProvider: React.FC<BudgetProviderProps> = ({ children }) => {
   }, [accounts]);
 
   useEffect(() => {
+    if (!user || transactions.length === 0 || accounts.length === 0) return;
+
+    generateRecurringTransactions();
+    reconcileScheduledTransactionStatuses();
+  }, [user?.id, transactions, accounts]);
+
+  useEffect(() => {
     if (user) {
       console.log('💰 User detected, loading budget data...');
       loadUserData(user.id);
@@ -572,12 +579,18 @@ export const BudgetProvider: React.FC<BudgetProviderProps> = ({ children }) => {
   const isExcludedFromReports = (transaction: Transaction) =>
     categories.find(category => category.id === transaction.categoryId)?.excludeFromReports === true;
 
+  const getAutoCompletionDate = (date: Date) => {
+    const threshold = startOfDay(date);
+    threshold.setMinutes(1);
+    return threshold;
+  };
+
   const reconcileScheduledTransactionStatuses = async () => {
-    const today = startOfDay(new Date());
+    const now = new Date();
     const dueTransactions = transactions.filter(transaction =>
       transaction.status === 'scheduled' &&
       !transaction.isRecurring &&
-      !isAfter(startOfDay(transaction.date), today)
+      !isAfter(getAutoCompletionDate(transaction.date), now)
     );
     for (const transaction of dueTransactions) {
       try {
@@ -970,15 +983,22 @@ export const BudgetProvider: React.FC<BudgetProviderProps> = ({ children }) => {
 
     const now = new Date();
     const recurringTransactions = transactions.filter(t => t.isRecurring && t.recurringPattern?.isActive);
-    let hasNewTransactions = false;
-
-    const updatedTransactions = [...transactions];
+    const occurrenceExists = (template: Transaction, date: Date, accountId = template.accountId) =>
+      transactions.some(transaction =>
+        !transaction.isRecurring &&
+        transaction.accountId === accountId &&
+        transaction.categoryId === template.categoryId &&
+        transaction.type === template.type &&
+        transaction.amount === template.amount &&
+        transaction.description === template.description &&
+        isSameDay(transaction.date, date)
+      );
 
     recurringTransactions.forEach(template => {
       const pattern = template.recurringPattern!;
       
       // Check if we need to generate new transactions
-      while (isBefore(pattern.nextDate, now) || isSameDay(pattern.nextDate, now)) {
+      while (!isAfter(getAutoCompletionDate(pattern.nextDate), now)) {
         // Check if we've reached the end date or max occurrences
         if (pattern.endDate && isAfter(pattern.nextDate, pattern.endDate)) break;
         if (pattern.maxOccurrences && pattern.currentOccurrence && pattern.currentOccurrence >= pattern.maxOccurrences) break;
@@ -993,17 +1013,31 @@ export const BudgetProvider: React.FC<BudgetProviderProps> = ({ children }) => {
         };
 
         // Create transaction in Supabase
-        addTransaction(newTransactionData);
+        if (!occurrenceExists(template, pattern.nextDate)) {
+          addTransaction(newTransactionData);
+        }
         if (template.type === 'transfer' && template.transferToAccountId) {
           const fromAccount = accountsRef.current.find(account => account.id === template.accountId);
-          addTransaction({
-            ...newTransactionData,
-            accountId: template.transferToAccountId,
-            description: `Virement depuis ${fromAccount?.name || 'compte'} - ${template.description.replace(/^Virement vers .+? - /, '')}`,
-            transferToAccountId: template.accountId,
-          });
+          const transferInDescription = `Virement depuis ${fromAccount?.name || 'compte'} - ${template.description.replace(/^Virement vers .+? - /, '')}`;
+          const transferInExists = transactions.some(transaction =>
+            !transaction.isRecurring &&
+            transaction.accountId === template.transferToAccountId &&
+            transaction.categoryId === template.categoryId &&
+            transaction.type === template.type &&
+            transaction.amount === template.amount &&
+            transaction.description === transferInDescription &&
+            isSameDay(transaction.date, pattern.nextDate)
+          );
+
+          if (!transferInExists) {
+            addTransaction({
+              ...newTransactionData,
+              accountId: template.transferToAccountId,
+              description: transferInDescription,
+              transferToAccountId: template.accountId,
+            });
+          }
         }
-        hasNewTransactions = true;
 
         // Calculate next occurrence
         let nextDate: Date;
@@ -1196,6 +1230,7 @@ export const BudgetProvider: React.FC<BudgetProviderProps> = ({ children }) => {
           account.isActive &&
           account.type !== 'savings' &&
           account.type !== 'investment' &&
+          account.type !== 'meal_voucher' &&
           account.type !== 'crypto' &&
           shouldIncludeAccount(account.id)
         )
