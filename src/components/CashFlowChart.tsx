@@ -108,6 +108,9 @@ const CashFlowChart: React.FC = () => {
       <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
         Projection de trésorerie
       </h3>
+      <p className="mb-4 text-sm text-gray-500 dark:text-gray-400">
+        Les dépenses incluent les opérations prévues et le reste des budgets comme s'ils étaient consommés à 100%.
+      </p>
       
       <div className="h-64">
         <Line data={data} options={options} />
@@ -125,6 +128,11 @@ const CashFlowChart: React.FC = () => {
           <p className="text-lg font-semibold text-red-600 dark:text-red-400">
             {(cashFlowData.reduce((sum, cf) => sum + cf.expenses, 0) / cashFlowData.length).toFixed(0)} €
           </p>
+          {cashFlowData.some(cf => cf.budgetReserve && cf.budgetReserve > 0) && (
+            <p className="text-xs text-gray-500 dark:text-gray-400">
+              dont budgets restants
+            </p>
+          )}
         </div>
         <div>
           <p className="text-sm text-gray-500 dark:text-gray-400">Solde final projeté</p>

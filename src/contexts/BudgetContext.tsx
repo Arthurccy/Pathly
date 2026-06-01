@@ -1224,6 +1224,7 @@ export const BudgetProvider: React.FC<BudgetProviderProps> = ({ children }) => {
           cashFlowAccountIds.has(t.accountId)
         );
       const plannedTransactions = scheduledTransactions.concat(projectedRecurringTransactions);
+      const visibleMonthTransactions = monthTransactions.concat(plannedTransactions);
       const debtPaymentsForMonth = debts
         .filter(debt =>
           debt.isActive &&
@@ -1263,16 +1264,69 @@ export const BudgetProvider: React.FC<BudgetProviderProps> = ({ children }) => {
         .filter(t => t.type === 'savings')
         .reduce((sum, t) => sum + t.amount, 0);
 
-      const balance = income - expenses - savings;
+      const activeMonthBudgets = budgets.filter(
+        budget =>
+          budget.isActive &&
+          budget.startDate <= monthEnd &&
+          (!budget.endDate || budget.endDate >= monthStart)
+      );
+      const budgetCategoryIds = new Set(activeMonthBudgets.map(budget => budget.categoryId));
+      const monthBudgetItems = activeMonthBudgets
+        .map(budget => {
+          const category = categories.find(item => item.id === budget.categoryId);
+          if (!category || category.excludeFromReports || category.type !== 'expense') return null;
+
+          const normalizedAmount =
+            budget.period === 'yearly'
+              ? budget.amount / 12
+              : budget.period === 'weekly'
+                ? budget.amount * 4.345
+                : budget.amount;
+
+          return {
+            categoryId: budget.categoryId,
+            amount: normalizedAmount,
+          };
+        })
+        .filter((item): item is { categoryId: string; amount: number } => item !== null);
+
+      categories
+        .filter(category =>
+          category.type === 'expense' &&
+          !category.excludeFromReports &&
+          category.budget &&
+          !budgetCategoryIds.has(category.id)
+        )
+        .forEach(category => {
+          monthBudgetItems.push({
+            categoryId: category.id,
+            amount: category.budget || 0,
+          });
+        });
+
+      const budgetReserve = monthBudgetItems.reduce((sum, budgetItem) => {
+        const committedForCategory = visibleMonthTransactions
+          .filter(transaction =>
+            transaction.categoryId === budgetItem.categoryId &&
+            (transaction.type === 'expense' || transaction.type === 'bill')
+          )
+          .reduce((categorySum, transaction) => categorySum + transaction.amount, 0);
+
+        return sum + Math.max(budgetItem.amount - committedForCategory, 0);
+      }, 0);
+
+      const expensesWithBudgetReserve = expenses + budgetReserve;
+      const balance = income - expensesWithBudgetReserve - savings;
       const projectedBalance = i === 0 ? openingBalance + balance : projections[i - 1].projectedBalance + balance;
 
       projections.push({
         date: monthStart,
         income,
-        expenses,
+        expenses: expensesWithBudgetReserve,
         savings,
         balance,
         projectedBalance,
+        budgetReserve,
         scheduledTransactions: plannedTransactions
       });
     }
