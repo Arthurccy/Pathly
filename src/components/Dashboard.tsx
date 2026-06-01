@@ -40,7 +40,8 @@ const Dashboard: React.FC<DashboardProps> = ({ onViewChange }) => {
     setCurrentPeriod,
     selectedAccountIds,
     setSelectedAccountIds,
-    getFinancialSummary
+    getFinancialSummary,
+    getCashFlowProjection
   } = useBudget();
   const { user } = useAuth();
   
@@ -241,9 +242,12 @@ const Dashboard: React.FC<DashboardProps> = ({ onViewChange }) => {
       startOfDay(debt.dueDate) <= currentMonthPeriod.end
     )
     .reduce((sum, debt) => sum + debt.minimumPayment, 0);
-  const projectedIncoming = upcomingTransactionProjection.incoming;
-  const projectedDeductions = upcomingTransactionProjection.deductions + upcomingDebtPayments;
-  const projectedCurrentBalance = currentAccountBalance + projectedIncoming - projectedDeductions;
+  const monthEndProjection = getCashFlowProjection(1)[0];
+  const projectedIncoming = monthEndProjection?.income ?? upcomingTransactionProjection.incoming;
+  const projectedDeductions = monthEndProjection?.expenses ?? (upcomingTransactionProjection.deductions + upcomingDebtPayments);
+  const projectedCurrentBalance = monthEndProjection?.projectedBalance ?? (currentAccountBalance + projectedIncoming - projectedDeductions);
+  const projectedSavingsBalance = monthEndProjection?.projectedSavingsBalance ?? 0;
+  const projectedTotalWithSavings = monthEndProjection?.projectedTotalBalance ?? projectedCurrentBalance;
   const netWorth = accounts
     .filter(a => selectedAccountIds.length === 0 || selectedAccountIds.includes(a.id))
     .reduce((sum, a) => sum + a.balance, 0) - totalDebt;
@@ -355,9 +359,12 @@ const Dashboard: React.FC<DashboardProps> = ({ onViewChange }) => {
           </div>
 
           <div className="rounded-2xl bg-gray-950 p-4 text-white shadow-sm dark:bg-white dark:text-gray-950 sm:p-5">
-            <p className="text-sm text-gray-300 dark:text-gray-600">Solde courant prévu</p>
+            <p className="text-sm text-gray-300 dark:text-gray-600">Reste estimé fin du mois</p>
             <p className={`mt-2 break-words text-3xl font-bold sm:text-4xl ${projectedCurrentBalance >= 0 ? 'text-emerald-300 dark:text-emerald-700' : 'text-red-300 dark:text-red-700'}`}>
               {projectedCurrentBalance.toFixed(2)} €
+            </p>
+            <p className="mt-2 text-xs text-gray-400 dark:text-gray-500">
+              Avec prévisions, récurrences, dettes et budgets restants.
             </p>
             <div className="mt-5 grid grid-cols-2 gap-3 text-sm">
               <div>
@@ -365,20 +372,24 @@ const Dashboard: React.FC<DashboardProps> = ({ onViewChange }) => {
                 <p className="font-semibold">{currentAccountBalance.toFixed(2)} €</p>
               </div>
               <div>
-                <p className="text-gray-400 dark:text-gray-500">À venir</p>
+                <p className="text-gray-400 dark:text-gray-500">Impact restant</p>
                 <p className="font-semibold">{(projectedIncoming - projectedDeductions).toFixed(2)} €</p>
               </div>
               <div>
-                <p className="text-gray-400 dark:text-gray-500">Résultat du mois</p>
-                <p className="font-semibold">{balance.toFixed(2)} €</p>
+                <p className="text-gray-400 dark:text-gray-500">Revenus à venir</p>
+                <p className="font-semibold">+{projectedIncoming.toFixed(2)} €</p>
               </div>
               <div>
-                <p className="text-gray-400 dark:text-gray-500">Patrimoine net</p>
-                <p className="font-semibold">{netWorth.toFixed(2)} €</p>
+                <p className="text-gray-400 dark:text-gray-500">Sorties + budgets</p>
+                <p className="font-semibold">-{projectedDeductions.toFixed(2)} €</p>
               </div>
               <div>
-                <p className="text-gray-400 dark:text-gray-500">Objectifs</p>
-                <p className="font-semibold">{completedGoals}/{totalGoals}</p>
+                <p className="text-gray-400 dark:text-gray-500">Avec épargne</p>
+                <p className="font-semibold">{projectedTotalWithSavings.toFixed(2)} €</p>
+              </div>
+              <div>
+                <p className="text-gray-400 dark:text-gray-500">Épargne projetée</p>
+                <p className="font-semibold">{projectedSavingsBalance.toFixed(2)} €</p>
               </div>
             </div>
             {nextGoal && (

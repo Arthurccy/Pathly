@@ -1186,6 +1186,7 @@ export const BudgetProvider: React.FC<BudgetProviderProps> = ({ children }) => {
   const getCashFlowProjection = (months: number): CashFlow[] => {
     const projections: CashFlow[] = [];
     const startDate = new Date();
+    const today = startOfDay(startDate);
     const selectedAccountSet = new Set(selectedAccountIds);
     const shouldIncludeAccount = (accountId: string) =>
       selectedAccountIds.length === 0 || selectedAccountSet.has(accountId);
@@ -1248,6 +1249,9 @@ export const BudgetProvider: React.FC<BudgetProviderProps> = ({ children }) => {
         );
       const plannedTransactions = scheduledTransactions.concat(pendingTransactions, projectedRecurringTransactions);
       const visibleMonthTransactions = monthTransactions.concat(plannedTransactions);
+      const cashMovementTransactions = i === 0
+        ? plannedTransactions
+        : monthTransactions.concat(plannedTransactions);
       const debtPaymentsForMonth = debts
         .filter(debt =>
           debt.isActive &&
@@ -1261,18 +1265,14 @@ export const BudgetProvider: React.FC<BudgetProviderProps> = ({ children }) => {
             dueDate = startOfDay(addMonths(dueDate, 1));
           }
 
-          if (dueDate > monthEnd) return sum;
+          if (dueDate > monthEnd || (i === 0 && dueDate < today)) return sum;
           return sum + Math.min(debt.minimumPayment, debt.remainingAmount);
         }, 0);
 
-      const income = monthTransactions
-        .filter(t => t.type === 'income' || t.type === 'refund' || t.type === 'savings_withdrawal')
-        .reduce((sum, t) => sum + t.amount, 0) +
-        plannedTransactions
+      const income = cashMovementTransactions
         .filter(t => t.type === 'income' || t.type === 'refund' || t.type === 'savings_withdrawal')
         .reduce((sum, t) => sum + t.amount, 0);
-      const transferOutToExternalAccounts = monthTransactions
-        .concat(plannedTransactions)
+      const transferOutToExternalAccounts = cashMovementTransactions
         .filter(t =>
           t.type === 'transfer' &&
           cashFlowAccountIds.has(t.accountId) &&
@@ -1281,8 +1281,7 @@ export const BudgetProvider: React.FC<BudgetProviderProps> = ({ children }) => {
           !t.description.toLowerCase().includes('depuis')
         )
         .reduce((sum, t) => sum + t.amount, 0);
-      const transferOutToSavingsAccounts = monthTransactions
-        .concat(plannedTransactions)
+      const transferOutToSavingsAccounts = cashMovementTransactions
         .filter(t =>
           t.type === 'transfer' &&
           cashFlowAccountIds.has(t.accountId) &&
@@ -1292,17 +1291,11 @@ export const BudgetProvider: React.FC<BudgetProviderProps> = ({ children }) => {
         )
         .reduce((sum, t) => sum + t.amount, 0);
         
-      const baseExpenses = monthTransactions
-        .filter(t => t.type === 'expense' || t.type === 'bill')
-        .reduce((sum, t) => sum + t.amount, 0) +
-        plannedTransactions
+      const baseExpenses = cashMovementTransactions
         .filter(t => t.type === 'expense' || t.type === 'bill')
         .reduce((sum, t) => sum + t.amount, 0);
         
-      const savings = monthTransactions
-        .filter(t => t.type === 'savings')
-        .reduce((sum, t) => sum + t.amount, 0) +
-        plannedTransactions
+      const savings = cashMovementTransactions
         .filter(t => t.type === 'savings')
         .reduce((sum, t) => sum + t.amount, 0);
 
