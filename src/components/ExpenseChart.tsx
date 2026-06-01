@@ -369,17 +369,17 @@ const ExpenseChart: React.FC<ExpenseChartProps> = ({ viewMode = 'monthly' }) => 
         <div className="mb-4 flex items-start justify-between gap-4">
           <div>
             <h4 className="text-base font-semibold text-gray-900 dark:text-white">
-              Impact des sorties sur vos revenus
+              Lecture des revenus de la période
             </h4>
             <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-              {viewMode === 'monthly' ? 'Du début à la fin du mois' : 'Du début à la fin de l’année'}
+              {viewMode === 'monthly' ? 'Période budgétaire, pas solde final du compte' : 'Année en cours'}
             </p>
             <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-              Inclut les opérations terminées, en attente, planifiées et les échéances de dettes.
+              Montre comment les sorties consomment les revenus de la période. La référence fin de mois est la carte du haut.
             </p>
           </div>
           <div className="text-right">
-            <p className="text-sm text-gray-500 dark:text-gray-400">Reste</p>
+            <p className="text-sm text-gray-500 dark:text-gray-400">Reste sur revenus</p>
             <p className={`text-xl font-bold ${remainingIncome >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}>
               {remainingIncome.toFixed(2)} €
             </p>

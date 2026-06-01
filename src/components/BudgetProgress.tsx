@@ -11,7 +11,7 @@ interface BudgetProgressProps {
 }
 
 const BudgetProgress: React.FC<BudgetProgressProps> = ({ viewMode = 'monthly' }) => {
-  const { transactions, categories, budgets, accounts, debts, selectedAccountIds } = useBudget();
+  const { transactions, categories, budgets, accounts, debts, selectedAccountIds, getCashFlowProjection } = useBudget();
   const { user } = useAuth();
   const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
   
@@ -131,11 +131,15 @@ const BudgetProgress: React.FC<BudgetProgressProps> = ({ viewMode = 'monthly' })
       startOfDay(debt.dueDate) <= periodEnd
     )
     .reduce((sum, debt) => sum + debt.minimumPayment, 0);
+  const monthEndProjection = getCashFlowProjection(1)[0];
   const projectedCurrentBalance =
-    currentAccountBalance +
-    upcomingTransactionProjection.incoming -
-    upcomingTransactionProjection.deductions -
-    upcomingDebtPayments;
+    monthEndProjection?.projectedBalance ??
+    (
+      currentAccountBalance +
+      upcomingTransactionProjection.incoming -
+      upcomingTransactionProjection.deductions -
+      upcomingDebtPayments
+    );
   
   const currentPeriodBudgets = budgets.filter(
     b => b.period === viewMode && b.isActive &&
@@ -262,7 +266,7 @@ const BudgetProgress: React.FC<BudgetProgressProps> = ({ viewMode = 'monthly' })
     (sum, item) => sum + Math.max(item.budgeted - item.committed, 0),
     0
   );
-  const finalProjectedAfterBudgets = projectedCurrentBalance - remainingBudgets;
+  const finalProjectedAfterBudgets = projectedCurrentBalance;
   const totalOverBudgetAmount = budgetProgress
     .filter(item => !item.isUnplanned)
     .reduce((sum, item) => sum + Math.max(item.committed - item.budgeted, 0), 0);
@@ -272,10 +276,10 @@ const BudgetProgress: React.FC<BudgetProgressProps> = ({ viewMode = 'monthly' })
   const budgetPlanIsOver = totalBudgetGap > 0;
   const budgetActionMessage = budgetPlanIsOver
     ? projectedCurrentBalance >= 0
-      ? `Ton plan de budget dépasse de ${totalBudgetGap.toFixed(2)} €. Si tu utilises aussi les budgets encore libres, il te resterait ${finalProjectedAfterBudgets.toFixed(2)} €. Tu peux réallouer ${Math.min(remainingBudgets, pressureToCover).toFixed(2)} €, augmenter certains budgets, ou garder une partie pour l'épargne.`
+      ? `Ton plan de budget dépasse de ${totalBudgetGap.toFixed(2)} €. Le reste estimé fin du mois tient déjà compte des budgets restants. Tu peux réallouer ${Math.min(remainingBudgets, pressureToCover).toFixed(2)} €, augmenter certains budgets, ou garder une partie pour l'épargne.`
       : `Ton plan de budget dépasse de ${totalBudgetGap.toFixed(2)} € et le solde prévu passe négatif. Il faut réduire ou décaler au moins ${Math.abs(projectedCurrentBalance).toFixed(2)} € de sorties.`
     : projectedCurrentBalance > 0
-      ? `Ton plan tient avec ${Math.abs(totalBudgetGap).toFixed(2)} € de marge budgétaire. Si tu utilises aussi les budgets encore libres, il te resterait ${finalProjectedAfterBudgets.toFixed(2)} €.`
+      ? `Ton plan tient avec ${Math.abs(totalBudgetGap).toFixed(2)} € de marge budgétaire. Le reste estimé fin du mois tient déjà compte des budgets restants.`
       : `Tes budgets tiennent sur le papier, mais le solde prévu est négatif. Le blocage vient plutôt de la trésorerie disponible que des budgets.`;
   const selectedBudgetCategory = selectedCategoryId
     ? categories.find(category => category.id === selectedCategoryId)
@@ -321,11 +325,11 @@ const BudgetProgress: React.FC<BudgetProgressProps> = ({ viewMode = 'monthly' })
 
       <div className="mb-5 grid grid-cols-1 gap-3 sm:grid-cols-3">
         <div className="rounded-lg border border-gray-200 bg-gray-50 p-4 dark:border-gray-700 dark:bg-gray-900/50">
-          <p className="text-sm text-gray-500 dark:text-gray-400">Marge de trésorerie prévue</p>
+          <p className="text-sm text-gray-500 dark:text-gray-400">Reste estimé fin du mois</p>
           <p className={`mt-1 text-xl font-semibold ${projectedCurrentBalance >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}>
             {projectedCurrentBalance.toFixed(2)} €
           </p>
-          <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Après les opérations déjà prévues.</p>
+          <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Même référence que la carte du haut.</p>
         </div>
 
         <div className="rounded-lg border border-gray-200 bg-gray-50 p-4 dark:border-gray-700 dark:bg-gray-900/50">
@@ -352,7 +356,7 @@ const BudgetProgress: React.FC<BudgetProgressProps> = ({ viewMode = 'monthly' })
           <div>
             <p className="text-sm text-gray-300 dark:text-gray-600">Reste final estimé</p>
             <p className="mt-1 text-xs text-gray-400 dark:text-gray-500">
-              Marge prévue {projectedCurrentBalance.toFixed(2)} € - budgets encore libres {remainingBudgets.toFixed(2)} €
+              Budgets restants déjà inclus. Libre ailleurs: {remainingBudgets.toFixed(2)} €
             </p>
           </div>
           <p className={`text-2xl font-semibold ${finalProjectedAfterBudgets >= 0 ? 'text-emerald-300 dark:text-emerald-700' : 'text-red-300 dark:text-red-700'}`}>
