@@ -218,6 +218,20 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({
     }
   };
 
+  const handleMarkAsCompleted = async (transaction: Transaction) => {
+    if (transaction.status === 'completed') return;
+
+    try {
+      setIsSaving(true);
+      await updateTransaction(transaction.id, { status: 'completed' });
+    } catch (error) {
+      console.error('Error marking transaction completed:', error);
+      alert("Impossible de marquer cette transaction comme terminée.");
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   const renderTransaction = (transaction: Transaction) => {
     const category = categories.find(c => c.id === transaction.categoryId);
     const account = accounts.find(a => a.id === transaction.accountId);
@@ -288,6 +302,16 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({
                 aria-label="Modifier la transaction"
               >
                 <LucideIcons.Pencil className="h-4 w-4" />
+              </button>
+            )}
+            {!isProjectedRecurring && !isDebtPayment && transaction.status !== 'completed' && (
+              <button
+                type="button"
+                onClick={() => handleMarkAsCompleted(transaction)}
+                className="rounded-full p-2 text-gray-400 transition hover:bg-gray-100 hover:text-gray-700 focus:outline-none focus:ring-2 focus:ring-green-500 dark:hover:bg-gray-700 dark:hover:text-gray-200 sm:rounded-lg"
+                aria-label="Marquer comme terminé"
+              >
+                <LucideIcons.Check className="h-4 w-4" />
               </button>
             )}
           </div>
