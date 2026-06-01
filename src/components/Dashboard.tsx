@@ -585,7 +585,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onViewChange }) => {
       {/* Recent Transactions */}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         <RecentTransactions title="Dernières transactions terminées" />
-        <RecentTransactions title="Opérations à venir" mode="upcoming" periodEnd={currentMonthPeriod.end} />
+        <RecentTransactions title="Opérations à venir" mode="upcoming" periodStart={currentMonthPeriod.start} periodEnd={currentMonthPeriod.end} />
       </div>
     </div>
   );

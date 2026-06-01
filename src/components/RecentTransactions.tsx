@@ -31,6 +31,7 @@ interface RecentTransactionsProps {
   limit?: number;
   title?: string;
   mode?: 'recent' | 'upcoming' | 'all';
+  periodStart?: Date;
   periodEnd?: Date;
 }
 
@@ -55,7 +56,7 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({
 
   const recentTransactions = useMemo(
     () => {
-      const projectionStart = startOfDay(new Date());
+      const projectionStart = startOfDay(periodStart ?? new Date());
       const projectionEnd = periodEnd ?? endOfMonth(projectionStart);
       const actualTransactionKeys = new Set(
         transactions
@@ -113,7 +114,8 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({
       const sourceTransactions = transactions.concat(projectedRecurringTransactions, upcomingDebtTransactions).filter(transaction => {
         if (transaction.isRecurring) return false;
         if (mode === 'upcoming') {
-          const isInPeriod = startOfDay(transaction.date) <= projectionEnd;
+          const transactionDate = startOfDay(transaction.date);
+          const isInPeriod = transactionDate >= projectionStart && transactionDate <= projectionEnd;
           return (transaction.status === 'scheduled' || transaction.status === 'pending') && isInPeriod;
         }
         if (mode === 'recent') return transaction.status === 'completed';
