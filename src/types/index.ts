@@ -246,6 +246,7 @@ export interface BudgetContextType {
   deleteTransaction: (id: string) => void;
   generateRecurringTransactions: () => void;
   getScheduledTransactions: (startDate: Date, endDate: Date) => Transaction[];
+  getProjectedRecurringTransactions: (startDate: Date, endDate: Date) => Transaction[];
   
   // Categories
   addCategory: (category: Omit<Category, 'id'>) => void;

@@ -1454,6 +1454,7 @@ export const BudgetProvider: React.FC<BudgetProviderProps> = ({ children }) => {
       deleteTransaction,
       generateRecurringTransactions,
       getScheduledTransactions,
+      getProjectedRecurringTransactions,
       
       // Categories
       addCategory,

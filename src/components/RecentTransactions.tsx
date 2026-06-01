@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { format } from 'date-fns';
+import { addMonths, format, startOfDay } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import * as LucideIcons from 'lucide-react';
 import { useBudget } from '../contexts/BudgetContext';
@@ -32,7 +32,7 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({
   title = 'Dernieres transactions',
   mode = 'recent',
 }) => {
-  const { transactions, categories, accounts, updateTransaction, deleteTransaction } = useBudget();
+  const { transactions, categories, accounts, updateTransaction, deleteTransaction, getProjectedRecurringTransactions } = useBudget();
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
   const [formData, setFormData] = useState({
     amount: '',
@@ -47,7 +47,35 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({
 
   const recentTransactions = useMemo(
     () => {
-      const sourceTransactions = transactions.filter(transaction => {
+      const projectionStart = startOfDay(new Date());
+      const projectionEnd = addMonths(projectionStart, 2);
+      const actualTransactionKeys = new Set(
+        transactions
+          .filter(transaction => !transaction.isRecurring)
+          .map(transaction => [
+            transaction.accountId,
+            transaction.categoryId,
+            transaction.description,
+            transaction.amount,
+            transaction.type,
+            toDateInputValue(transaction.date),
+          ].join('|'))
+      );
+      const projectedRecurringTransactions = mode === 'recent'
+        ? []
+        : getProjectedRecurringTransactions(projectionStart, projectionEnd).filter(transaction => {
+          const key = [
+            transaction.accountId,
+            transaction.categoryId,
+            transaction.description,
+            transaction.amount,
+            transaction.type,
+            toDateInputValue(transaction.date),
+          ].join('|');
+
+          return !actualTransactionKeys.has(key);
+        });
+      const sourceTransactions = transactions.concat(projectedRecurringTransactions).filter(transaction => {
         if (transaction.isRecurring) return false;
         if (mode === 'upcoming') return transaction.status === 'scheduled' || transaction.status === 'pending';
         if (mode === 'recent') return transaction.status === 'completed';
@@ -59,7 +87,7 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({
       });
       return limit ? sortedTransactions.slice(0, limit) : sortedTransactions;
     },
-    [limit, mode, transactions]
+    [getProjectedRecurringTransactions, limit, mode, transactions]
   );
   const groupedTransactions = useMemo(() => {
     if (mode !== 'all') {
@@ -163,6 +191,7 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({
     const account = accounts.find(a => a.id === transaction.accountId);
     const IconComponent = category ? (LucideIcons as any)[category.icon] : LucideIcons.DollarSign;
     const displayImpact = getTransactionDisplayImpact(transaction);
+    const isProjectedRecurring = transaction.id.includes('-projected-');
 
     return (
       <div key={transaction.id} className="p-3 transition-colors hover:bg-gray-50 dark:hover:bg-gray-700/50 sm:p-4">
@@ -218,14 +247,16 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({
             }`}>
               {displayImpact >= 0 ? '+' : '-'}{Math.abs(displayImpact).toFixed(2)} EUR
             </p>
-            <button
-              type="button"
-              onClick={() => openEditor(transaction)}
-              className="rounded-full p-2 text-gray-400 transition hover:bg-gray-100 hover:text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:hover:bg-gray-700 dark:hover:text-gray-200 sm:rounded-lg"
-              aria-label="Modifier la transaction"
-            >
-              <LucideIcons.Pencil className="h-4 w-4" />
-            </button>
+            {!isProjectedRecurring && (
+              <button
+                type="button"
+                onClick={() => openEditor(transaction)}
+                className="rounded-full p-2 text-gray-400 transition hover:bg-gray-100 hover:text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:hover:bg-gray-700 dark:hover:text-gray-200 sm:rounded-lg"
+                aria-label="Modifier la transaction"
+              >
+                <LucideIcons.Pencil className="h-4 w-4" />
+              </button>
+            )}
           </div>
         </div>
       </div>
@@ -268,6 +299,7 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({
               const account = accounts.find(a => a.id === transaction.accountId);
               const IconComponent = category ? (LucideIcons as any)[category.icon] : LucideIcons.DollarSign;
               const displayImpact = getTransactionDisplayImpact(transaction);
+              const isProjectedRecurring = transaction.id.includes('-projected-');
 
               return (
                 <div key={transaction.id} className="p-3 transition-colors hover:bg-gray-50 dark:hover:bg-gray-700/50 sm:p-4">
@@ -319,14 +351,16 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({
                       }`}>
                         {displayImpact >= 0 ? '+' : '-'}{Math.abs(displayImpact).toFixed(2)} EUR
                       </p>
-                      <button
-                        type="button"
-                        onClick={() => openEditor(transaction)}
-                        className="rounded-full p-2 text-gray-400 transition hover:bg-gray-100 hover:text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:hover:bg-gray-700 dark:hover:text-gray-200 sm:rounded-lg"
-                        aria-label="Modifier la transaction"
-                      >
-                        <LucideIcons.Pencil className="h-4 w-4" />
-                      </button>
+                      {!isProjectedRecurring && (
+                        <button
+                          type="button"
+                          onClick={() => openEditor(transaction)}
+                          className="rounded-full p-2 text-gray-400 transition hover:bg-gray-100 hover:text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:hover:bg-gray-700 dark:hover:text-gray-200 sm:rounded-lg"
+                          aria-label="Modifier la transaction"
+                        >
+                          <LucideIcons.Pencil className="h-4 w-4" />
+                        </button>
+                      )}
                     </div>
                   </div>
                 </div>
