@@ -996,9 +996,30 @@ export const BudgetProvider: React.FC<BudgetProviderProps> = ({ children }) => {
 
     recurringTransactions.forEach(template => {
       const pattern = template.recurringPattern!;
-      
-      // Check if we need to generate new transactions
-      while (!isAfter(getAutoCompletionDate(pattern.nextDate), now)) {
+
+      let skippedPastOccurrence = false;
+      while (isBefore(startOfDay(pattern.nextDate), startOfDay(now))) {
+        if (pattern.endDate && isAfter(pattern.nextDate, pattern.endDate)) break;
+
+        const nextDate = getNextRecurringDate(pattern.nextDate, pattern);
+        if (!nextDate || !isAfter(nextDate, pattern.nextDate)) break;
+
+        pattern.nextDate = nextDate;
+        skippedPastOccurrence = true;
+      }
+
+      if (skippedPastOccurrence) {
+        updateTransaction(template.id, {
+          recurringPattern: {
+            ...pattern,
+            nextDate: pattern.nextDate,
+          },
+        });
+      }
+
+      // Generate only the occurrence due today after 00:01. Older missed occurrences
+      // are skipped to avoid mutating a bank-reconciled balance retroactively.
+      while (isSameDay(pattern.nextDate, now) && !isAfter(getAutoCompletionDate(pattern.nextDate), now)) {
         // Check if we've reached the end date or max occurrences
         if (pattern.endDate && isAfter(pattern.nextDate, pattern.endDate)) break;
         if (pattern.maxOccurrences && pattern.currentOccurrence && pattern.currentOccurrence >= pattern.maxOccurrences) break;
