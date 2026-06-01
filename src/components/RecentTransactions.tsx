@@ -39,6 +39,7 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({
   limit = 10,
   title = 'Dernieres transactions',
   mode = 'recent',
+  periodStart,
   periodEnd,
 }) => {
   const { transactions, categories, accounts, debts, addTransaction, updateTransaction, deleteTransaction, getProjectedRecurringTransactions } = useBudget();
