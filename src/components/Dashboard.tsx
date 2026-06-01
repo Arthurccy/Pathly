@@ -250,6 +250,22 @@ const Dashboard: React.FC<DashboardProps> = ({ onViewChange }) => {
   const projectedCurrentBalance = monthEndProjection?.projectedBalance ?? (currentAccountBalance + projectedIncoming - projectedDeductions);
   const projectedSavingsBalance = monthEndProjection?.projectedSavingsBalance ?? 0;
   const projectedTotalWithSavings = monthEndProjection?.projectedTotalBalance ?? projectedCurrentBalance;
+  
+  // Debug: affiche la décomposition du cashflow en console
+  if (monthEndProjection && viewMode === 'monthly') {
+    console.log('💰 Cashflow Breakdown:', {
+      baseExpenses: monthEndProjection.baseExpenses,
+      debtPayments: monthEndProjection.debtPayments,
+      transfersOut: monthEndProjection.transfersOut,
+      budgetReserve: monthEndProjection.budgetReserve,
+      savings: monthEndProjection.savings,
+      totalExpenses: monthEndProjection.expenses,
+      income: monthEndProjection.income,
+      balance: monthEndProjection.balance,
+      projectedBalance: monthEndProjection.projectedBalance,
+    });
+  }
+  
   const netWorth = accounts
     .filter(a => selectedAccountIds.length === 0 || selectedAccountIds.includes(a.id))
     .reduce((sum, a) => sum + a.balance, 0) - totalDebt;
@@ -554,7 +570,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onViewChange }) => {
       {/* Recent Transactions */}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         <RecentTransactions title="Dernières transactions terminées" />
-        <RecentTransactions title="Opérations à venir" mode="upcoming" />
+        <RecentTransactions title="Opérations à venir" mode="upcoming" periodEnd={currentMonthPeriod.end} />
       </div>
     </div>
   );
