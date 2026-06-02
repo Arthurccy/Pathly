@@ -154,6 +154,11 @@ const Dashboard: React.FC<DashboardProps> = ({ onViewChange }) => {
   const projectedSavingsBalance = projection?.projectedSavingsBalance ?? 0;
   const projectedTotalWithSavings = projection?.projectedTotalBalance ?? projectedCurrentBalance;
   const projectionDelta = projectedIncoming - projectedDeductions;
+  const projectedBaseExpenses = projection?.baseExpenses ?? 0;
+  const projectedDebtPayments = projection?.debtPayments ?? 0;
+  const projectedBudgetReserve = projection?.budgetReserve ?? 0;
+  const projectedTransfersOut = projection?.transfersOut ?? 0;
+  const projectedSavingsOut = projection?.savings ?? 0;
 
   const upcomingTransactions = useMemo(
     () => transactions
@@ -203,36 +208,48 @@ const Dashboard: React.FC<DashboardProps> = ({ onViewChange }) => {
   const StatusIcon = remainingTone.icon;
 
   const primaryActions = [
-    { label: 'Ajouter', detail: 'Operation', icon: Plus, view: 'add-transaction' },
-    { label: 'Importer', detail: 'CSV bancaire', icon: Upload, view: 'import-csv' },
-    { label: 'Comptes', detail: 'Soldes', icon: Wallet, view: 'accounts' },
+    { label: 'Ajouter', detail: 'Opération', icon: Plus, view: 'add-transaction', style: 'primary' },
+    { label: 'Importer', detail: 'CSV bancaire', icon: Upload, view: 'import-csv', style: 'secondary' },
+    { label: 'Planifier', detail: 'À venir', icon: CalendarDays, view: 'planning', style: 'secondary' },
+    { label: 'Comptes', detail: 'Soldes', icon: Wallet, view: 'accounts', style: 'secondary' },
   ];
 
   const insightCards = [
     {
-      label: 'Revenus a venir',
+      label: 'Revenus à venir',
       value: money(projectedIncoming),
-      detail: `${money(upcomingIncome)} deja date`,
+      detail: `${money(upcomingIncome)} déjà daté`,
       icon: ArrowUpRight,
-      tone: 'text-emerald-700 dark:text-emerald-300',
-      bg: 'bg-emerald-50 dark:bg-emerald-950/30',
+      tone: 'text-emerald-700 dark:text-emerald-200',
+      bg: 'bg-emerald-100 dark:bg-emerald-900/50',
+      border: 'border-emerald-200 dark:border-emerald-800',
     },
     {
       label: 'Sorties + budgets',
       value: money(projectedDeductions),
-      detail: `${money(projection?.budgetReserve ?? 0)} en budgets non dates`,
+      detail: `${money(projectedBudgetReserve)} en budgets non datés`,
       icon: ArrowDownRight,
-      tone: 'text-red-700 dark:text-red-300',
-      bg: 'bg-red-50 dark:bg-red-950/30',
+      tone: 'text-rose-700 dark:text-rose-200',
+      bg: 'bg-rose-100 dark:bg-rose-900/50',
+      border: 'border-rose-200 dark:border-rose-800',
     },
     {
-      label: 'Avec epargne',
+      label: 'Avec épargne',
       value: money(projectedTotalWithSavings),
-      detail: `${money(projectedSavingsBalance)} projetes cote epargne`,
+      detail: `${money(projectedSavingsBalance)} projetés côté épargne`,
       icon: PiggyBank,
-      tone: 'text-violet-700 dark:text-violet-300',
-      bg: 'bg-violet-50 dark:bg-violet-950/30',
+      tone: 'text-indigo-700 dark:text-indigo-200',
+      bg: 'bg-indigo-100 dark:bg-indigo-900/50',
+      border: 'border-indigo-200 dark:border-indigo-800',
     },
+  ];
+
+  const flowSteps = [
+    { label: 'Départ', value: checkingAccountBalance, prefix: '', color: 'bg-sky-500', text: 'text-sky-700 dark:text-sky-300' },
+    { label: 'Revenus', value: projectedIncoming, prefix: '+', color: 'bg-emerald-500', text: 'text-emerald-700 dark:text-emerald-300' },
+    { label: 'Sorties prévues', value: projectedBaseExpenses + projectedDebtPayments + projectedTransfersOut + projectedSavingsOut, prefix: '-', color: 'bg-rose-500', text: 'text-rose-700 dark:text-rose-300' },
+    { label: 'Budgets libres', value: projectedBudgetReserve, prefix: '-', color: 'bg-amber-500', text: 'text-amber-700 dark:text-amber-300' },
+    { label: 'Reste', value: projectedCurrentBalance, prefix: '', color: projectedCurrentBalance >= 0 ? 'bg-emerald-500' : 'bg-red-500', text: projectedCurrentBalance >= 0 ? 'text-emerald-700 dark:text-emerald-300' : 'text-red-700 dark:text-red-300' },
   ];
 
   const statCards = [
@@ -287,39 +304,44 @@ const Dashboard: React.FC<DashboardProps> = ({ onViewChange }) => {
   };
 
   return (
-    <div className="space-y-5">
-      <section className="border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-950">
-        <div className="grid gap-0 lg:grid-cols-[minmax(0,1.35fr)_minmax(22rem,0.65fr)]">
+    <div className="space-y-6">
+      <section className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-950">
+        <div className="grid gap-0 xl:grid-cols-[minmax(0,1fr)_24rem]">
           <div className="p-4 sm:p-5 lg:p-6">
-            <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+            <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
               <div className="min-w-0">
                 <div className="flex flex-wrap items-center gap-2">
-                  <span className="inline-flex items-center gap-2 rounded-md border border-slate-200 px-2.5 py-1 text-xs font-medium text-slate-600 dark:border-slate-800 dark:text-slate-300">
+                  <span className="inline-flex items-center gap-2 rounded-md bg-sky-50 px-2.5 py-1 text-xs font-semibold text-sky-700 ring-1 ring-sky-200 dark:bg-sky-950/40 dark:text-sky-300 dark:ring-sky-900">
                     <CalendarDays className="h-3.5 w-3.5" />
                     {format(periodStart, 'dd MMM', { locale: fr })} - {format(periodEnd, 'dd MMM yyyy', { locale: fr })}
                   </span>
-                  <span className={`inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs font-semibold ${remainingTone.border} ${remainingTone.bg} ${remainingTone.text}`}>
+                  <span className={`inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-semibold ring-1 ${remainingTone.bg} ${remainingTone.text} ${remainingTone.border}`}>
                     <StatusIcon className="h-3.5 w-3.5" />
                     {remainingTone.label}
                   </span>
                 </div>
                 <h1 className="mt-4 text-2xl font-semibold tracking-tight text-slate-950 dark:text-white sm:text-3xl">
-                  Pilotage financier
+                  Ton mois, en clair
                 </h1>
                 <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600 dark:text-slate-400">
-                  Une seule lecture prioritaire : ce qui reste sur le compte courant une fois les revenus, sorties, dettes, budgets et virements prevus pris en compte.
+                  Le tableau commence par la décision importante : combien il restera, pourquoi, et quoi ajuster avant la fin de période.
                 </p>
               </div>
 
-              <div className="flex flex-wrap gap-2">
+              <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:justify-end">
                 {primaryActions.map(action => {
                   const Icon = action.icon;
+                  const isPrimary = action.style === 'primary';
                   return (
                     <button
                       key={action.view}
                       type="button"
                       onClick={() => onViewChange?.(action.view)}
-                      className="inline-flex items-center gap-2 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-800 transition hover:border-slate-300 hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-slate-400 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800"
+                      className={`inline-flex min-h-11 items-center justify-center gap-2 rounded-md px-3 py-2 text-sm font-semibold transition focus:outline-none focus:ring-2 focus:ring-offset-2 dark:focus:ring-offset-slate-950 ${
+                        isPrimary
+                          ? 'bg-blue-600 text-white shadow-sm hover:bg-blue-700 focus:ring-blue-500'
+                          : 'border border-slate-200 bg-white text-slate-800 hover:border-slate-300 hover:bg-slate-50 focus:ring-slate-400 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800'
+                      }`}
                     >
                       <Icon className="h-4 w-4" />
                       <span>{action.label}</span>
@@ -333,57 +355,82 @@ const Dashboard: React.FC<DashboardProps> = ({ onViewChange }) => {
               {insightCards.map(card => {
                 const Icon = card.icon;
                 return (
-                  <div key={card.label} className="border border-slate-200 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-900/70">
+                  <div key={card.label} className={`rounded-lg border p-4 ${card.border} ${card.bg}`}>
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
-                        <p className="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">{card.label}</p>
+                        <p className={`text-xs font-semibold uppercase tracking-wide ${card.tone}`}>{card.label}</p>
                         <p className="mt-2 break-words text-xl font-semibold text-slate-950 dark:text-white">{card.value}</p>
                       </div>
-                      <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-md ${card.bg} ${card.tone}`}>
+                      <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-white/80 ${card.tone} dark:bg-white/10`}>
                         <Icon className="h-4 w-4" />
                       </span>
                     </div>
-                    <p className="mt-3 text-xs text-slate-500 dark:text-slate-400">{card.detail}</p>
+                    <p className="mt-3 text-xs text-slate-700/75 dark:text-slate-300/80">{card.detail}</p>
                   </div>
                 );
               })}
             </div>
 
-            <div className="mt-4 border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-950">
-              <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-                <div>
-                  <p className="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">Controle du calcul</p>
-                  <p className="mt-1 text-sm text-slate-700 dark:text-slate-300">
-                    {money(checkingAccountBalance)} + {money(projectedIncoming)} - {money(projectedDeductions)} = <span className="font-semibold text-slate-950 dark:text-white">{money(projectedCurrentBalance)}</span>
+            <div className="mt-4 rounded-lg border border-slate-200 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-900/70">
+              <div className="flex flex-col gap-4">
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Chemin de l'argent</p>
+                    <p className="mt-1 text-sm text-slate-700 dark:text-slate-300">
+                      {money(checkingAccountBalance)} + {money(projectedIncoming)} - {money(projectedDeductions)} = <span className="font-semibold text-slate-950 dark:text-white">{money(projectedCurrentBalance)}</span>
+                    </p>
+                  </div>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    Budgets restants déjà réservés : {money(projectedBudgetReserve)}
                   </p>
                 </div>
-                <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs text-slate-500 dark:text-slate-400 sm:grid-cols-5">
-                  <span>Depenses {compactMoney(projection?.baseExpenses ?? 0)}</span>
-                  <span>Dettes {compactMoney(projection?.debtPayments ?? 0)}</span>
-                  <span>Budgets {compactMoney(projection?.budgetReserve ?? 0)}</span>
-                  <span>Virements {compactMoney(projection?.transfersOut ?? 0)}</span>
-                  <span>Epargne {compactMoney(projection?.savings ?? 0)}</span>
+
+                <div className="grid gap-2 sm:grid-cols-5">
+                  {flowSteps.map((step, index) => (
+                    <div key={step.label} className="relative rounded-md bg-white p-3 ring-1 ring-slate-200 dark:bg-slate-950 dark:ring-slate-800">
+                      <div className={`mb-3 h-1.5 rounded-full ${step.color}`} />
+                      <p className="text-xs font-medium text-slate-500 dark:text-slate-400">{step.label}</p>
+                      <p className={`mt-1 break-words text-base font-semibold ${step.text}`}>
+                        {step.prefix}{money(step.value)}
+                      </p>
+                      {index < flowSteps.length - 1 && (
+                        <span className="absolute -right-1.5 top-1/2 hidden h-3 w-3 -translate-y-1/2 rotate-45 border-r border-t border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-950 sm:block" />
+                      )}
+                    </div>
+                  ))}
+                </div>
+
+                <div className="grid grid-cols-2 gap-2 text-xs text-slate-600 dark:text-slate-400 sm:grid-cols-5">
+                  <span className="rounded-md bg-white px-2.5 py-2 ring-1 ring-slate-200 dark:bg-slate-950 dark:ring-slate-800">Dépenses {compactMoney(projectedBaseExpenses)}</span>
+                  <span className="rounded-md bg-white px-2.5 py-2 ring-1 ring-slate-200 dark:bg-slate-950 dark:ring-slate-800">Dettes {compactMoney(projectedDebtPayments)}</span>
+                  <span className="rounded-md bg-white px-2.5 py-2 ring-1 ring-slate-200 dark:bg-slate-950 dark:ring-slate-800">Budgets {compactMoney(projectedBudgetReserve)}</span>
+                  <span className="rounded-md bg-white px-2.5 py-2 ring-1 ring-slate-200 dark:bg-slate-950 dark:ring-slate-800">Virements {compactMoney(projectedTransfersOut)}</span>
+                  <span className="rounded-md bg-white px-2.5 py-2 ring-1 ring-slate-200 dark:bg-slate-950 dark:ring-slate-800">Épargne {compactMoney(projectedSavingsOut)}</span>
                 </div>
               </div>
             </div>
           </div>
 
-          <aside className="border-t border-slate-200 bg-slate-950 p-4 text-white dark:border-slate-800 dark:bg-white dark:text-slate-950 lg:border-l lg:border-t-0 sm:p-5 lg:p-6">
-            <p className="text-sm text-slate-300 dark:text-slate-500">Reste estime</p>
-            <p className={`mt-2 break-words text-4xl font-semibold tracking-tight ${projectedCurrentBalance >= 0 ? 'text-emerald-300 dark:text-emerald-700' : 'text-red-300 dark:text-red-700'}`}>
+          <aside className={`border-t p-4 text-white xl:border-l xl:border-t-0 sm:p-5 lg:p-6 ${
+            projectedCurrentBalance >= 0
+              ? 'border-emerald-700 bg-emerald-700 dark:border-emerald-800 dark:bg-emerald-950'
+              : 'border-red-700 bg-red-700 dark:border-red-800 dark:bg-red-950'
+          }`}>
+            <p className="text-sm font-medium text-white/80">Reste estimé fin de période</p>
+            <p className="mt-2 break-words text-4xl font-semibold tracking-tight text-white">
               {money(projectedCurrentBalance)}
             </p>
-            <p className="mt-2 text-sm text-slate-400 dark:text-slate-500">
+            <p className="mt-2 text-sm text-white/75">
               Impact restant : {money(projectionDelta)}
             </p>
 
             <div className="mt-6 grid grid-cols-2 gap-3 text-sm">
-              <div className="rounded-md bg-white/10 p-3 dark:bg-slate-950/10">
-                <p className="text-slate-400 dark:text-slate-500">Compte courant</p>
+              <div className="rounded-md bg-white/10 p-3 ring-1 ring-white/15">
+                <p className="text-white/70">Compte courant</p>
                 <p className="mt-1 font-semibold">{money(checkingAccountBalance)}</p>
               </div>
-              <div className="rounded-md bg-white/10 p-3 dark:bg-slate-950/10">
-                <p className="text-slate-400 dark:text-slate-500">Avec epargne</p>
+              <div className="rounded-md bg-white/10 p-3 ring-1 ring-white/15">
+                <p className="text-white/70">Avec épargne</p>
                 <p className="mt-1 font-semibold">{money(projectedTotalWithSavings)}</p>
               </div>
             </div>
@@ -392,17 +439,17 @@ const Dashboard: React.FC<DashboardProps> = ({ onViewChange }) => {
               <button
                 type="button"
                 onClick={() => onViewChange?.('goals')}
-                className="mt-5 w-full rounded-md border border-white/15 bg-white/10 p-3 text-left transition hover:bg-white/15 dark:border-slate-200 dark:bg-slate-950/5 dark:hover:bg-slate-950/10"
+                className="mt-5 w-full rounded-md bg-white/10 p-3 text-left ring-1 ring-white/15 transition hover:bg-white/20"
               >
                 <div className="flex items-center justify-between gap-3">
                   <div className="min-w-0">
-                    <p className="text-xs text-slate-400 dark:text-slate-500">Objectif suivi</p>
+                    <p className="text-xs text-white/70">Objectif suivi</p>
                     <p className="truncate text-sm font-semibold">{nextGoal.title}</p>
                   </div>
                   <span className="text-sm font-semibold">{nextGoalProgress.toFixed(0)}%</span>
                 </div>
-                <div className="mt-3 h-2 overflow-hidden rounded-full bg-white/15 dark:bg-slate-200">
-                  <div className="h-full rounded-full bg-emerald-400 dark:bg-emerald-600" style={{ width: `${nextGoalProgress}%` }} />
+                <div className="mt-3 h-2 overflow-hidden rounded-full bg-white/20">
+                  <div className="h-full rounded-full bg-white" style={{ width: `${nextGoalProgress}%` }} />
                 </div>
               </button>
             )}
@@ -410,20 +457,20 @@ const Dashboard: React.FC<DashboardProps> = ({ onViewChange }) => {
         </div>
       </section>
 
-      <section className="flex flex-col gap-3 border border-slate-200 bg-white p-3 shadow-sm dark:border-slate-800 dark:bg-slate-950 md:flex-row md:items-center md:justify-between">
+      <section className="flex flex-col gap-3 rounded-lg border border-slate-200 bg-white p-3 shadow-sm dark:border-slate-800 dark:bg-slate-950 md:flex-row md:items-center md:justify-between">
         <div className="flex flex-wrap items-center gap-2">
-          <div className="grid grid-cols-2 rounded-md bg-slate-100 p-1 dark:bg-slate-900">
+          <div className="grid grid-cols-2 rounded-md bg-slate-100 p-1 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
             <button
               type="button"
               onClick={() => setViewMode('monthly')}
-              className={`rounded px-3 py-2 text-sm font-medium transition ${viewMode === 'monthly' ? 'bg-white text-slate-950 shadow-sm dark:bg-slate-700 dark:text-white' : 'text-slate-600 hover:text-slate-950 dark:text-slate-400 dark:hover:text-white'}`}
+              className={`rounded px-3 py-2 text-sm font-semibold transition ${viewMode === 'monthly' ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-600 hover:text-slate-950 dark:text-slate-400 dark:hover:text-white'}`}
             >
               Mensuel
             </button>
             <button
               type="button"
               onClick={() => setViewMode('yearly')}
-              className={`rounded px-3 py-2 text-sm font-medium transition ${viewMode === 'yearly' ? 'bg-white text-slate-950 shadow-sm dark:bg-slate-700 dark:text-white' : 'text-slate-600 hover:text-slate-950 dark:text-slate-400 dark:hover:text-white'}`}
+              className={`rounded px-3 py-2 text-sm font-semibold transition ${viewMode === 'yearly' ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-600 hover:text-slate-950 dark:text-slate-400 dark:hover:text-white'}`}
             >
               Annuel
             </button>
@@ -433,7 +480,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onViewChange }) => {
             <button
               type="button"
               onClick={() => setShowAccountFilter(!showAccountFilter)}
-              className="inline-flex items-center gap-2 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
+              className="inline-flex items-center gap-2 rounded-md border border-indigo-200 bg-indigo-50 px-3 py-2 text-sm font-semibold text-indigo-700 transition hover:bg-indigo-100 dark:border-indigo-900 dark:bg-indigo-950/50 dark:text-indigo-300 dark:hover:bg-indigo-950"
             >
               <Filter className="h-4 w-4" />
               Comptes {selectedAccountCount}/{accounts.length}
@@ -471,9 +518,9 @@ const Dashboard: React.FC<DashboardProps> = ({ onViewChange }) => {
           </div>
         </div>
 
-        <div className="inline-flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
+        <div className="inline-flex items-center gap-2 rounded-md bg-amber-50 px-3 py-2 text-xs font-medium text-amber-700 ring-1 ring-amber-200 dark:bg-amber-950/30 dark:text-amber-300 dark:ring-amber-900">
           <SlidersHorizontal className="h-4 w-4" />
-          Vue {viewMode === 'monthly' ? 'periode budgetaire' : 'annuelle'}
+          Vue {viewMode === 'monthly' ? 'période budgétaire' : 'annuelle'}
         </div>
       </section>
 
@@ -481,17 +528,17 @@ const Dashboard: React.FC<DashboardProps> = ({ onViewChange }) => {
         {statCards.map(card => {
           const Icon = card.icon;
           return (
-            <div key={card.label} className="border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-950">
+            <div key={card.label} className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-950">
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
-                  <p className="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">{card.label}</p>
+                  <p className={`text-xs font-semibold uppercase tracking-wide ${card.tone}`}>{card.label}</p>
                   <p className="mt-2 break-words text-xl font-semibold text-slate-950 dark:text-white">{card.value}</p>
                 </div>
                 <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-md ${card.bg} ${card.tone}`}>
                   <Icon className="h-4 w-4" />
                 </span>
               </div>
-              <p className="mt-3 text-xs text-slate-500 dark:text-slate-400">{card.change || 'Reference stable'}</p>
+              <p className="mt-3 text-xs text-slate-500 dark:text-slate-400">{card.change || 'Référence stable'}</p>
             </div>
           );
         })}
