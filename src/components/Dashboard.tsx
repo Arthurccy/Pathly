@@ -1,18 +1,22 @@
-import React, { useState } from 'react';
-import { addDays, addMonths, addWeeks, addYears, format, startOfDay, startOfYear, endOfYear, subYears } from 'date-fns';
+import React, { useMemo, useState } from 'react';
+import { endOfYear, format, startOfYear, subYears } from 'date-fns';
 import { fr } from 'date-fns/locale';
-import { 
-  TrendingUp, 
-  TrendingDown, 
-  DollarSign, 
-  Target,
-  Calendar,
-  Filter,
+import {
+  ArrowDownRight,
+  ArrowUpRight,
+  AlertCircle,
+  CalendarDays,
+  CheckCircle2,
   Eye,
   EyeOff,
+  Filter,
+  PiggyBank,
   Plus,
+  ReceiptText,
+  ShieldCheck,
+  SlidersHorizontal,
   Upload,
-  Wallet
+  Wallet,
 } from 'lucide-react';
 import { useBudget } from '../contexts/BudgetContext';
 import { useAuth } from '../contexts/AuthContext';
@@ -29,287 +33,146 @@ interface DashboardProps {
   onViewChange?: (view: string) => void;
 }
 
+const money = (value: number, digits = 2) =>
+  new Intl.NumberFormat('fr-FR', {
+    style: 'currency',
+    currency: 'EUR',
+    minimumFractionDigits: digits,
+    maximumFractionDigits: digits,
+  }).format(value);
+
+const compactMoney = (value: number) => money(value, 0);
+
+const getImpact = (transaction: Transaction) => {
+  if (transaction.type === 'income' || transaction.type === 'refund' || transaction.type === 'savings_withdrawal') {
+    return transaction.amount;
+  }
+
+  if (transaction.type === 'transfer') {
+    return transaction.description.toLowerCase().includes('depuis')
+      ? transaction.amount
+      : -transaction.amount;
+  }
+
+  return -transaction.amount;
+};
+
 const Dashboard: React.FC<DashboardProps> = ({ onViewChange }) => {
-  const { 
-    transactions, 
-    categories, 
+  const {
+    transactions,
+    categories,
     accounts,
-    budgets,
     savingsGoals,
     debts,
-    currentPeriod,
-    setCurrentPeriod,
     selectedAccountIds,
     setSelectedAccountIds,
-    getFinancialSummary,
-    getCashFlowProjection
+    getCashFlowProjection,
   } = useBudget();
   const { user } = useAuth();
-  
+
   const [viewMode, setViewMode] = useState<'monthly' | 'yearly'>('monthly');
   const [showAccountFilter, setShowAccountFilter] = useState(false);
-  
+
   const monthStartDay = user?.settings?.monthStartDay || 1;
-  const currentDate = new Date();
-  const currentMonthPeriod = getCustomMonthPeriod(currentDate, monthStartDay);
-  const yearStart = startOfYear(currentDate);
-  const yearEnd = endOfYear(currentDate);
-  
-  const periodStart = viewMode === 'monthly' ? currentMonthPeriod.start : yearStart;
-  const periodEnd = viewMode === 'monthly' ? currentMonthPeriod.end : yearEnd;
+  const now = new Date();
+  const currentMonthPeriod = getCustomMonthPeriod(now, monthStartDay);
+  const previousMonthPeriod = getPreviousCustomMonthPeriod(now, monthStartDay);
+  const periodStart = viewMode === 'monthly' ? currentMonthPeriod.start : startOfYear(now);
+  const periodEnd = viewMode === 'monthly' ? currentMonthPeriod.end : endOfYear(now);
+  const previousPeriodStart = viewMode === 'monthly' ? previousMonthPeriod.start : startOfYear(subYears(now, 1));
+  const previousPeriodEnd = viewMode === 'monthly' ? previousMonthPeriod.end : endOfYear(subYears(now, 1));
+
+  const selectedAccountSet = new Set(selectedAccountIds);
+  const selectedAccounts = accounts.filter(account =>
+    account.isActive &&
+    (selectedAccountIds.length === 0 || selectedAccountSet.has(account.id))
+  );
+  const selectedAccountCount = selectedAccountIds.length === 0 ? accounts.length : selectedAccountIds.length;
+
   const reportableCategoryIds = new Set(
     categories
       .filter(category => !category.excludeFromReports)
       .map(category => category.id)
   );
   const isReportableTransaction = (transaction: Transaction) =>
-    reportableCategoryIds.has(transaction.categoryId);
-  
-  const previousMonthPeriod = getPreviousCustomMonthPeriod(currentDate, monthStartDay);
-  const previousPeriodStart = viewMode === 'monthly' ? previousMonthPeriod.start : startOfYear(subYears(currentDate, 1));
-  const previousPeriodEnd = viewMode === 'monthly' ? previousMonthPeriod.end : endOfYear(subYears(currentDate, 1));
-  
-  const filteredTransactions = transactions.filter(
-    t => t.date >= periodStart && 
-         t.date <= periodEnd &&
-         t.status === 'completed' &&
-         isReportableTransaction(t) &&
-         (selectedAccountIds.length === 0 || selectedAccountIds.includes(t.accountId))
-  );
-  
-  const previousTransactions = transactions.filter(
-    t => t.date >= previousPeriodStart && 
-         t.date <= previousPeriodEnd &&
-         t.status === 'completed' &&
-         isReportableTransaction(t) &&
-         (selectedAccountIds.length === 0 || selectedAccountIds.includes(t.accountId))
-  );
-  
-  const totalIncome = filteredTransactions
-    .filter(t => t.type === 'income')
-    .reduce((sum, t) => sum + t.amount, 0);
-    
-  const totalExpenses = filteredTransactions
-    .filter(t => t.type === 'expense')
-    .reduce((sum, t) => sum + t.amount, 0);
+    reportableCategoryIds.has(transaction.categoryId) &&
+    (selectedAccountIds.length === 0 || selectedAccountSet.has(transaction.accountId));
 
-  const totalSavings = filteredTransactions
-    .filter(t => t.type === 'savings')
-    .reduce((sum, t) => sum + t.amount, 0);
-    
-  const balance = totalIncome - totalExpenses - totalSavings;
-  
-  // Previous period totals
+  const periodTransactions = transactions.filter(transaction =>
+    transaction.status === 'completed' &&
+    transaction.date >= periodStart &&
+    transaction.date <= periodEnd &&
+    isReportableTransaction(transaction)
+  );
+  const previousTransactions = transactions.filter(transaction =>
+    transaction.status === 'completed' &&
+    transaction.date >= previousPeriodStart &&
+    transaction.date <= previousPeriodEnd &&
+    isReportableTransaction(transaction)
+  );
+
+  const totalIncome = periodTransactions
+    .filter(transaction => transaction.type === 'income' || transaction.type === 'refund')
+    .reduce((sum, transaction) => sum + transaction.amount, 0);
+  const totalExpenses = periodTransactions
+    .filter(transaction => transaction.type === 'expense' || transaction.type === 'bill')
+    .reduce((sum, transaction) => sum + transaction.amount, 0);
+  const totalSavings = periodTransactions
+    .filter(transaction => transaction.type === 'savings')
+    .reduce((sum, transaction) => sum + transaction.amount, 0);
+  const periodResult = totalIncome - totalExpenses - totalSavings;
+
   const previousIncome = previousTransactions
-    .filter(t => t.type === 'income')
-    .reduce((sum, t) => sum + t.amount, 0);
-    
+    .filter(transaction => transaction.type === 'income' || transaction.type === 'refund')
+    .reduce((sum, transaction) => sum + transaction.amount, 0);
   const previousExpenses = previousTransactions
-    .filter(t => t.type === 'expense')
-    .reduce((sum, t) => sum + t.amount, 0);
-
+    .filter(transaction => transaction.type === 'expense' || transaction.type === 'bill')
+    .reduce((sum, transaction) => sum + transaction.amount, 0);
   const previousSavings = previousTransactions
-    .filter(t => t.type === 'savings')
-    .reduce((sum, t) => sum + t.amount, 0);
-    
-  const previousBalance = previousIncome - previousExpenses - previousSavings;
-  
-  // Calculate percentage changes
-  const calculateChange = (current: number, previous: number): string | null => {
-    // No data to compare
-    if (previous === 0 && current === 0) {
-      return null;
-    }
-    // New data (no previous period data)
-    if (previous === 0) {
-      return null; // Don't show percentage for new data
-    }
+    .filter(transaction => transaction.type === 'savings')
+    .reduce((sum, transaction) => sum + transaction.amount, 0);
+  const previousResult = previousIncome - previousExpenses - previousSavings;
+
+  const calculateChange = (current: number, previous: number) => {
+    if (previous === 0) return null;
     const change = ((current - previous) / previous) * 100;
-    const sign = change >= 0 ? '+' : '';
-    return `${sign}${change.toFixed(1)}%`;
+    return `${change >= 0 ? '+' : ''}${change.toFixed(1)}%`;
   };
-  
-  const incomeChange = calculateChange(totalIncome, previousIncome);
-  const expensesChange = calculateChange(totalExpenses, previousExpenses);
-  const balanceChange = calculateChange(balance, previousBalance);
-  
-  const completedGoals = savingsGoals.filter(g => g.isCompleted).length;
-  const totalGoals = savingsGoals.length;
 
-  const totalDebt = debts.reduce((sum, d) => sum + d.remainingAmount, 0);
-  const selectedAccountSet = new Set(selectedAccountIds);
-  const shouldIncludeAccount = (accountId: string) =>
-    selectedAccountIds.length === 0 || selectedAccountSet.has(accountId);
-  const today = startOfDay(currentDate);
-  const currentAccountBalance = accounts
-    .filter(a =>
-      a.isActive &&
-      a.type === 'checking' &&
-      shouldIncludeAccount(a.id)
-    )
-    .reduce((sum, a) => sum + a.balance, 0);
-  const checkingAccountIds = new Set(
-    accounts
-      .filter(account =>
-        account.isActive &&
-        account.type === 'checking' &&
-        shouldIncludeAccount(account.id)
-      )
-      .map(account => account.id)
-  );
-  const getTransactionImpact = (transaction: Transaction) => {
-    const isCheckingTransaction = checkingAccountIds.has(transaction.accountId);
+  const checkingAccountBalance = selectedAccounts
+    .filter(account => account.type === 'checking')
+    .reduce((sum, account) => sum + account.balance, 0);
+  const totalDebt = debts.reduce((sum, debt) => sum + debt.remainingAmount, 0);
+  const netWorth = selectedAccounts.reduce((sum, account) => sum + account.balance, 0) - totalDebt;
 
-    if (transaction.type === 'transfer') {
-      if (!isCheckingTransaction) return 0;
-      return transaction.description.toLowerCase().includes('depuis')
-        ? transaction.amount
-        : -transaction.amount;
-    }
-
-    if (!isCheckingTransaction) return 0;
-    if (transaction.type === 'income' || transaction.type === 'refund') return transaction.amount;
-    if (transaction.type === 'expense' || transaction.type === 'bill' || transaction.type === 'savings') return -transaction.amount;
-    return 0;
-  };
-  const getNextOccurrenceDate = (date: Date, transaction: Transaction) => {
-    const pattern = transaction.recurringPattern;
-    if (!pattern) return null;
-
-    switch (pattern.frequency) {
-      case 'daily':
-        return addDays(date, pattern.interval);
-      case 'weekly':
-        return addWeeks(date, pattern.interval);
-      case 'monthly':
-        return addMonths(date, pattern.interval);
-      case 'quarterly':
-        return addMonths(date, pattern.interval * 3);
-      case 'yearly':
-        return addYears(date, pattern.interval);
-      default:
-        return addMonths(date, 1);
-    }
-  };
-  const addImpactToProjection = (
-    projection: { incoming: number; deductions: number },
-    impact: number
-  ) => impact > 0
-    ? { ...projection, incoming: projection.incoming + impact }
-    : { ...projection, deductions: projection.deductions + Math.abs(impact) };
-  const upcomingTransactionProjection = transactions.reduce((projection, transaction) => {
-    const impact = getTransactionImpact(transaction);
-    if (impact === 0) return projection;
-
-    if (!transaction.isRecurring || !transaction.recurringPattern?.isActive) {
-      const transactionDate = startOfDay(transaction.date);
-      if (
-        transaction.status === 'scheduled' &&
-        transactionDate >= today &&
-        transactionDate <= currentMonthPeriod.end
-      ) {
-        return addImpactToProjection(projection, impact);
-      }
-      return projection;
-    }
-
-    const pattern = transaction.recurringPattern;
-    let nextDate = startOfDay(pattern.nextDate);
-    let occurrenceCount = pattern.currentOccurrence || 0;
-    let recurringProjection = projection;
-
-    while (nextDate <= currentMonthPeriod.end) {
-      const hasReachedEndDate = pattern.endDate && nextDate > startOfDay(pattern.endDate);
-      const hasReachedMaxOccurrences = pattern.maxOccurrences && occurrenceCount >= pattern.maxOccurrences;
-      if (hasReachedEndDate || hasReachedMaxOccurrences) break;
-
-      if (nextDate >= today) {
-        recurringProjection = addImpactToProjection(recurringProjection, impact);
-      }
-
-      const followingDate = getNextOccurrenceDate(nextDate, transaction);
-      if (!followingDate || followingDate <= nextDate) break;
-      nextDate = startOfDay(followingDate);
-      occurrenceCount += 1;
-    }
-
-    return recurringProjection;
-  }, { incoming: 0, deductions: 0 });
-  const upcomingDebtPayments = debts
-    .filter(debt =>
-      debt.isActive &&
-      checkingAccountIds.has(debt.accountId) &&
-      startOfDay(debt.dueDate) >= today &&
-      startOfDay(debt.dueDate) <= currentMonthPeriod.end
-    )
-    .reduce((sum, debt) => sum + debt.minimumPayment, 0);
-  const monthEndProjection = viewMode === 'monthly'
+  const projection = viewMode === 'monthly'
     ? getCashFlowProjection(1, currentMonthPeriod.start, monthStartDay)[0]
     : getCashFlowProjection(1)[0];
-  const projectedIncoming = monthEndProjection?.income ?? upcomingTransactionProjection.incoming;
-  const projectedBaseExpenses = monthEndProjection?.baseExpenses ?? upcomingTransactionProjection.deductions;
-  const projectedDebtPayments = monthEndProjection?.debtPayments ?? upcomingDebtPayments;
-  const projectedBudgetReserve = monthEndProjection?.budgetReserve ?? 0;
-  const projectedSavingsOut = monthEndProjection?.savings ?? 0;
-  const projectedTransfersOut = monthEndProjection?.transfersOut ?? 0;
-  const projectedDeductions = monthEndProjection?.expenses ?? (upcomingTransactionProjection.deductions + upcomingDebtPayments);
-  const projectedCurrentBalance = monthEndProjection?.projectedBalance ?? (currentAccountBalance + projectedIncoming - projectedDeductions);
-  const projectedSavingsBalance = monthEndProjection?.projectedSavingsBalance ?? 0;
-  const projectedTotalWithSavings = monthEndProjection?.projectedTotalBalance ?? projectedCurrentBalance;
-  
-  // Debug: affiche la décomposition du cashflow en console
-  if (monthEndProjection && viewMode === 'monthly') {
-    console.log('💰 Cashflow Breakdown:', {
-      baseExpenses: monthEndProjection.baseExpenses,
-      debtPayments: monthEndProjection.debtPayments,
-      transfersOut: monthEndProjection.transfersOut,
-      budgetReserve: monthEndProjection.budgetReserve,
-      savings: monthEndProjection.savings,
-      totalExpenses: monthEndProjection.expenses,
-      income: monthEndProjection.income,
-      balance: monthEndProjection.balance,
-      projectedBalance: monthEndProjection.projectedBalance,
-    });
-  }
-  
-  const netWorth = accounts
-    .filter(a => selectedAccountIds.length === 0 || selectedAccountIds.includes(a.id))
-    .reduce((sum, a) => sum + a.balance, 0) - totalDebt;
+  const projectedIncoming = projection?.income ?? 0;
+  const projectedDeductions = projection?.expenses ?? 0;
+  const projectedCurrentBalance = projection?.projectedBalance ?? checkingAccountBalance;
+  const projectedSavingsBalance = projection?.projectedSavingsBalance ?? 0;
+  const projectedTotalWithSavings = projection?.projectedTotalBalance ?? projectedCurrentBalance;
+  const projectionDelta = projectedIncoming - projectedDeductions;
 
-  const stats = [
-    {
-      title: `Revenus ${viewMode === 'monthly' ? 'du mois' : 'de l\'année'}`,
-      value: `${totalIncome.toFixed(2)} €`,
-      icon: TrendingUp,
-      color: 'text-green-600 dark:text-green-400',
-      bgColor: 'bg-green-50 dark:bg-green-900/20',
-      change: incomeChange,
-    },
-    {
-      title: `Dépenses ${viewMode === 'monthly' ? 'du mois' : 'de l\'année'}`,
-      value: `${totalExpenses.toFixed(2)} €`,
-      icon: TrendingDown,
-      color: 'text-red-600 dark:text-red-400',
-      bgColor: 'bg-red-50 dark:bg-red-900/20',
-      change: expensesChange,
-    },
-    {
-      title: 'Résultat du mois',
-      value: `${balance.toFixed(2)} €`,
-      icon: DollarSign,
-      color: balance >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400',
-      bgColor: balance >= 0 ? 'bg-green-50 dark:bg-green-900/20' : 'bg-red-50 dark:bg-red-900/20',
-      change: balanceChange,
-    },
-    {
-      title: 'Patrimoine net',
-      value: `${netWorth.toFixed(2)} €`,
-      icon: Target,
-      color: netWorth >= 0 ? 'text-blue-600 dark:text-blue-400' : 'text-red-600 dark:text-red-400',
-      bgColor: netWorth >= 0 ? 'bg-blue-50 dark:bg-blue-900/20' : 'bg-red-50 dark:bg-red-900/20',
-      change: null, // Net worth change requires historical tracking
-    },
-  ];
+  const upcomingTransactions = useMemo(
+    () => transactions
+      .filter(transaction =>
+        !transaction.isRecurring &&
+        (transaction.status === 'scheduled' || transaction.status === 'pending') &&
+        transaction.date >= now &&
+        transaction.date <= currentMonthPeriod.end &&
+        isReportableTransaction(transaction)
+      )
+      .sort((a, b) => a.date.getTime() - b.date.getTime()),
+    [transactions, currentMonthPeriod.end, selectedAccountIds.join('|'), categories.length]
+  );
+  const upcomingIncome = upcomingTransactions
+    .filter(transaction => getImpact(transaction) > 0)
+    .reduce((sum, transaction) => sum + getImpact(transaction), 0);
+  const upcomingOutflows = upcomingTransactions
+    .filter(transaction => getImpact(transaction) < 0)
+    .reduce((sum, transaction) => sum + Math.abs(getImpact(transaction)), 0);
 
   const nextGoal = savingsGoals
     .filter(goal => !goal.isCompleted)
@@ -318,11 +181,93 @@ const Dashboard: React.FC<DashboardProps> = ({ onViewChange }) => {
       const bProgress = b.targetAmount > 0 ? b.currentAmount / b.targetAmount : 0;
       return bProgress - aProgress;
     })[0];
+  const nextGoalProgress = nextGoal && nextGoal.targetAmount > 0
+    ? Math.min((nextGoal.currentAmount / nextGoal.targetAmount) * 100, 100)
+    : 0;
+
+  const remainingTone = projectedCurrentBalance >= 0
+    ? {
+      label: 'Sous controle',
+      icon: CheckCircle2,
+      text: 'text-emerald-700 dark:text-emerald-300',
+      bg: 'bg-emerald-50 dark:bg-emerald-950/30',
+      border: 'border-emerald-200 dark:border-emerald-900/60',
+    }
+    : {
+      label: 'A surveiller',
+      icon: AlertCircle,
+      text: 'text-red-700 dark:text-red-300',
+      bg: 'bg-red-50 dark:bg-red-950/30',
+      border: 'border-red-200 dark:border-red-900/60',
+    };
+  const StatusIcon = remainingTone.icon;
 
   const primaryActions = [
-    { label: 'Ajouter', detail: 'Revenu ou dépense', icon: Plus, view: 'add-transaction' },
-    { label: 'Comptes', detail: 'Soldes et Livret A', icon: Wallet, view: 'accounts' },
+    { label: 'Ajouter', detail: 'Operation', icon: Plus, view: 'add-transaction' },
     { label: 'Importer', detail: 'CSV bancaire', icon: Upload, view: 'import-csv' },
+    { label: 'Comptes', detail: 'Soldes', icon: Wallet, view: 'accounts' },
+  ];
+
+  const insightCards = [
+    {
+      label: 'Revenus a venir',
+      value: money(projectedIncoming),
+      detail: `${money(upcomingIncome)} deja date`,
+      icon: ArrowUpRight,
+      tone: 'text-emerald-700 dark:text-emerald-300',
+      bg: 'bg-emerald-50 dark:bg-emerald-950/30',
+    },
+    {
+      label: 'Sorties + budgets',
+      value: money(projectedDeductions),
+      detail: `${money(projection?.budgetReserve ?? 0)} en budgets non dates`,
+      icon: ArrowDownRight,
+      tone: 'text-red-700 dark:text-red-300',
+      bg: 'bg-red-50 dark:bg-red-950/30',
+    },
+    {
+      label: 'Avec epargne',
+      value: money(projectedTotalWithSavings),
+      detail: `${money(projectedSavingsBalance)} projetes cote epargne`,
+      icon: PiggyBank,
+      tone: 'text-violet-700 dark:text-violet-300',
+      bg: 'bg-violet-50 dark:bg-violet-950/30',
+    },
+  ];
+
+  const statCards = [
+    {
+      label: 'Revenus encaisses',
+      value: money(totalIncome),
+      change: calculateChange(totalIncome, previousIncome),
+      icon: ArrowUpRight,
+      tone: 'text-emerald-700 dark:text-emerald-300',
+      bg: 'bg-emerald-50 dark:bg-emerald-950/30',
+    },
+    {
+      label: 'Depenses encaissees',
+      value: money(totalExpenses),
+      change: calculateChange(totalExpenses, previousExpenses),
+      icon: ReceiptText,
+      tone: 'text-red-700 dark:text-red-300',
+      bg: 'bg-red-50 dark:bg-red-950/30',
+    },
+    {
+      label: 'Resultat periode',
+      value: money(periodResult),
+      change: calculateChange(periodResult, previousResult),
+      icon: ShieldCheck,
+      tone: periodResult >= 0 ? 'text-emerald-700 dark:text-emerald-300' : 'text-red-700 dark:text-red-300',
+      bg: periodResult >= 0 ? 'bg-emerald-50 dark:bg-emerald-950/30' : 'bg-red-50 dark:bg-red-950/30',
+    },
+    {
+      label: 'Patrimoine net',
+      value: money(netWorth),
+      change: null,
+      icon: Wallet,
+      tone: netWorth >= 0 ? 'text-sky-700 dark:text-sky-300' : 'text-red-700 dark:text-red-300',
+      bg: netWorth >= 0 ? 'bg-sky-50 dark:bg-sky-950/30' : 'bg-red-50 dark:bg-red-950/30',
+    },
   ];
 
   const handleAccountToggle = (accountId: string) => {
@@ -337,197 +282,187 @@ const Dashboard: React.FC<DashboardProps> = ({ onViewChange }) => {
     if (selectedAccountIds.length === accounts.length) {
       setSelectedAccountIds([]);
     } else {
-      setSelectedAccountIds(accounts.map(a => a.id));
+      setSelectedAccountIds(accounts.map(account => account.id));
     }
   };
 
   return (
-    <div className="space-y-4 sm:space-y-6">
-      <section className="overflow-hidden rounded-2xl border border-white/70 bg-white/85 shadow-sm backdrop-blur dark:border-gray-800 dark:bg-gray-900/85">
-        <div className="grid gap-4 p-4 sm:gap-6 sm:p-6 xl:grid-cols-[1.3fr_0.7fr]">
-          <div className="min-w-0">
-            <p className="text-sm font-medium capitalize text-blue-700 dark:text-blue-300">
-              {format(currentDate, 'MMMM yyyy', { locale: fr })}
-            </p>
-            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-              Période budgétaire: {format(currentMonthPeriod.start, 'dd MMM', { locale: fr })} - {format(currentMonthPeriod.end, 'dd MMM yyyy', { locale: fr })}
-            </p>
-            <h1 className="mt-2 text-2xl font-bold text-gray-950 dark:text-white sm:text-3xl">
-              Votre argent, en clair.
-            </h1>
-            <p className="mt-2 max-w-2xl text-sm text-gray-600 dark:text-gray-400">
-              Ajoutez une opération en un clic, gardez vos comptes sous les yeux et voyez ce qui restera sur le compte courant.
-            </p>
+    <div className="space-y-5">
+      <section className="border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-950">
+        <div className="grid gap-0 lg:grid-cols-[minmax(0,1.35fr)_minmax(22rem,0.65fr)]">
+          <div className="p-4 sm:p-5 lg:p-6">
+            <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="inline-flex items-center gap-2 rounded-md border border-slate-200 px-2.5 py-1 text-xs font-medium text-slate-600 dark:border-slate-800 dark:text-slate-300">
+                    <CalendarDays className="h-3.5 w-3.5" />
+                    {format(periodStart, 'dd MMM', { locale: fr })} - {format(periodEnd, 'dd MMM yyyy', { locale: fr })}
+                  </span>
+                  <span className={`inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs font-semibold ${remainingTone.border} ${remainingTone.bg} ${remainingTone.text}`}>
+                    <StatusIcon className="h-3.5 w-3.5" />
+                    {remainingTone.label}
+                  </span>
+                </div>
+                <h1 className="mt-4 text-2xl font-semibold tracking-tight text-slate-950 dark:text-white sm:text-3xl">
+                  Pilotage financier
+                </h1>
+                <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600 dark:text-slate-400">
+                  Une seule lecture prioritaire : ce qui reste sur le compte courant une fois les revenus, sorties, dettes, budgets et virements prevus pris en compte.
+                </p>
+              </div>
 
-            <div className="-mx-1 mt-5 flex gap-3 overflow-x-auto px-1 pb-1 sm:mx-0 sm:grid sm:grid-cols-3 sm:overflow-visible sm:px-0 sm:pb-0">
-              {primaryActions.map(action => {
-                const Icon = action.icon;
+              <div className="flex flex-wrap gap-2">
+                {primaryActions.map(action => {
+                  const Icon = action.icon;
+                  return (
+                    <button
+                      key={action.view}
+                      type="button"
+                      onClick={() => onViewChange?.(action.view)}
+                      className="inline-flex items-center gap-2 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-800 transition hover:border-slate-300 hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-slate-400 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800"
+                    >
+                      <Icon className="h-4 w-4" />
+                      <span>{action.label}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="mt-6 grid gap-3 sm:grid-cols-3">
+              {insightCards.map(card => {
+                const Icon = card.icon;
                 return (
-                  <button
-                    key={action.view}
-                    type="button"
-                    onClick={() => onViewChange?.(action.view)}
-                    className="flex min-h-20 min-w-[12.5rem] items-center gap-3 rounded-xl border border-gray-200 bg-white p-4 text-left transition hover:-translate-y-0.5 hover:border-blue-200 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:border-gray-800 dark:bg-gray-950/60 dark:hover:border-blue-800 sm:min-w-0"
-                  >
-                    <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-gray-950 text-white dark:bg-white dark:text-gray-950">
-                      <Icon className="h-5 w-5" />
-                    </span>
-                    <span className="min-w-0">
-                      <span className="block font-semibold text-gray-950 dark:text-white">{action.label}</span>
-                      <span className="block truncate text-sm text-gray-500 dark:text-gray-400">{action.detail}</span>
-                    </span>
-                  </button>
+                  <div key={card.label} className="border border-slate-200 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-900/70">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">{card.label}</p>
+                        <p className="mt-2 break-words text-xl font-semibold text-slate-950 dark:text-white">{card.value}</p>
+                      </div>
+                      <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-md ${card.bg} ${card.tone}`}>
+                        <Icon className="h-4 w-4" />
+                      </span>
+                    </div>
+                    <p className="mt-3 text-xs text-slate-500 dark:text-slate-400">{card.detail}</p>
+                  </div>
                 );
               })}
             </div>
+
+            <div className="mt-4 border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-950">
+              <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                <div>
+                  <p className="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">Controle du calcul</p>
+                  <p className="mt-1 text-sm text-slate-700 dark:text-slate-300">
+                    {money(checkingAccountBalance)} + {money(projectedIncoming)} - {money(projectedDeductions)} = <span className="font-semibold text-slate-950 dark:text-white">{money(projectedCurrentBalance)}</span>
+                  </p>
+                </div>
+                <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs text-slate-500 dark:text-slate-400 sm:grid-cols-5">
+                  <span>Depenses {compactMoney(projection?.baseExpenses ?? 0)}</span>
+                  <span>Dettes {compactMoney(projection?.debtPayments ?? 0)}</span>
+                  <span>Budgets {compactMoney(projection?.budgetReserve ?? 0)}</span>
+                  <span>Virements {compactMoney(projection?.transfersOut ?? 0)}</span>
+                  <span>Epargne {compactMoney(projection?.savings ?? 0)}</span>
+                </div>
+              </div>
+            </div>
           </div>
 
-          <div className="rounded-2xl bg-gray-950 p-4 text-white shadow-sm dark:bg-white dark:text-gray-950 sm:p-5">
-            <p className="text-sm text-gray-300 dark:text-gray-600">Reste estimé fin du mois</p>
-            <p className={`mt-2 break-words text-3xl font-bold sm:text-4xl ${projectedCurrentBalance >= 0 ? 'text-emerald-300 dark:text-emerald-700' : 'text-red-300 dark:text-red-700'}`}>
-              {projectedCurrentBalance.toFixed(2)} €
+          <aside className="border-t border-slate-200 bg-slate-950 p-4 text-white dark:border-slate-800 dark:bg-white dark:text-slate-950 lg:border-l lg:border-t-0 sm:p-5 lg:p-6">
+            <p className="text-sm text-slate-300 dark:text-slate-500">Reste estime</p>
+            <p className={`mt-2 break-words text-4xl font-semibold tracking-tight ${projectedCurrentBalance >= 0 ? 'text-emerald-300 dark:text-emerald-700' : 'text-red-300 dark:text-red-700'}`}>
+              {money(projectedCurrentBalance)}
             </p>
-            <p className="mt-2 text-xs text-gray-400 dark:text-gray-500">
-              Avec prévisions, récurrences, dettes et budgets restants.
+            <p className="mt-2 text-sm text-slate-400 dark:text-slate-500">
+              Impact restant : {money(projectionDelta)}
             </p>
-            <div className="mt-4 rounded-xl bg-white/10 p-3 text-xs text-gray-200 dark:bg-gray-950/10 dark:text-gray-700">
-              <p className="font-medium text-white dark:text-gray-950">Contrôle du calcul</p>
-              <p className="mt-1">
-                {currentAccountBalance.toFixed(2)} € + {projectedIncoming.toFixed(2)} € - {projectedDeductions.toFixed(2)} € = {projectedCurrentBalance.toFixed(2)} €
-              </p>
-              {monthEndProjection && (
-                <div className="mt-3 rounded-xl bg-white/10 p-3 text-xs text-gray-200 dark:bg-gray-950/10 dark:text-gray-400">
-                  <p className="font-medium text-white dark:text-gray-950">Décomposition</p>
-                  <p className="mt-1">Dépenses prévues : {projectedBaseExpenses.toFixed(2)} €</p>
-                  <p>Dettes prévues : {projectedDebtPayments.toFixed(2)} €</p>
-                  <p>Budgets restants : {projectedBudgetReserve.toFixed(2)} €</p>
-                  <p>Épargne prévue : {projectedSavingsOut.toFixed(2)} €</p>
-                  <p>Transferts vers comptes externes : {projectedTransfersOut.toFixed(2)} €</p>
-                </div>
-              )}
-              <p className="mt-2 text-gray-400 dark:text-gray-500">
-                Fiable si le solde Pathly correspond à ta banque et si les opérations à venir, récurrences, dettes et budgets sont à jour.
-              </p>
-            </div>
-            <div className="mt-5 grid grid-cols-2 gap-3 text-sm">
-              <div>
-                <p className="text-gray-400 dark:text-gray-500">Compte courant</p>
-                <p className="font-semibold">{currentAccountBalance.toFixed(2)} €</p>
+
+            <div className="mt-6 grid grid-cols-2 gap-3 text-sm">
+              <div className="rounded-md bg-white/10 p-3 dark:bg-slate-950/10">
+                <p className="text-slate-400 dark:text-slate-500">Compte courant</p>
+                <p className="mt-1 font-semibold">{money(checkingAccountBalance)}</p>
               </div>
-              <div>
-                <p className="text-gray-400 dark:text-gray-500">Impact restant</p>
-                <p className="font-semibold">{(projectedIncoming - projectedDeductions).toFixed(2)} €</p>
-              </div>
-              <div>
-                <p className="text-gray-400 dark:text-gray-500">Revenus à venir</p>
-                <p className="font-semibold">+{projectedIncoming.toFixed(2)} €</p>
-              </div>
-              <div>
-                <p className="text-gray-400 dark:text-gray-500">Sorties + budgets</p>
-                <p className="font-semibold">-{projectedDeductions.toFixed(2)} €</p>
-              </div>
-              <div>
-                <p className="text-gray-400 dark:text-gray-500">Avec épargne</p>
-                <p className="font-semibold">{projectedTotalWithSavings.toFixed(2)} €</p>
-              </div>
-              <div>
-                <p className="text-gray-400 dark:text-gray-500">Épargne projetée</p>
-                <p className="font-semibold">{projectedSavingsBalance.toFixed(2)} €</p>
+              <div className="rounded-md bg-white/10 p-3 dark:bg-slate-950/10">
+                <p className="text-slate-400 dark:text-slate-500">Avec epargne</p>
+                <p className="mt-1 font-semibold">{money(projectedTotalWithSavings)}</p>
               </div>
             </div>
+
             {nextGoal && (
               <button
                 type="button"
                 onClick={() => onViewChange?.('goals')}
-                className="mt-5 w-full rounded-lg bg-white/10 px-3 py-2 text-left text-sm transition hover:bg-white/15 dark:bg-gray-950/10 dark:hover:bg-gray-950/15"
+                className="mt-5 w-full rounded-md border border-white/15 bg-white/10 p-3 text-left transition hover:bg-white/15 dark:border-slate-200 dark:bg-slate-950/5 dark:hover:bg-slate-950/10"
               >
-                <span className="block text-gray-300 dark:text-gray-600">Objectif en cours</span>
-                <span className="block truncate font-medium">{nextGoal.title}</span>
+                <div className="flex items-center justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="text-xs text-slate-400 dark:text-slate-500">Objectif suivi</p>
+                    <p className="truncate text-sm font-semibold">{nextGoal.title}</p>
+                  </div>
+                  <span className="text-sm font-semibold">{nextGoalProgress.toFixed(0)}%</span>
+                </div>
+                <div className="mt-3 h-2 overflow-hidden rounded-full bg-white/15 dark:bg-slate-200">
+                  <div className="h-full rounded-full bg-emerald-400 dark:bg-emerald-600" style={{ width: `${nextGoalProgress}%` }} />
+                </div>
               </button>
             )}
-          </div>
+          </aside>
         </div>
       </section>
 
-      <div className="relative z-30 flex flex-col gap-3 rounded-xl border border-gray-200 bg-white/90 p-3 shadow-sm backdrop-blur dark:border-gray-800 dark:bg-gray-900/90 md:flex-row md:items-center md:justify-between">
-        <div className="flex flex-wrap items-center gap-3">
-          <div className="grid w-full grid-cols-2 rounded-lg bg-gray-100 p-1 dark:bg-gray-700 sm:flex sm:w-auto">
+      <section className="flex flex-col gap-3 border border-slate-200 bg-white p-3 shadow-sm dark:border-slate-800 dark:bg-slate-950 md:flex-row md:items-center md:justify-between">
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="grid grid-cols-2 rounded-md bg-slate-100 p-1 dark:bg-slate-900">
             <button
+              type="button"
               onClick={() => setViewMode('monthly')}
-              className={`rounded-md px-3 py-2 text-sm font-medium transition-colors sm:py-1 ${
-                viewMode === 'monthly'
-                  ? 'bg-white dark:bg-gray-600 text-gray-900 dark:text-white shadow-sm'
-                  : 'text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white'
-              }`}
+              className={`rounded px-3 py-2 text-sm font-medium transition ${viewMode === 'monthly' ? 'bg-white text-slate-950 shadow-sm dark:bg-slate-700 dark:text-white' : 'text-slate-600 hover:text-slate-950 dark:text-slate-400 dark:hover:text-white'}`}
             >
-              <Calendar className="h-4 w-4 inline mr-1" />
               Mensuel
             </button>
             <button
+              type="button"
               onClick={() => setViewMode('yearly')}
-              className={`rounded-md px-3 py-2 text-sm font-medium transition-colors sm:py-1 ${
-                viewMode === 'yearly'
-                  ? 'bg-white dark:bg-gray-600 text-gray-900 dark:text-white shadow-sm'
-                  : 'text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white'
-              }`}
+              className={`rounded px-3 py-2 text-sm font-medium transition ${viewMode === 'yearly' ? 'bg-white text-slate-950 shadow-sm dark:bg-slate-700 dark:text-white' : 'text-slate-600 hover:text-slate-950 dark:text-slate-400 dark:hover:text-white'}`}
             >
-              <Calendar className="h-4 w-4 inline mr-1" />
               Annuel
             </button>
           </div>
 
-          <div className="relative z-40">
+          <div className="relative">
             <button
+              type="button"
               onClick={() => setShowAccountFilter(!showAccountFilter)}
-              className="flex w-full items-center justify-center space-x-2 rounded-lg border border-gray-300 bg-white px-3 py-2.5 transition-colors hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:hover:bg-gray-700 sm:w-auto sm:justify-start sm:py-2"
+              className="inline-flex items-center gap-2 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
             >
               <Filter className="h-4 w-4" />
-              <span className="text-sm font-medium">
-                Comptes ({selectedAccountIds.length}/{accounts.length})
-              </span>
+              Comptes {selectedAccountCount}/{accounts.length}
             </button>
 
             {showAccountFilter && (
-              <div className="absolute left-0 right-0 z-50 mt-2 rounded-2xl border border-gray-200 bg-white shadow-xl dark:border-gray-700 dark:bg-gray-800 sm:left-auto sm:w-72">
-                <div className="p-3 border-b border-gray-200 dark:border-gray-700">
+              <div className="absolute left-0 z-50 mt-2 w-[min(22rem,calc(100vw-2rem))] border border-slate-200 bg-white shadow-xl dark:border-slate-800 dark:bg-slate-950">
+                <div className="border-b border-slate-200 p-3 dark:border-slate-800">
                   <button
+                    type="button"
                     onClick={toggleAllAccounts}
-                    className="flex items-center space-x-2 text-sm font-medium text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300"
+                    className="inline-flex items-center gap-2 text-sm font-medium text-slate-700 hover:text-slate-950 dark:text-slate-300 dark:hover:text-white"
                   >
-                    {selectedAccountIds.length === accounts.length ? (
-                      <EyeOff className="h-4 w-4" />
-                    ) : (
-                      <Eye className="h-4 w-4" />
-                    )}
-                    <span>
-                      {selectedAccountIds.length === accounts.length ? 'Masquer tout' : 'Afficher tout'}
-                    </span>
+                    {selectedAccountIds.length === accounts.length ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    {selectedAccountIds.length === accounts.length ? 'Masquer tout' : 'Afficher tout'}
                   </button>
                 </div>
-                <div className="p-2 max-h-48 overflow-y-auto">
+                <div className="max-h-64 overflow-y-auto p-2">
                   {accounts.map(account => (
-                    <label
-                      key={account.id}
-                      className="flex items-center space-x-3 p-2 hover:bg-gray-50 dark:hover:bg-gray-700 rounded cursor-pointer"
-                    >
+                    <label key={account.id} className="flex cursor-pointer items-center gap-3 rounded-md p-2 hover:bg-slate-50 dark:hover:bg-slate-900">
                       <input
                         type="checkbox"
-                        checked={selectedAccountIds.includes(account.id)}
+                        checked={selectedAccountIds.length === 0 || selectedAccountIds.includes(account.id)}
                         onChange={() => handleAccountToggle(account.id)}
-                        className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                        className="rounded border-slate-300 text-slate-900 focus:ring-slate-500"
                       />
-                      <div className="flex items-center space-x-2 flex-1">
-                        <div
-                          className="w-3 h-3 rounded-full"
-                          style={{ backgroundColor: account.color }}
-                        />
-                        <span className="text-sm text-gray-900 dark:text-white">
-                          {account.name}
-                        </span>
-                      </div>
-                      <span className="text-xs text-gray-500 dark:text-gray-400">
-                        {account.balance.toFixed(2)} €
-                      </span>
+                      <span className="h-3 w-3 rounded-full" style={{ backgroundColor: account.color }} />
+                      <span className="min-w-0 flex-1 truncate text-sm text-slate-800 dark:text-slate-100">{account.name}</span>
+                      <span className="text-xs text-slate-500">{money(account.balance)}</span>
                     </label>
                   ))}
                 </div>
@@ -535,59 +470,54 @@ const Dashboard: React.FC<DashboardProps> = ({ onViewChange }) => {
             )}
           </div>
         </div>
-      </div>
 
-      <div className="relative z-0 grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 lg:grid-cols-4">
-        {stats.map((stat) => {
-          const Icon = stat.icon;
+        <div className="inline-flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
+          <SlidersHorizontal className="h-4 w-4" />
+          Vue {viewMode === 'monthly' ? 'periode budgetaire' : 'annuelle'}
+        </div>
+      </section>
+
+      <section className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        {statCards.map(card => {
+          const Icon = card.icon;
           return (
-            <div
-              key={stat.title}
-              className="rounded-xl border border-gray-200 bg-white/90 p-4 shadow-sm backdrop-blur dark:border-gray-800 dark:bg-gray-900/90 sm:p-5"
-            >
-              <div className="flex items-center justify-between">
-                <div className="flex items-center">
-                  <div className={`${stat.bgColor} p-2 rounded-lg`}>
-                    <Icon className={`h-6 w-6 ${stat.color}`} />
-                  </div>
-                  <div className="ml-4">
-                    <p className="text-sm font-medium text-gray-500 dark:text-gray-400">
-                      {stat.title}
-                    </p>
-                    <p className="break-words text-xl font-semibold text-gray-900 dark:text-white sm:text-2xl">
-                      {stat.value}
-                    </p>
-                  </div>
+            <div key={card.label} className="border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-950">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">{card.label}</p>
+                  <p className="mt-2 break-words text-xl font-semibold text-slate-950 dark:text-white">{card.value}</p>
                 </div>
-                <div className={`text-sm font-medium ${stat.color}`}>
-                  {stat.change || '—'}
-                </div>
+                <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-md ${card.bg} ${card.tone}`}>
+                  <Icon className="h-4 w-4" />
+                </span>
               </div>
+              <p className="mt-3 text-xs text-slate-500 dark:text-slate-400">{card.change || 'Reference stable'}</p>
             </div>
           );
         })}
-      </div>
+      </section>
 
-      {/* Accounts Overview */}
       <AccountsOverview />
 
-      {/* Charts and Progress */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <section className="grid grid-cols-1 gap-5 xl:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]">
         <ExpenseChart viewMode={viewMode} />
         <BudgetProgress viewMode={viewMode} />
-      </div>
+      </section>
 
-      {/* Savings Goals and Cash Flow */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <section className="grid grid-cols-1 gap-5 xl:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
         <SavingsGoalsProgress />
         <CashFlowChart />
-      </div>
+      </section>
 
-      {/* Recent Transactions */}
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-        <RecentTransactions title="Dernières transactions terminées" />
-        <RecentTransactions title="Opérations à venir" mode="upcoming" periodStart={currentMonthPeriod.start} periodEnd={currentMonthPeriod.end} />
-      </div>
+      <section className="grid grid-cols-1 gap-5 xl:grid-cols-2">
+        <RecentTransactions title="Dernieres transactions terminees" />
+        <RecentTransactions
+          title="Operations a venir"
+          mode="upcoming"
+          periodStart={currentMonthPeriod.start}
+          periodEnd={currentMonthPeriod.end}
+        />
+      </section>
     </div>
   );
 };
