@@ -77,19 +77,24 @@ const CashFlowChart: React.FC = () => {
         };
 
   const monthlyPlan = useMemo(
-    () => cashFlowData.map(item => {
+    () => cashFlowData.map((item, index) => {
       const period = getCustomMonthPeriod(item.date, monthStartDay);
-      const plannedOutflows = (item.baseExpenses || 0) + (item.debtPayments || 0) + (item.transfersOut || 0) + item.savings;
+      const plannedExpenses = item.baseExpenses || 0;
+      const debtPayments = item.debtPayments || 0;
+      const transfersOut = item.transfersOut || 0;
+      const savings = item.savings || 0;
+      const budgetReserve = item.budgetReserve || 0;
+      const plannedOutflows = plannedExpenses + debtPayments + transfersOut + savings;
       const planBalance =
         item.income -
         plannedOutflows -
-        (item.budgetReserve || 0);
+        budgetReserve;
       const pressureItems = [
-        { label: 'operations', value: item.baseExpenses || 0 },
-        { label: 'budgets libres', value: item.budgetReserve || 0 },
-        { label: 'virements', value: item.transfersOut || 0 },
-        { label: 'dettes', value: item.debtPayments || 0 },
-        { label: 'epargne', value: item.savings || 0 },
+        { label: 'dépenses prévues', value: plannedExpenses },
+        { label: 'budgets libres', value: budgetReserve },
+        { label: 'virements', value: transfersOut },
+        { label: 'dettes', value: debtPayments },
+        { label: 'épargne', value: savings },
       ].sort((a, b) => b.value - a.value);
       const mainPressure = pressureItems.find(pressure => pressure.value > 0);
       const status = item.projectedBalance < 0
@@ -113,9 +118,15 @@ const CashFlowChart: React.FC = () => {
       return {
         ...item,
         planBalance,
+        plannedExpenses,
+        debtPayments,
+        transfersOut,
+        savings,
+        budgetReserve,
         plannedOutflows,
         periodStart: period.start,
         periodEnd: period.end,
+        isCurrentPeriod: index === 0,
         mainPressure,
         status,
         plannedCount: item.scheduledTransactions?.length || 0,
@@ -245,14 +256,14 @@ const CashFlowChart: React.FC = () => {
                       {format(item.periodStart, 'dd MMM', { locale: fr })} - {format(item.periodEnd, 'dd MMM yyyy', { locale: fr })}
                     </p>
                     <p className="text-xs text-slate-500 dark:text-slate-400">
-                      {item.plannedCount} operation{item.plannedCount > 1 ? 's' : ''} planifiee{item.plannedCount > 1 ? 's' : ''} - principal poids: {item.mainPressure ? `${item.mainPressure.label} ${money(item.mainPressure.value)}` : 'aucun'}
+                      {item.isCurrentPeriod ? 'Reste de la période' : 'Période complète'} - {item.plannedCount} mouvement{item.plannedCount > 1 ? 's' : ''} prévu{item.plannedCount > 1 ? 's' : ''} - plus gros poste: {item.mainPressure ? `${item.mainPressure.label} ${money(item.mainPressure.value)}` : 'aucun'}
                     </p>
                   </div>
                 </div>
 
                 <div className="grid grid-cols-2 gap-2 text-sm sm:flex sm:items-center sm:gap-4">
                   <div>
-                    <p className="text-xs text-slate-500 dark:text-slate-400">Plan du mois</p>
+                    <p className="text-xs text-slate-500 dark:text-slate-400">{item.isCurrentPeriod ? 'Impact restant' : 'Impact période'}</p>
                     <p className={item.planBalance >= 0 ? 'font-semibold text-emerald-600 dark:text-emerald-400' : 'font-semibold text-red-600 dark:text-red-400'}>
                       {money(item.planBalance)}
                     </p>
@@ -269,11 +280,13 @@ const CashFlowChart: React.FC = () => {
                   </span>
                 </div>
               </div>
-              <div className="mt-3 grid grid-cols-2 gap-2 text-xs text-slate-600 dark:text-slate-300 sm:grid-cols-4">
+              <div className="mt-3 grid grid-cols-2 gap-2 text-xs text-slate-600 dark:text-slate-300 sm:grid-cols-3 xl:grid-cols-6">
                 <span className="rounded-md bg-slate-50 px-2.5 py-2 dark:bg-slate-900">Revenus {money(item.income)}</span>
-                <span className="rounded-md bg-slate-50 px-2.5 py-2 dark:bg-slate-900">Operations {money(item.plannedOutflows)}</span>
-                <span className="rounded-md bg-slate-50 px-2.5 py-2 dark:bg-slate-900">Budgets libres {money(item.budgetReserve || 0)}</span>
-                <span className="rounded-md bg-slate-50 px-2.5 py-2 dark:bg-slate-900">Depart {money(item.openingBalance || 0)}</span>
+                <span className="rounded-md bg-slate-50 px-2.5 py-2 dark:bg-slate-900">Dépenses {money(item.plannedExpenses)}</span>
+                <span className="rounded-md bg-slate-50 px-2.5 py-2 dark:bg-slate-900">Dettes {money(item.debtPayments)}</span>
+                <span className="rounded-md bg-slate-50 px-2.5 py-2 dark:bg-slate-900">Virements {money(item.transfersOut + item.savings)}</span>
+                <span className="rounded-md bg-slate-50 px-2.5 py-2 dark:bg-slate-900">Budgets libres {money(item.budgetReserve)}</span>
+                <span className="rounded-md bg-slate-50 px-2.5 py-2 dark:bg-slate-900">Départ {money(item.openingBalance || 0)}</span>
               </div>
             </div>
           );
