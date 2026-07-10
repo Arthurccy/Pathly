@@ -78,13 +78,20 @@ const CashFlowChart: React.FC = () => {
 
   const monthlyPlan = useMemo(
     () => cashFlowData.map(item => {
+      const period = getCustomMonthPeriod(item.date, monthStartDay);
+      const plannedOutflows = (item.baseExpenses || 0) + (item.debtPayments || 0) + (item.transfersOut || 0) + item.savings;
       const planBalance =
         item.income -
-        (item.baseExpenses || 0) -
-        (item.debtPayments || 0) -
-        (item.transfersOut || 0) -
-        item.savings -
+        plannedOutflows -
         (item.budgetReserve || 0);
+      const pressureItems = [
+        { label: 'operations', value: item.baseExpenses || 0 },
+        { label: 'budgets libres', value: item.budgetReserve || 0 },
+        { label: 'virements', value: item.transfersOut || 0 },
+        { label: 'dettes', value: item.debtPayments || 0 },
+        { label: 'epargne', value: item.savings || 0 },
+      ].sort((a, b) => b.value - a.value);
+      const mainPressure = pressureItems.find(pressure => pressure.value > 0);
       const status = item.projectedBalance < 0
         ? {
             label: 'A revoir',
@@ -106,19 +113,23 @@ const CashFlowChart: React.FC = () => {
       return {
         ...item,
         planBalance,
+        plannedOutflows,
+        periodStart: period.start,
+        periodEnd: period.end,
+        mainPressure,
         status,
         plannedCount: item.scheduledTransactions?.length || 0,
       };
     }),
-    [cashFlowData]
+    [cashFlowData, monthStartDay]
   );
 
   const data = {
-    labels: cashFlowData.map(cf => format(cf.date, 'MMM yyyy', { locale: fr })),
+    labels: monthlyPlan.map(item => format(item.periodStart, 'dd MMM', { locale: fr })),
     datasets: [
       {
         label: 'Revenus',
-        data: cashFlowData.map(cf => cf.income),
+        data: monthlyPlan.map(cf => cf.income),
         borderColor: '#10B981',
         backgroundColor: 'rgba(16, 185, 129, 0.1)',
         fill: false,
@@ -126,7 +137,7 @@ const CashFlowChart: React.FC = () => {
       },
       {
         label: 'Sorties',
-        data: cashFlowData.map(cf => cf.expenses),
+        data: monthlyPlan.map(cf => cf.expenses),
         borderColor: '#EF4444',
         backgroundColor: 'rgba(239, 68, 68, 0.1)',
         fill: false,
@@ -134,7 +145,7 @@ const CashFlowChart: React.FC = () => {
       },
       {
         label: 'Tr\u00e9sorerie dispo',
-        data: cashFlowData.map(cf => cf.projectedBalance),
+        data: monthlyPlan.map(cf => cf.projectedBalance),
         borderColor: '#3B82F6',
         backgroundColor: 'rgba(59, 130, 246, 0.1)',
         fill: true,
@@ -142,7 +153,7 @@ const CashFlowChart: React.FC = () => {
       },
       {
         label: 'Total avec \u00e9pargne',
-        data: cashFlowData.map(cf => cf.projectedTotalBalance ?? cf.projectedBalance),
+        data: monthlyPlan.map(cf => cf.projectedTotalBalance ?? cf.projectedBalance),
         borderColor: '#8B5CF6',
         backgroundColor: 'rgba(139, 92, 246, 0.08)',
         fill: false,
@@ -201,7 +212,7 @@ const CashFlowChart: React.FC = () => {
             Plan des prochains mois
           </h3>
           <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-            Solde courant projete avec revenus, operations planifiees, dettes, budgets restants et virements hors compte courant.
+            Solde courant projete par periode budgetaire, avec revenus, operations planifiees, dettes, budgets restants et virements hors compte courant.
           </p>
         </div>
         <div className={`inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-sm font-semibold ${globalStatus.classes}`}>
@@ -231,10 +242,10 @@ const CashFlowChart: React.FC = () => {
                   </div>
                   <div>
                     <p className="font-semibold text-slate-950 dark:text-white">
-                      {format(item.date, 'MMMM yyyy', { locale: fr })}
+                      {format(item.periodStart, 'dd MMM', { locale: fr })} - {format(item.periodEnd, 'dd MMM yyyy', { locale: fr })}
                     </p>
                     <p className="text-xs text-slate-500 dark:text-slate-400">
-                      {item.plannedCount} operation{item.plannedCount > 1 ? 's' : ''} planifiee{item.plannedCount > 1 ? 's' : ''} - budgets libres {money(item.budgetReserve || 0)}
+                      {item.plannedCount} operation{item.plannedCount > 1 ? 's' : ''} planifiee{item.plannedCount > 1 ? 's' : ''} - principal poids: {item.mainPressure ? `${item.mainPressure.label} ${money(item.mainPressure.value)}` : 'aucun'}
                     </p>
                   </div>
                 </div>
@@ -257,6 +268,12 @@ const CashFlowChart: React.FC = () => {
                     {item.status.label}
                   </span>
                 </div>
+              </div>
+              <div className="mt-3 grid grid-cols-2 gap-2 text-xs text-slate-600 dark:text-slate-300 sm:grid-cols-4">
+                <span className="rounded-md bg-slate-50 px-2.5 py-2 dark:bg-slate-900">Revenus {money(item.income)}</span>
+                <span className="rounded-md bg-slate-50 px-2.5 py-2 dark:bg-slate-900">Operations {money(item.plannedOutflows)}</span>
+                <span className="rounded-md bg-slate-50 px-2.5 py-2 dark:bg-slate-900">Budgets libres {money(item.budgetReserve || 0)}</span>
+                <span className="rounded-md bg-slate-50 px-2.5 py-2 dark:bg-slate-900">Depart {money(item.openingBalance || 0)}</span>
               </div>
             </div>
           );
@@ -295,7 +312,7 @@ const CashFlowChart: React.FC = () => {
           </p>
         </div>
         <div>
-          <p className="text-sm text-gray-500 dark:text-gray-400">Avec &eacute;pargne</p>
+          <p className="text-sm text-gray-500 dark:text-gray-400">Courant + &eacute;pargne</p>
           <p className="text-lg font-semibold text-violet-600 dark:text-violet-400">
             {(finalProjection?.projectedTotalBalance ?? finalProjection?.projectedBalance ?? 0).toFixed(0)} &euro;
           </p>
