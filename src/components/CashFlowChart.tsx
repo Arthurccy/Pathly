@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { Line } from 'react-chartjs-2';
 import {
   Chart as ChartJS,
@@ -13,7 +13,10 @@ import {
 } from 'chart.js';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
+import { AlertTriangle, CheckCircle2, Gauge, TrendingDown } from 'lucide-react';
 import { useBudget } from '../contexts/BudgetContext';
+import { useAuth } from '../contexts/AuthContext';
+import { getCustomMonthPeriod } from '../utils/dateUtils';
 
 ChartJS.register(
   CategoryScale,
@@ -28,14 +31,87 @@ ChartJS.register(
 
 const CashFlowChart: React.FC = () => {
   const { getCashFlowProjection } = useBudget();
+  const { user } = useAuth();
 
-  const cashFlowData = getCashFlowProjection(6);
+  const monthStartDay = user?.settings?.monthStartDay || 1;
+  const currentBudgetPeriod = getCustomMonthPeriod(new Date(), monthStartDay);
+  const cashFlowData = getCashFlowProjection(6, currentBudgetPeriod.start, monthStartDay);
   const firstProjection = cashFlowData[0];
   const finalProjection = cashFlowData[cashFlowData.length - 1];
+  const money = (value: number, digits = 0) =>
+    new Intl.NumberFormat('fr-FR', {
+      style: 'currency',
+      currency: 'EUR',
+      minimumFractionDigits: digits,
+      maximumFractionDigits: digits,
+    }).format(value);
   const average = (selector: (item: typeof cashFlowData[number]) => number | undefined) =>
     cashFlowData.length > 0
       ? cashFlowData.reduce((sum, item) => sum + (selector(item) || 0), 0) / cashFlowData.length
       : 0;
+  const lowestProjection = cashFlowData.reduce(
+    (lowest, item) => Math.min(lowest, item.projectedBalance),
+    firstProjection?.projectedBalance ?? 0
+  );
+  const riskyMonths = cashFlowData.filter(item => item.projectedBalance < 0).length;
+  const tightMonths = cashFlowData.filter(item => item.projectedBalance >= 0 && item.projectedBalance < 200).length;
+  const globalStatus = riskyMonths > 0
+    ? {
+        label: 'A revoir',
+        detail: `${riskyMonths} mois sous zero`,
+        Icon: AlertTriangle,
+        classes: 'border-red-200 bg-red-50 text-red-700 dark:border-red-900 dark:bg-red-950/30 dark:text-red-300',
+      }
+    : tightMonths > 0
+      ? {
+          label: 'Tendu',
+          detail: `${tightMonths} mois avec moins de ${money(200)}`,
+          Icon: Gauge,
+          classes: 'border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-300',
+        }
+      : {
+          label: 'Plan OK',
+          detail: `Point bas a ${money(lowestProjection)}`,
+          Icon: CheckCircle2,
+          classes: 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950/30 dark:text-emerald-300',
+        };
+
+  const monthlyPlan = useMemo(
+    () => cashFlowData.map(item => {
+      const planBalance =
+        item.income -
+        (item.baseExpenses || 0) -
+        (item.debtPayments || 0) -
+        (item.transfersOut || 0) -
+        item.savings -
+        (item.budgetReserve || 0);
+      const status = item.projectedBalance < 0
+        ? {
+            label: 'A revoir',
+            Icon: AlertTriangle,
+            classes: 'bg-red-50 text-red-700 ring-red-200 dark:bg-red-950/30 dark:text-red-300 dark:ring-red-900',
+          }
+        : item.projectedBalance < 200
+          ? {
+              label: 'Tendu',
+              Icon: Gauge,
+              classes: 'bg-amber-50 text-amber-700 ring-amber-200 dark:bg-amber-950/30 dark:text-amber-300 dark:ring-amber-900',
+            }
+          : {
+              label: 'OK',
+              Icon: CheckCircle2,
+              classes: 'bg-emerald-50 text-emerald-700 ring-emerald-200 dark:bg-emerald-950/30 dark:text-emerald-300 dark:ring-emerald-900',
+            };
+
+      return {
+        ...item,
+        planBalance,
+        status,
+        plannedCount: item.scheduledTransactions?.length || 0,
+      };
+    }),
+    [cashFlowData]
+  );
 
   const data = {
     labels: cashFlowData.map(cf => format(cf.date, 'MMM yyyy', { locale: fr })),
@@ -119,15 +195,72 @@ const CashFlowChart: React.FC = () => {
 
   return (
     <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6">
-      <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-        Projection de tr&eacute;sorerie
-      </h3>
-      <p className="mb-4 text-sm text-gray-500 dark:text-gray-400">
-        La projection part du solde courant enregistr&eacute; dans Pathly, puis ajoute les revenus pr&eacute;vus et retire les sorties, dettes, budgets restants et virements vers l'&eacute;pargne.
-      </p>
+      <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+            Plan des prochains mois
+          </h3>
+          <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+            Solde courant projete avec revenus, operations planifiees, dettes, budgets restants et virements hors compte courant.
+          </p>
+        </div>
+        <div className={`inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-sm font-semibold ${globalStatus.classes}`}>
+          <globalStatus.Icon className="h-4 w-4" />
+          <span>{globalStatus.label}</span>
+          <span className="text-xs font-medium opacity-80">{globalStatus.detail}</span>
+        </div>
+      </div>
 
       <div className="h-64">
         <Line data={data} options={options} />
+      </div>
+
+      <div className="mt-5 space-y-3">
+        {monthlyPlan.map(item => {
+          const StatusIcon = item.status.Icon;
+          const endBalanceClass = item.projectedBalance >= 0
+            ? 'text-slate-950 dark:text-white'
+            : 'text-red-600 dark:text-red-400';
+
+          return (
+            <div key={item.date.toISOString()} className="rounded-lg border border-slate-200 p-3 dark:border-slate-700">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-700 dark:bg-slate-900 dark:text-slate-200">
+                    <TrendingDown className="h-4 w-4" />
+                  </div>
+                  <div>
+                    <p className="font-semibold text-slate-950 dark:text-white">
+                      {format(item.date, 'MMMM yyyy', { locale: fr })}
+                    </p>
+                    <p className="text-xs text-slate-500 dark:text-slate-400">
+                      {item.plannedCount} operation{item.plannedCount > 1 ? 's' : ''} planifiee{item.plannedCount > 1 ? 's' : ''} - budgets libres {money(item.budgetReserve || 0)}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2 text-sm sm:flex sm:items-center sm:gap-4">
+                  <div>
+                    <p className="text-xs text-slate-500 dark:text-slate-400">Plan du mois</p>
+                    <p className={item.planBalance >= 0 ? 'font-semibold text-emerald-600 dark:text-emerald-400' : 'font-semibold text-red-600 dark:text-red-400'}>
+                      {money(item.planBalance)}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-slate-500 dark:text-slate-400">Fin prevue</p>
+                    <p className={`font-semibold ${endBalanceClass}`}>
+                      {money(item.projectedBalance)}
+                    </p>
+                  </div>
+                  <span className={`col-span-2 inline-flex items-center justify-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold ring-1 sm:col-span-1 ${item.status.classes}`}>
+                    <StatusIcon className="h-3.5 w-3.5" />
+                    {item.status.label}
+                  </span>
+                </div>
+              </div>
+            </div>
+          );
+        })}
       </div>
 
       <div className="mt-4 grid grid-cols-1 gap-4 text-center sm:grid-cols-2 xl:grid-cols-5">
