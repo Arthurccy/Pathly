@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { endOfMonth, format, startOfDay } from 'date-fns';
+import { addMonths, endOfMonth, format, startOfDay } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import * as LucideIcons from 'lucide-react';
 import { useBudget } from '../contexts/BudgetContext';
@@ -25,6 +25,49 @@ const isRentTransaction = (transaction: Transaction, categoryName?: string) => {
   const description = transaction.description?.toLowerCase() || '';
   const category = categoryName?.toLowerCase() || '';
   return description.includes('loyer') || category.includes('loyer');
+};
+
+const buildProjectedDebtTransactions = (
+  debts: Debt[],
+  categories: ReturnType<typeof useBudget>['categories'],
+  projectionStart: Date,
+  projectionEnd: Date
+): Transaction[] => {
+  return debts
+    .filter(debt => debt.isActive && debt.minimumPayment > 0 && debt.remainingAmount > 0)
+    .flatMap(debt => {
+      const debtCategory = categories.find(category => category.id === debt.categoryId) || categories.find(category => category.type === 'debt');
+      const payments: Transaction[] = [];
+      let dueDate = startOfDay(debt.dueDate);
+
+      while (dueDate < projectionStart) {
+        dueDate = startOfDay(addMonths(dueDate, 1));
+      }
+
+      while (dueDate <= projectionEnd) {
+        payments.push({
+          id: `debt-${debt.id}-${toDateInputValue(dueDate)}`,
+          userId: debt.userId,
+          accountId: debt.accountId,
+          amount: Math.min(debt.minimumPayment, debt.remainingAmount),
+          description: `Dette: ${debt.name}`,
+          date: dueDate,
+          categoryId: debtCategory?.id || debt.categoryId || '',
+          type: 'expense',
+          status: 'scheduled',
+          isRecurring: false,
+          memo: 'Dette auto',
+          tags: ['debt', 'auto-debt-payment'],
+          transferToAccountId: undefined,
+          isChecked: false,
+          attachments: [],
+        });
+
+        dueDate = startOfDay(addMonths(dueDate, 1));
+      }
+
+      return payments;
+    });
 };
 
 interface RecentTransactionsProps {
@@ -86,30 +129,24 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({
           return !actualTransactionKeys.has(key);
         });
 
-      const upcomingDebtTransactions: Transaction[] = mode === 'upcoming'
-        ? debts
-            .filter(debt => debt.isActive && startOfDay(debt.dueDate) >= projectionStart && startOfDay(debt.dueDate) <= projectionEnd)
-            .map(debt => {
-              const debtCategory = categories.find(category => category.id === debt.categoryId) || categories.find(category => category.type === 'debt');
+      const candidateDebtDuplicates = transactions.concat(projectedRecurringTransactions);
+      const upcomingDebtTransactions: Transaction[] = mode === 'upcoming' || mode === 'all'
+        ? buildProjectedDebtTransactions(debts, categories, projectionStart, projectionEnd)
+            .filter(debtTransaction => !candidateDebtDuplicates.some(candidate => {
+              if (candidate.id.startsWith('debt-')) return false;
+              if (candidate.accountId !== debtTransaction.accountId) return false;
+              if (candidate.type !== 'expense' && candidate.type !== 'bill') return false;
+              if (Math.abs(candidate.amount - debtTransaction.amount) > 0.01) return false;
+              if (Math.abs(startOfDay(candidate.date).getTime() - startOfDay(debtTransaction.date).getTime()) > 5 * 24 * 60 * 60 * 1000) return false;
 
-              return {
-                id: `debt-${debt.id}`,
-                userId: '',
-                accountId: debt.accountId,
-                amount: debt.minimumPayment,
-                description: `Paiement dette: ${debt.name}`,
-                date: debt.dueDate,
-                categoryId: debtCategory?.id || '',
-                type: 'expense',
-                status: 'scheduled',
-                isRecurring: false,
-                memo: 'Dette',
-                tags: ['debt'],
-                transferToAccountId: undefined,
-                isChecked: false,
-                attachments: [],
-              } as Transaction;
-            })
+              const debtName = debtTransaction.description.replace(/^Dette:\s*/i, '').trim().toLowerCase();
+              const candidateCategory = categories.find(category => category.id === candidate.categoryId);
+              const sameCategory = candidate.categoryId === debtTransaction.categoryId;
+              const matchingDescription = debtName.length > 0 && candidate.description.toLowerCase().includes(debtName);
+              const debtLikeCategory = candidateCategory?.type === 'debt' || candidateCategory?.name.toLowerCase().includes('prêt');
+
+              return sameCategory || matchingDescription || debtLikeCategory;
+            }))
         : [];
 
       const sourceTransactions = transactions.concat(projectedRecurringTransactions, upcomingDebtTransactions).filter(transaction => {
@@ -128,7 +165,7 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({
       });
       return limit ? sortedTransactions.slice(0, limit) : sortedTransactions;
     },
-    [getProjectedRecurringTransactions, limit, mode, transactions, debts, categories]
+    [getProjectedRecurringTransactions, limit, mode, transactions, debts, categories, periodStart, periodEnd]
   );
   const groupedTransactions = useMemo(() => {
     if (mode !== 'all') {

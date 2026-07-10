@@ -1359,6 +1359,29 @@ export const BudgetProvider: React.FC<BudgetProviderProps> = ({ children }) => {
       const cashMovementTransactions = i === 0
         ? plannedTransactions
         : monthTransactions.concat(plannedTransactions);
+      const isDebtAlreadyRepresented = (debt: Debt, dueDate: Date) => {
+        const expectedAmount = Math.min(debt.minimumPayment, debt.remainingAmount);
+        const debtName = debt.name.trim().toLowerCase();
+        const maxDateDistanceMs = 5 * 24 * 60 * 60 * 1000;
+
+        return visibleMonthTransactions.some(transaction => {
+          if (transaction.accountId !== debt.accountId) return false;
+          if (transaction.type !== 'expense' && transaction.type !== 'bill') return false;
+          if (Math.abs(transaction.amount - expectedAmount) > 0.01) return false;
+          if (Math.abs(startOfDay(transaction.date).getTime() - dueDate.getTime()) > maxDateDistanceMs) return false;
+
+          const category = categories.find(item => item.id === transaction.categoryId);
+          const description = transaction.description.trim().toLowerCase();
+          const sameDebtCategory = debt.categoryId && transaction.categoryId === debt.categoryId;
+          const debtNamedInTransaction = debtName.length > 0 && (
+            description.includes(debtName) ||
+            debtName.includes(description)
+          );
+          const debtLikeCategory = category?.type === 'debt' || category?.name.toLowerCase().includes('prêt');
+
+          return Boolean(sameDebtCategory || debtNamedInTransaction || debtLikeCategory);
+        });
+      };
       const debtPaymentsForMonth = debts
         .filter(debt =>
           debt.isActive &&
@@ -1373,6 +1396,7 @@ export const BudgetProvider: React.FC<BudgetProviderProps> = ({ children }) => {
           }
 
           if (dueDate > monthEnd || (i === 0 && dueDate < today)) return sum;
+          if (isDebtAlreadyRepresented(debt, dueDate)) return sum;
           return sum + Math.min(debt.minimumPayment, debt.remainingAmount);
         }, 0);
 

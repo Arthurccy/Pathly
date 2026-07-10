@@ -77,7 +77,10 @@ const CashFlowChart: React.FC = () => {
         };
 
   const monthlyPlan = useMemo(
-    () => cashFlowData.map((item, index) => {
+    () => {
+      let projectedWithoutBudgetReserve = firstProjection?.openingBalance ?? 0;
+
+      return cashFlowData.map((item, index) => {
       const period = getCustomMonthPeriod(item.date, monthStartDay);
       const plannedExpenses = item.baseExpenses || 0;
       const debtPayments = item.debtPayments || 0;
@@ -89,6 +92,8 @@ const CashFlowChart: React.FC = () => {
         item.income -
         plannedOutflows -
         budgetReserve;
+      const plannedOnlyBalance = item.income - plannedOutflows;
+      projectedWithoutBudgetReserve += plannedOnlyBalance;
       const pressureItems = [
         { label: 'dépenses prévues', value: plannedExpenses },
         { label: 'budgets libres', value: budgetReserve },
@@ -118,6 +123,8 @@ const CashFlowChart: React.FC = () => {
       return {
         ...item,
         planBalance,
+        plannedOnlyBalance,
+        projectedWithoutBudgetReserve,
         plannedExpenses,
         debtPayments,
         transfersOut,
@@ -131,8 +138,9 @@ const CashFlowChart: React.FC = () => {
         status,
         plannedCount: item.scheduledTransactions?.length || 0,
       };
-    }),
-    [cashFlowData, monthStartDay]
+      });
+    },
+    [cashFlowData, firstProjection?.openingBalance, monthStartDay]
   );
 
   const data = {
@@ -263,13 +271,19 @@ const CashFlowChart: React.FC = () => {
 
                 <div className="grid grid-cols-2 gap-2 text-sm sm:flex sm:items-center sm:gap-4">
                   <div>
-                    <p className="text-xs text-slate-500 dark:text-slate-400">{item.isCurrentPeriod ? 'Impact restant' : 'Impact période'}</p>
+                    <p className="text-xs text-slate-500 dark:text-slate-400">Planifié seul</p>
+                    <p className={item.plannedOnlyBalance >= 0 ? 'font-semibold text-emerald-600 dark:text-emerald-400' : 'font-semibold text-red-600 dark:text-red-400'}>
+                      {money(item.plannedOnlyBalance)}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-slate-500 dark:text-slate-400">Avec budgets</p>
                     <p className={item.planBalance >= 0 ? 'font-semibold text-emerald-600 dark:text-emerald-400' : 'font-semibold text-red-600 dark:text-red-400'}>
                       {money(item.planBalance)}
                     </p>
                   </div>
                   <div>
-                    <p className="text-xs text-slate-500 dark:text-slate-400">Fin prevue</p>
+                    <p className="text-xs text-slate-500 dark:text-slate-400">Fin avec budgets</p>
                     <p className={`font-semibold ${endBalanceClass}`}>
                       {money(item.projectedBalance)}
                     </p>
@@ -288,6 +302,9 @@ const CashFlowChart: React.FC = () => {
                 <span className="rounded-md bg-slate-50 px-2.5 py-2 dark:bg-slate-900">Budgets libres {money(item.budgetReserve)}</span>
                 <span className="rounded-md bg-slate-50 px-2.5 py-2 dark:bg-slate-900">Départ {money(item.openingBalance || 0)}</span>
               </div>
+              <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
+                Sans consommer les budgets libres, la fin projetée serait {money(item.projectedWithoutBudgetReserve)}.
+              </p>
             </div>
           );
         })}
