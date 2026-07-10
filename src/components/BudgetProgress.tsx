@@ -216,11 +216,86 @@ const BudgetProgress: React.FC<BudgetProgressProps> = ({ viewMode = 'monthly' })
     .concat(projectedRecurringExpenses.filter(t => t.categoryId === categoryId))
     .reduce((sum, t) => sum + t.amount, 0);
 
+  const isDebtLikeCategory = (categoryId: string) => {
+    const category = categories.find(item => item.id === categoryId);
+    const name = category?.name.toLowerCase() || '';
+    return category?.type === 'debt' || name.includes('prêt') || name.includes('credit') || name.includes('crédit');
+  };
+
+  const isDebtAlreadyRepresented = (debtCategoryId: string, debtName: string, debtAmount: number, dueDate: Date) => {
+    const normalizedDebtName = debtName.trim().toLowerCase();
+    const visibleTransactions = transactions
+      .filter(transaction =>
+        !transaction.isRecurring &&
+        transaction.date >= periodStart &&
+        transaction.date <= periodEnd &&
+        (transaction.status === 'completed' || transaction.status === 'scheduled' || transaction.status === 'pending')
+      )
+      .concat(projectedRecurringExpenses);
+
+    return visibleTransactions.some(transaction => {
+      if (transaction.type !== 'expense' && transaction.type !== 'bill') return false;
+      if (!spendingAccountIds.has(transaction.accountId)) return false;
+      if (Math.abs(transaction.amount - debtAmount) > 0.01) return false;
+      if (Math.abs(startOfDay(transaction.date).getTime() - dueDate.getTime()) > 5 * 24 * 60 * 60 * 1000) return false;
+
+      const description = transaction.description.toLowerCase();
+      return (
+        transaction.categoryId === debtCategoryId ||
+        isDebtLikeCategory(transaction.categoryId) ||
+        (normalizedDebtName.length > 0 && (description.includes(normalizedDebtName) || normalizedDebtName.includes(description)))
+      );
+    });
+  };
+
+  const projectedDebtExpenses = debts
+    .filter(debt =>
+      debt.isActive &&
+      debt.minimumPayment > 0 &&
+      debt.remainingAmount > 0 &&
+      spendingAccountIds.has(debt.accountId)
+    )
+    .flatMap(debt => {
+      const fallbackCategory = categories.find(category => category.type === 'debt');
+      const categoryId = debt.categoryId || fallbackCategory?.id || '';
+      if (!categoryId) return [];
+
+      const payments: { categoryId: string; amount: number; date: Date; debtName: string }[] = [];
+      let dueDate = startOfDay(debt.dueDate);
+      while (dueDate < periodStart) {
+        dueDate = startOfDay(addMonths(dueDate, 1));
+      }
+
+      while (dueDate <= periodEnd) {
+        const amount = Math.min(debt.minimumPayment, debt.remainingAmount);
+        if (
+          dueDate >= today &&
+          !isDebtAlreadyRepresented(categoryId, debt.name, amount, dueDate)
+        ) {
+          payments.push({
+            categoryId,
+            amount,
+            date: dueDate,
+            debtName: debt.name,
+          });
+        }
+
+        dueDate = startOfDay(addMonths(dueDate, 1));
+      }
+
+      return payments;
+    });
+
+  const getProjectedDebtExpensesForCategory = (categoryId: string) =>
+    projectedDebtExpenses
+      .filter(payment => payment.categoryId === categoryId)
+      .reduce((sum, payment) => sum + payment.amount, 0);
+
   const budgetProgress = currentPeriodBudgets.map(budget => {
     const category = categories.find(c => c.id === budget.categoryId);
     if (category?.excludeFromReports) return null;
     const spent = getCompletedExpensesForCategory(budget.categoryId);
-    const planned = getPlannedExpensesForCategory(budget.categoryId);
+    const planned = getPlannedExpensesForCategory(budget.categoryId) + getProjectedDebtExpensesForCategory(budget.categoryId);
     const committed = spent + planned;
     
     const percentage = budget.amount > 0 ? (committed / budget.amount) * 100 : 0;
@@ -249,8 +324,9 @@ const BudgetProgress: React.FC<BudgetProgressProps> = ({ viewMode = 'monthly' })
 
   categoriesWithDefaultBudgets.forEach(category => {
     const spent = getCompletedExpensesForCategory(category.id);
-    const planned = getPlannedExpensesForCategory(category.id);
+    const planned = getPlannedExpensesForCategory(category.id) + getProjectedDebtExpensesForCategory(category.id);
     const committed = spent + planned;
+    if (isDebtLikeCategory(category.id) && committed === 0) return;
     
     const budgetAmount = category.budget || 0;
     const percentage = budgetAmount > 0 ? (committed / budgetAmount) * 100 : 0;
@@ -278,7 +354,7 @@ const BudgetProgress: React.FC<BudgetProgressProps> = ({ viewMode = 'monthly' })
     )
     .map(category => {
       const spent = getCompletedExpensesForCategory(category.id);
-      const planned = getPlannedExpensesForCategory(category.id);
+      const planned = getPlannedExpensesForCategory(category.id) + getProjectedDebtExpensesForCategory(category.id);
       const committed = spent + planned;
 
       return {

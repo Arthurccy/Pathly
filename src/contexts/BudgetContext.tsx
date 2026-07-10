@@ -1430,6 +1430,11 @@ export const BudgetProvider: React.FC<BudgetProviderProps> = ({ children }) => {
         .filter(t => t.type === 'savings')
         .reduce((sum, t) => sum + t.amount, 0);
 
+      const isDebtLikeCategory = (category?: Category) => {
+        const name = category?.name.toLowerCase() || '';
+        return category?.type === 'debt' || name.includes('prêt') || name.includes('credit') || name.includes('crédit');
+      };
+
       const activeMonthBudgets = budgets.filter(
         budget =>
           budget.isActive &&
@@ -1441,6 +1446,7 @@ export const BudgetProvider: React.FC<BudgetProviderProps> = ({ children }) => {
         .map(budget => {
           const category = categories.find(item => item.id === budget.categoryId);
           if (!category || category.excludeFromReports || category.type !== 'expense') return null;
+          if (isDebtLikeCategory(category)) return null;
 
           const normalizedAmount =
             budget.period === 'yearly'
@@ -1460,6 +1466,7 @@ export const BudgetProvider: React.FC<BudgetProviderProps> = ({ children }) => {
         .filter(category =>
           category.type === 'expense' &&
           !category.excludeFromReports &&
+          !isDebtLikeCategory(category) &&
           category.budget &&
           !budgetCategoryIds.has(category.id)
         )
