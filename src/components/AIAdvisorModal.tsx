@@ -91,7 +91,7 @@ const AIAdvisorModal: React.FC<AIAdvisorModalProps> = ({ isOpen, onClose, cashFl
 
     try {
       const genAI = new GoogleGenerativeAI(apiKey);
-      const model = genAI.getGenerativeModel({ model: 'gemini-pro' });
+      const model = genAI.getGenerativeModel({ model: 'gemini-2.5-pro' });
 
       let prompt = `Tu es un conseiller financier expert, bienveillant, constructif et très synthétique. Ton rôle est d'analyser le budget du mois ci-dessous et de me donner 3 astuces ou actions concrètes pour optimiser mon budget. Utilise le vouvoiement. Ne fais pas de longue introduction.\n\n`;
       
@@ -129,16 +129,7 @@ const AIAdvisorModal: React.FC<AIAdvisorModalProps> = ({ isOpen, onClose, cashFl
       setAdvice(response.text());
     } catch (err: any) {
       console.error(err);
-      
-      // Try to fetch available models to help debug
-      try {
-        const modelsRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`);
-        const modelsData = await modelsRes.json();
-        const availableModels = modelsData.models?.map((m: any) => m.name.replace('models/', '')).join(', ');
-        setError(`Erreur lors de la communication avec l'IA : ${err.message}. Modèles disponibles pour cette clé : ${availableModels || 'Aucun ou clé invalide'}`);
-      } catch (fetchErr) {
-        setError(`Erreur lors de la communication avec l'IA : ${err.message || 'Erreur inconnue'}`);
-      }
+      setError(`Erreur lors de la communication avec l'IA : ${err.message || 'Erreur inconnue'}`);
     } finally {
       setLoading(false);
     }
