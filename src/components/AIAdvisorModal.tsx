@@ -129,7 +129,16 @@ const AIAdvisorModal: React.FC<AIAdvisorModalProps> = ({ isOpen, onClose, cashFl
       setAdvice(response.text());
     } catch (err: any) {
       console.error(err);
-      setError(`Erreur lors de la communication avec l'IA : ${err.message || 'Erreur inconnue'}`);
+      
+      // Try to fetch available models to help debug
+      try {
+        const modelsRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`);
+        const modelsData = await modelsRes.json();
+        const availableModels = modelsData.models?.map((m: any) => m.name.replace('models/', '')).join(', ');
+        setError(`Erreur lors de la communication avec l'IA : ${err.message}. Modèles disponibles pour cette clé : ${availableModels || 'Aucun ou clé invalide'}`);
+      } catch (fetchErr) {
+        setError(`Erreur lors de la communication avec l'IA : ${err.message || 'Erreur inconnue'}`);
+      }
     } finally {
       setLoading(false);
     }
