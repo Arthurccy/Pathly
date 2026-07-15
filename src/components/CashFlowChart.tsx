@@ -49,29 +49,29 @@ const CashFlowChart: React.FC = () => {
     cashFlowData.length > 0
       ? cashFlowData.reduce((sum, item) => sum + (selector(item) || 0), 0) / cashFlowData.length
       : 0;
-  const lowestProjection = cashFlowData.reduce(
-    (lowest, item) => Math.min(lowest, item.projectedBalance),
-    firstProjection?.projectedBalance ?? 0
+  const lowestResult = cashFlowData.reduce(
+    (lowest, item) => Math.min(lowest, item.balance),
+    firstProjection?.balance ?? 0
   );
-  const riskyMonths = cashFlowData.filter(item => item.projectedBalance < 0).length;
-  const tightMonths = cashFlowData.filter(item => item.projectedBalance >= 0 && item.projectedBalance < 200).length;
+  const riskyMonths = cashFlowData.filter(item => item.balance < 0).length;
+  const tightMonths = cashFlowData.filter(item => item.balance >= 0 && item.balance < 200).length;
   const globalStatus = riskyMonths > 0
     ? {
-        label: 'A revoir',
-        detail: `${riskyMonths} mois sous zero`,
+        label: 'À revoir',
+        detail: `${riskyMonths} mois en négatif`,
         Icon: AlertTriangle,
         classes: 'border-red-200 bg-red-50 text-red-700 dark:border-red-900 dark:bg-red-950/30 dark:text-red-300',
       }
     : tightMonths > 0
       ? {
           label: 'Tendu',
-          detail: `${tightMonths} mois avec moins de ${money(200)}`,
+          detail: `${tightMonths} mois avec reste < ${money(200)}`,
           Icon: Gauge,
           classes: 'border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-300',
         }
       : {
           label: 'Plan OK',
-          detail: `Point bas a ${money(lowestProjection)}`,
+          detail: `Pire mois à ${money(lowestResult)}`,
           Icon: CheckCircle2,
           classes: 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950/30 dark:text-emerald-300',
         };
@@ -102,20 +102,20 @@ const CashFlowChart: React.FC = () => {
         { label: 'épargne', value: savings },
       ].sort((a, b) => b.value - a.value);
       const mainPressure = pressureItems.find(pressure => pressure.value > 0);
-      const status = item.projectedBalance < 0
+      const status = planBalance < 0
         ? {
-            label: 'A revoir',
+            label: 'Déficit',
             Icon: AlertTriangle,
             classes: 'bg-red-50 text-red-700 ring-red-200 dark:bg-red-950/30 dark:text-red-300 dark:ring-red-900',
           }
-        : item.projectedBalance < 200
+        : planBalance < 200
           ? {
               label: 'Tendu',
               Icon: Gauge,
               classes: 'bg-amber-50 text-amber-700 ring-amber-200 dark:bg-amber-950/30 dark:text-amber-300 dark:ring-amber-900',
             }
           : {
-              label: 'OK',
+              label: 'Excédent',
               Icon: CheckCircle2,
               classes: 'bg-emerald-50 text-emerald-700 ring-emerald-200 dark:bg-emerald-950/30 dark:text-emerald-300 dark:ring-emerald-900',
             };
@@ -124,7 +124,6 @@ const CashFlowChart: React.FC = () => {
         ...item,
         planBalance,
         plannedOnlyBalance,
-        projectedWithoutBudgetReserve,
         plannedExpenses,
         debtPayments,
         transfersOut,
@@ -163,19 +162,11 @@ const CashFlowChart: React.FC = () => {
         tension: 0.4,
       },
       {
-        label: 'Tr\u00e9sorerie dispo',
-        data: monthlyPlan.map(cf => cf.projectedBalance),
+        label: 'Résultat du mois',
+        data: monthlyPlan.map(cf => cf.planBalance),
         borderColor: '#3B82F6',
         backgroundColor: 'rgba(59, 130, 246, 0.1)',
         fill: true,
-        tension: 0.4,
-      },
-      {
-        label: 'Total avec \u00e9pargne',
-        data: monthlyPlan.map(cf => cf.projectedTotalBalance ?? cf.projectedBalance),
-        borderColor: '#8B5CF6',
-        backgroundColor: 'rgba(139, 92, 246, 0.08)',
-        fill: false,
         tension: 0.4,
       },
     ],
@@ -228,10 +219,10 @@ const CashFlowChart: React.FC = () => {
       <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-            Plan des prochains mois
+            Résultat par mois
           </h3>
           <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-            Solde courant projete par periode budgetaire, avec revenus, operations planifiees, dettes, budgets restants et virements hors compte courant.
+            Évolution de votre résultat mensuel net (Revenus - Dépenses - Épargne - Budgets libres). Remis à zéro chaque mois.
           </p>
         </div>
         <div className={`inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-sm font-semibold ${globalStatus.classes}`}>
@@ -271,21 +262,15 @@ const CashFlowChart: React.FC = () => {
 
                 <div className="grid grid-cols-2 gap-2 text-sm sm:flex sm:items-center sm:gap-4">
                   <div>
-                    <p className="text-xs text-slate-500 dark:text-slate-400">Planifié seul</p>
+                    <p className="text-xs text-slate-500 dark:text-slate-400">Sans les budgets</p>
                     <p className={item.plannedOnlyBalance >= 0 ? 'font-semibold text-emerald-600 dark:text-emerald-400' : 'font-semibold text-red-600 dark:text-red-400'}>
                       {money(item.plannedOnlyBalance)}
                     </p>
                   </div>
                   <div>
-                    <p className="text-xs text-slate-500 dark:text-slate-400">Avec budgets</p>
-                    <p className={item.planBalance >= 0 ? 'font-semibold text-emerald-600 dark:text-emerald-400' : 'font-semibold text-red-600 dark:text-red-400'}>
-                      {money(item.planBalance)}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-slate-500 dark:text-slate-400">Fin avec budgets</p>
+                    <p className="text-xs text-slate-500 dark:text-slate-400">Résultat final du mois</p>
                     <p className={`font-semibold ${endBalanceClass}`}>
-                      {money(item.projectedBalance)}
+                      {money(item.planBalance)}
                     </p>
                   </div>
                   <span className={`col-span-2 inline-flex items-center justify-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold ring-1 sm:col-span-1 ${item.status.classes}`}>
@@ -303,20 +288,14 @@ const CashFlowChart: React.FC = () => {
                 <span className="rounded-md bg-slate-50 px-2.5 py-2 dark:bg-slate-900">Départ {money(item.openingBalance || 0)}</span>
               </div>
               <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
-                Sans consommer les budgets libres, la fin projetée serait {money(item.projectedWithoutBudgetReserve)}.
+                Vous avez besoin de {money(item.income)} de revenus pour couvrir ce mois. {item.planBalance < 0 ? `Il manquera ${money(Math.abs(item.planBalance))} !` : `Vous dégagerez un excédent de ${money(item.planBalance)}.`}
               </p>
             </div>
           );
         })}
       </div>
 
-      <div className="mt-4 grid grid-cols-1 gap-4 text-center sm:grid-cols-2 xl:grid-cols-5">
-        <div>
-          <p className="text-sm text-gray-500 dark:text-gray-400">D&eacute;part courant</p>
-          <p className={`text-lg font-semibold ${(firstProjection?.openingBalance ?? 0) >= 0 ? 'text-slate-700 dark:text-slate-200' : 'text-red-600 dark:text-red-400'}`}>
-            {(firstProjection?.openingBalance ?? 0).toFixed(0)} &euro;
-          </p>
-        </div>
+      <div className="mt-4 grid grid-cols-1 gap-4 text-center sm:grid-cols-3">
         <div>
           <p className="text-sm text-gray-500 dark:text-gray-400">Revenus moyens</p>
           <p className="text-lg font-semibold text-green-600 dark:text-green-400">
@@ -336,18 +315,9 @@ const CashFlowChart: React.FC = () => {
           </p>
         </div>
         <div>
-          <p className="text-sm text-gray-500 dark:text-gray-400">Tr&eacute;sorerie finale</p>
-          <p className="text-lg font-semibold text-blue-600 dark:text-blue-400">
-            {(finalProjection?.projectedBalance ?? 0).toFixed(0)} &euro;
-          </p>
-        </div>
-        <div>
-          <p className="text-sm text-gray-500 dark:text-gray-400">Courant + &eacute;pargne</p>
-          <p className="text-lg font-semibold text-violet-600 dark:text-violet-400">
-            {(finalProjection?.projectedTotalBalance ?? finalProjection?.projectedBalance ?? 0).toFixed(0)} &euro;
-          </p>
-          <p className="text-xs text-gray-500 dark:text-gray-400">
-            &eacute;pargne projet&eacute;e {(finalProjection?.projectedSavingsBalance ?? 0).toFixed(0)} &euro;
+          <p className="text-sm text-gray-500 dark:text-gray-400">Résultat mensuel moyen</p>
+          <p className={`text-lg font-semibold ${average(cf => cf.planBalance) >= 0 ? 'text-blue-600 dark:text-blue-400' : 'text-red-600 dark:text-red-400'}`}>
+            {average(cf => cf.planBalance).toFixed(0)} &euro;
           </p>
         </div>
       </div>
