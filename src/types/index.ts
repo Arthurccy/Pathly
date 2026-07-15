@@ -163,6 +163,7 @@ export interface CashFlow {
   transfersOut?: number;
   budgetReserve?: number;
   scheduledTransactions?: Transaction[];
+  allTransactions?: Transaction[];
 }
 
 export interface FinancialSummary {

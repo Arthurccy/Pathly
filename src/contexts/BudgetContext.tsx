@@ -1555,7 +1555,8 @@ export const BudgetProvider: React.FC<BudgetProviderProps> = ({ children }) => {
         debtPayments: debtPaymentsForMonth,
         transfersOut: transferOutToExternalAccounts,
         budgetReserve,
-        scheduledTransactions: plannedTransactions
+        scheduledTransactions: plannedTransactions,
+        allTransactions: visibleMonthTransactions
       });
     }
 

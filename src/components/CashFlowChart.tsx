@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { Line } from 'react-chartjs-2';
 import {
   Chart as ChartJS,
@@ -13,10 +13,12 @@ import {
 } from 'chart.js';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
-import { AlertTriangle, CheckCircle2, Gauge, TrendingDown } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, Gauge, TrendingDown, BarChart3 } from 'lucide-react';
 import { useBudget } from '../contexts/BudgetContext';
 import { useAuth } from '../contexts/AuthContext';
 import { getCustomMonthPeriod } from '../utils/dateUtils';
+import SankeyModal from './SankeyModal';
+import { CashFlow } from '../types';
 
 ChartJS.register(
   CategoryScale,
@@ -30,8 +32,10 @@ ChartJS.register(
 );
 
 const CashFlowChart: React.FC = () => {
-  const { getCashFlowProjection } = useBudget();
+  const { getCashFlowProjection, categories } = useBudget();
   const { user } = useAuth();
+  
+  const [selectedMonthForSankey, setSelectedMonthForSankey] = useState<CashFlow | null>(null);
 
   const monthStartDay = user?.settings?.monthStartDay || 1;
   const currentBudgetPeriod = getCustomMonthPeriod(new Date(), monthStartDay);
@@ -254,9 +258,18 @@ const CashFlowChart: React.FC = () => {
                     <TrendingDown className="h-4 w-4" />
                   </div>
                   <div>
-                    <p className="font-semibold text-slate-950 dark:text-white">
-                      {format(item.periodStart, 'dd MMM', { locale: fr })} - {format(item.periodEnd, 'dd MMM yyyy', { locale: fr })}
-                    </p>
+                    <div className="flex items-center gap-2">
+                      <p className="font-semibold text-slate-950 dark:text-white">
+                        {format(item.periodStart, 'dd MMM', { locale: fr })} - {format(item.periodEnd, 'dd MMM yyyy', { locale: fr })}
+                      </p>
+                      <button
+                        onClick={() => setSelectedMonthForSankey(item)}
+                        className="inline-flex items-center gap-1 rounded bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-700 transition-colors hover:bg-blue-100 dark:bg-blue-900/30 dark:text-blue-300 dark:hover:bg-blue-900/50"
+                      >
+                        <BarChart3 className="h-3 w-3" />
+                        <span>Voir les flux</span>
+                      </button>
+                    </div>
                     <p className="text-xs text-slate-500 dark:text-slate-400">
                       {item.isCurrentPeriod ? 'Mois en cours (complet)' : 'Période complète'} - {item.plannedCount} mouvement{item.plannedCount > 1 ? 's' : ''} à venir - plus gros poste: {item.mainPressure ? `${item.mainPressure.label} ${money(item.mainPressure.value)}` : 'aucun'}
                     </p>
@@ -323,6 +336,13 @@ const CashFlowChart: React.FC = () => {
           </p>
         </div>
       </div>
+
+      <SankeyModal 
+        isOpen={!!selectedMonthForSankey}
+        onClose={() => setSelectedMonthForSankey(null)}
+        cashFlow={selectedMonthForSankey}
+        categories={categories}
+      />
     </div>
   );
 };
