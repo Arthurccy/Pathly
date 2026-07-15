@@ -1356,9 +1356,7 @@ export const BudgetProvider: React.FC<BudgetProviderProps> = ({ children }) => {
         );
       const plannedTransactions = scheduledTransactions.concat(pendingTransactions, projectedRecurringTransactions);
       const visibleMonthTransactions = monthTransactions.concat(plannedTransactions);
-      const cashMovementTransactions = i === 0
-        ? plannedTransactions
-        : monthTransactions.concat(plannedTransactions);
+      const cashMovementTransactions = visibleMonthTransactions;
       const isDebtAlreadyRepresented = (debt: Debt, dueDate: Date) => {
         const expectedAmount = Math.min(debt.minimumPayment, debt.remainingAmount);
         const debtName = debt.name.trim().toLowerCase();
@@ -1490,10 +1488,49 @@ export const BudgetProvider: React.FC<BudgetProviderProps> = ({ children }) => {
 
       const totalOutflows = baseExpenses + debtPaymentsForMonth + transferOutToExternalAccounts + budgetReserve + savings;
       const balance = income - totalOutflows;
-      const projectedBalance = i === 0 ? openingBalance + balance : projections[i - 1].projectedBalance + balance;
-      const projectedSavingsBalance = i === 0
-        ? openingSavingsBalance + savings + transferOutToSavingsAccounts
-        : (projections[i - 1].projectedSavingsBalance || openingSavingsBalance) + savings + transferOutToSavingsAccounts;
+      
+      let projectedBalance: number;
+      let projectedSavingsBalance: number;
+
+      if (i === 0) {
+        const remainingIncome = plannedTransactions
+          .filter(t => t.type === 'income' || t.type === 'refund' || t.type === 'savings_withdrawal')
+          .reduce((sum, t) => sum + t.amount, 0);
+        const remainingExternalTransfers = plannedTransactions
+          .filter(t =>
+            t.type === 'transfer' &&
+            cashFlowAccountIds.has(t.accountId) &&
+            t.transferToAccountId &&
+            !cashFlowAccountIds.has(t.transferToAccountId) &&
+            !t.description.toLowerCase().includes('depuis')
+          )
+          .reduce((sum, t) => sum + t.amount, 0);
+        const remainingSavingsTransfers = plannedTransactions
+          .filter(t =>
+            t.type === 'transfer' &&
+            cashFlowAccountIds.has(t.accountId) &&
+            t.transferToAccountId &&
+            savingsAccountIds.has(t.transferToAccountId) &&
+            !t.description.toLowerCase().includes('depuis')
+          )
+          .reduce((sum, t) => sum + t.amount, 0);
+        const remainingBaseExpenses = plannedTransactions
+          .filter(t => t.type === 'expense' || t.type === 'bill')
+          .reduce((sum, t) => sum + t.amount, 0);
+        const remainingSavings = plannedTransactions
+          .filter(t => t.type === 'savings')
+          .reduce((sum, t) => sum + t.amount, 0);
+
+        const remainingOutflows = remainingBaseExpenses + debtPaymentsForMonth + remainingExternalTransfers + budgetReserve + remainingSavings;
+        const remainingDelta = remainingIncome - remainingOutflows;
+
+        projectedBalance = openingBalance + remainingDelta;
+        projectedSavingsBalance = openingSavingsBalance + remainingSavings + remainingSavingsTransfers;
+      } else {
+        projectedBalance = projections[i - 1].projectedBalance + balance;
+        projectedSavingsBalance = (projections[i - 1].projectedSavingsBalance || openingSavingsBalance) + savings + transferOutToSavingsAccounts;
+      }
+      
       const projectedTotalBalance = projectedBalance + projectedSavingsBalance;
 
       projections.push({
