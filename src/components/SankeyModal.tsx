@@ -49,7 +49,10 @@ const CustomNode = (props: any) => {
 const CustomTooltip = ({ active, payload }: any) => {
   if (active && payload && payload.length) {
     const data = payload[0].payload;
-    const value = new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR' }).format(data.value);
+    const rawValue = data.value !== undefined ? data.value : payload[0].value;
+    const value = rawValue !== undefined && !isNaN(rawValue)
+      ? new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR' }).format(rawValue)
+      : '0,00 €';
     
     // For links
     if (data.source && data.target) {
@@ -88,7 +91,7 @@ const SankeyModal: React.FC<SankeyModalProps> = ({ isOpen, onClose, cashFlow, ca
   const data = useMemo(() => {
     if (!cashFlow || !cashFlow.allTransactions) return null;
 
-    const nodes: { name: string; fill: string }[] = [];
+    const nodes: { name: string; fill: string; value?: number }[] = [];
     const links: { source: number; target: number; value: number }[] = [];
 
     const getNodeIndex = (name: string, color: string) => {
@@ -181,6 +184,17 @@ const SankeyModal: React.FC<SankeyModalProps> = ({ isOpen, onClose, cashFlow, ca
         links.push({ source: rootIndex, target: idx, value: surplus });
       }
     }
+
+    // Calculate values for nodes so tooltip doesn't show NaN
+    nodes.forEach((node, idx) => {
+      let incoming = 0;
+      let outgoing = 0;
+      links.forEach(l => {
+        if (l.target === idx) incoming += l.value;
+        if (l.source === idx) outgoing += l.value;
+      });
+      node.value = Math.max(incoming, outgoing);
+    });
 
     if (links.length === 0) return null;
 
