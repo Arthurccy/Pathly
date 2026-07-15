@@ -13,11 +13,12 @@ import {
 } from 'chart.js';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
-import { AlertTriangle, CheckCircle2, Gauge, TrendingDown, BarChart3 } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, Gauge, TrendingDown, BarChart3, Sparkles } from 'lucide-react';
 import { useBudget } from '../contexts/BudgetContext';
 import { useAuth } from '../contexts/AuthContext';
 import { getCustomMonthPeriod } from '../utils/dateUtils';
 import SankeyModal from './SankeyModal';
+import AIAdvisorModal from './AIAdvisorModal';
 import { CashFlow } from '../types';
 
 ChartJS.register(
@@ -36,6 +37,7 @@ const CashFlowChart: React.FC = () => {
   const { user } = useAuth();
   
   const [selectedMonthForSankey, setSelectedMonthForSankey] = useState<CashFlow | null>(null);
+  const [selectedMonthForAI, setSelectedMonthForAI] = useState<CashFlow | null>(null);
 
   const monthStartDay = user?.settings?.monthStartDay || 1;
   const currentBudgetPeriod = getCustomMonthPeriod(new Date(), monthStartDay);
@@ -269,6 +271,13 @@ const CashFlowChart: React.FC = () => {
                         <BarChart3 className="h-3 w-3" />
                         <span>Voir les flux</span>
                       </button>
+                      <button
+                        onClick={() => setSelectedMonthForAI(item)}
+                        className="inline-flex items-center gap-1 rounded bg-indigo-50 px-2 py-0.5 text-xs font-medium text-indigo-700 transition-colors hover:bg-indigo-100 dark:bg-indigo-900/30 dark:text-indigo-300 dark:hover:bg-indigo-900/50"
+                      >
+                        <Sparkles className="h-3 w-3" />
+                        <span>Conseil IA</span>
+                      </button>
                     </div>
                     <p className="text-xs text-slate-500 dark:text-slate-400">
                       {item.isCurrentPeriod ? 'Mois en cours (complet)' : 'Période complète'} - {item.plannedCount} mouvement{item.plannedCount > 1 ? 's' : ''} à venir - plus gros poste: {item.mainPressure ? `${item.mainPressure.label} ${money(item.mainPressure.value)}` : 'aucun'}
@@ -341,6 +350,12 @@ const CashFlowChart: React.FC = () => {
         isOpen={!!selectedMonthForSankey}
         onClose={() => setSelectedMonthForSankey(null)}
         cashFlow={selectedMonthForSankey}
+        categories={categories}
+      />
+      <AIAdvisorModal
+        isOpen={!!selectedMonthForAI}
+        onClose={() => setSelectedMonthForAI(null)}
+        cashFlow={selectedMonthForAI}
         categories={categories}
       />
     </div>
