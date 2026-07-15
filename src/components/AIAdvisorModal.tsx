@@ -91,7 +91,7 @@ const AIAdvisorModal: React.FC<AIAdvisorModalProps> = ({ isOpen, onClose, cashFl
 
     try {
       const genAI = new GoogleGenerativeAI(apiKey);
-      const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+      const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash-latest' });
 
       let prompt = `Tu es un conseiller financier expert, bienveillant, constructif et très synthétique. Ton rôle est d'analyser le budget du mois ci-dessous et de me donner 3 astuces ou actions concrètes pour optimiser mon budget. Utilise le vouvoiement. Ne fais pas de longue introduction.\n\n`;
       
@@ -129,7 +129,7 @@ const AIAdvisorModal: React.FC<AIAdvisorModalProps> = ({ isOpen, onClose, cashFl
       setAdvice(response.text());
     } catch (err: any) {
       console.error(err);
-      setError("Une erreur est survenue lors de la communication avec l'IA. Vérifiez que votre clé API est valide et que vous avez une connexion internet.");
+      setError(`Erreur lors de la communication avec l'IA : ${err.message || 'Erreur inconnue'}`);
     } finally {
       setLoading(false);
     }
