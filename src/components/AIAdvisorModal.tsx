@@ -91,7 +91,8 @@ const AIAdvisorModal: React.FC<AIAdvisorModalProps> = ({ isOpen, onClose, cashFl
 
     try {
       const genAI = new GoogleGenerativeAI(apiKey);
-      const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
+      const modelName = import.meta.env.VITE_GEMINI_MODEL || 'gemini-2.5-flash';
+      const model = genAI.getGenerativeModel({ model: modelName });
 
       let prompt = `Tu es un conseiller financier expert, bienveillant, constructif et très synthétique. Ton rôle est d'analyser le budget du mois ci-dessous et de me donner 3 astuces ou actions concrètes pour optimiser mon budget. Utilise le vouvoiement. Ne fais pas de longue introduction.\n\n`;
       
