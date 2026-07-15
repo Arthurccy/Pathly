@@ -1491,6 +1491,8 @@ export const BudgetProvider: React.FC<BudgetProviderProps> = ({ children }) => {
       
       let projectedBalance: number;
       let projectedSavingsBalance: number;
+      let monthOpeningBalance: number;
+      let monthOpeningSavingsBalance: number;
 
       if (i === 0) {
         const remainingIncome = plannedTransactions
@@ -1526,9 +1528,15 @@ export const BudgetProvider: React.FC<BudgetProviderProps> = ({ children }) => {
 
         projectedBalance = openingBalance + remainingDelta;
         projectedSavingsBalance = openingSavingsBalance + remainingSavings + remainingSavingsTransfers;
+        
+        // Pour que l'affichage soit cohérent : Départ + Résultat complet = Fin
+        monthOpeningBalance = projectedBalance - balance;
+        monthOpeningSavingsBalance = projectedSavingsBalance - (savings + transferOutToSavingsAccounts);
       } else {
-        projectedBalance = projections[i - 1].projectedBalance + balance;
-        projectedSavingsBalance = (projections[i - 1].projectedSavingsBalance || openingSavingsBalance) + savings + transferOutToSavingsAccounts;
+        monthOpeningBalance = projections[i - 1].projectedBalance;
+        monthOpeningSavingsBalance = projections[i - 1].projectedSavingsBalance || openingSavingsBalance;
+        projectedBalance = monthOpeningBalance + balance;
+        projectedSavingsBalance = monthOpeningSavingsBalance + savings + transferOutToSavingsAccounts;
       }
       
       const projectedTotalBalance = projectedBalance + projectedSavingsBalance;
@@ -1540,7 +1548,7 @@ export const BudgetProvider: React.FC<BudgetProviderProps> = ({ children }) => {
         savings,
         balance,
         projectedBalance,
-        openingBalance: i === 0 ? openingBalance : projections[i - 1].projectedBalance,
+        openingBalance: monthOpeningBalance,
         projectedSavingsBalance,
         projectedTotalBalance,
         baseExpenses,
