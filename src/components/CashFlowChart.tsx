@@ -95,7 +95,7 @@ const CashFlowChart: React.FC = () => {
       const plannedOnlyBalance = item.income - plannedOutflows;
       projectedWithoutBudgetReserve += plannedOnlyBalance;
       const pressureItems = [
-        { label: 'dépenses prévues', value: plannedExpenses },
+        { label: 'dépenses totales', value: plannedExpenses },
         { label: 'budgets libres', value: budgetReserve },
         { label: 'virements', value: transfersOut },
         { label: 'dettes', value: debtPayments },
@@ -239,7 +239,10 @@ const CashFlowChart: React.FC = () => {
       <div className="mt-5 space-y-3">
         {monthlyPlan.map(item => {
           const StatusIcon = item.status.Icon;
-          const endBalanceClass = item.projectedBalance >= 0
+          const resultClass = item.planBalance >= 0
+            ? 'text-slate-950 dark:text-white'
+            : 'text-red-600 dark:text-red-400';
+          const projBalanceClass = item.projectedBalance >= 0
             ? 'text-slate-950 dark:text-white'
             : 'text-red-600 dark:text-red-400';
 
@@ -255,7 +258,7 @@ const CashFlowChart: React.FC = () => {
                       {format(item.periodStart, 'dd MMM', { locale: fr })} - {format(item.periodEnd, 'dd MMM yyyy', { locale: fr })}
                     </p>
                     <p className="text-xs text-slate-500 dark:text-slate-400">
-                      {item.isCurrentPeriod ? 'Reste de la période' : 'Période complète'} - {item.plannedCount} mouvement{item.plannedCount > 1 ? 's' : ''} prévu{item.plannedCount > 1 ? 's' : ''} - plus gros poste: {item.mainPressure ? `${item.mainPressure.label} ${money(item.mainPressure.value)}` : 'aucun'}
+                      {item.isCurrentPeriod ? 'Mois en cours (complet)' : 'Période complète'} - {item.plannedCount} mouvement{item.plannedCount > 1 ? 's' : ''} à venir - plus gros poste: {item.mainPressure ? `${item.mainPressure.label} ${money(item.mainPressure.value)}` : 'aucun'}
                     </p>
                   </div>
                 </div>
@@ -269,8 +272,14 @@ const CashFlowChart: React.FC = () => {
                   </div>
                   <div>
                     <p className="text-xs text-slate-500 dark:text-slate-400">Résultat final du mois</p>
-                    <p className={`font-semibold ${endBalanceClass}`}>
+                    <p className={`font-semibold ${resultClass}`}>
                       {money(item.planBalance)}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-slate-500 dark:text-slate-400">Solde fin de mois</p>
+                    <p className={`font-semibold ${projBalanceClass}`}>
+                      {money(item.projectedBalance)}
                     </p>
                   </div>
                   <span className={`col-span-2 inline-flex items-center justify-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold ring-1 sm:col-span-1 ${item.status.classes}`}>
@@ -316,8 +325,8 @@ const CashFlowChart: React.FC = () => {
         </div>
         <div>
           <p className="text-sm text-gray-500 dark:text-gray-400">Résultat mensuel moyen</p>
-          <p className={`text-lg font-semibold ${average(cf => cf.planBalance) >= 0 ? 'text-blue-600 dark:text-blue-400' : 'text-red-600 dark:text-red-400'}`}>
-            {average(cf => cf.planBalance).toFixed(0)} &euro;
+          <p className={`text-lg font-semibold ${(monthlyPlan.reduce((sum, item) => sum + item.planBalance, 0) / (monthlyPlan.length || 1)) >= 0 ? 'text-blue-600 dark:text-blue-400' : 'text-red-600 dark:text-red-400'}`}>
+            {(monthlyPlan.reduce((sum, item) => sum + item.planBalance, 0) / (monthlyPlan.length || 1)).toFixed(0)} &euro;
           </p>
         </div>
       </div>
