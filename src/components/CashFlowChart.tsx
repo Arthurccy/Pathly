@@ -276,25 +276,18 @@ const CashFlowChart: React.FC = () => {
                       {money(item.planBalance)}
                     </p>
                   </div>
-                  <div>
-                    <p className="text-xs text-slate-500 dark:text-slate-400">Solde fin de mois</p>
-                    <p className={`font-semibold ${projBalanceClass}`}>
-                      {money(item.projectedBalance)}
-                    </p>
-                  </div>
                   <span className={`col-span-2 inline-flex items-center justify-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold ring-1 sm:col-span-1 ${item.status.classes}`}>
                     <StatusIcon className="h-3.5 w-3.5" />
                     {item.status.label}
                   </span>
                 </div>
               </div>
-              <div className="mt-3 grid grid-cols-2 gap-2 text-xs text-slate-600 dark:text-slate-300 sm:grid-cols-3 xl:grid-cols-6">
+              <div className="mt-3 grid grid-cols-2 gap-2 text-xs text-slate-600 dark:text-slate-300 sm:grid-cols-3 xl:grid-cols-5">
                 <span className="rounded-md bg-slate-50 px-2.5 py-2 dark:bg-slate-900">Revenus {money(item.income)}</span>
                 <span className="rounded-md bg-slate-50 px-2.5 py-2 dark:bg-slate-900">Dépenses {money(item.plannedExpenses)}</span>
                 <span className="rounded-md bg-slate-50 px-2.5 py-2 dark:bg-slate-900">Dettes {money(item.debtPayments)}</span>
                 <span className="rounded-md bg-slate-50 px-2.5 py-2 dark:bg-slate-900">Virements {money(item.transfersOut + item.savings)}</span>
                 <span className="rounded-md bg-slate-50 px-2.5 py-2 dark:bg-slate-900">Budgets libres {money(item.budgetReserve)}</span>
-                <span className="rounded-md bg-slate-50 px-2.5 py-2 dark:bg-slate-900">Départ {money(item.openingBalance || 0)}</span>
               </div>
               <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
                 Vous avez besoin de {money(item.income)} de revenus pour couvrir ce mois. {item.planBalance < 0 ? `Il manquera ${money(Math.abs(item.planBalance))} !` : `Vous dégagerez un excédent de ${money(item.planBalance)}.`}
