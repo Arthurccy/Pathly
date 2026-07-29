@@ -159,6 +159,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onViewChange }) => {
   const projectedBudgetReserve = projection?.budgetReserve ?? 0;
   const projectedTransfersOut = projection?.transfersOut ?? 0;
   const projectedSavingsOut = projection?.savings ?? 0;
+  const openingBalanceForMath = projection?.openingBalance ?? checkingAccountBalance;
 
   const upcomingTransactions = useMemo(
     () => transactions
@@ -245,7 +246,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onViewChange }) => {
   ];
 
   const flowSteps = [
-    { label: 'Départ', value: checkingAccountBalance, prefix: '', color: 'bg-sky-500', text: 'text-sky-700 dark:text-sky-300' },
+    { label: 'Départ', value: openingBalanceForMath, prefix: '', color: 'bg-sky-500', text: 'text-sky-700 dark:text-sky-300' },
     { label: 'Revenus', value: projectedIncoming, prefix: '+', color: 'bg-emerald-500', text: 'text-emerald-700 dark:text-emerald-300' },
     { label: 'Sorties prévues', value: projectedBaseExpenses + projectedDebtPayments + projectedTransfersOut + projectedSavingsOut, prefix: '-', color: 'bg-rose-500', text: 'text-rose-700 dark:text-rose-300' },
     { label: 'Budgets libres', value: projectedBudgetReserve, prefix: '-', color: 'bg-amber-500', text: 'text-amber-700 dark:text-amber-300' },
@@ -377,7 +378,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onViewChange }) => {
                   <div>
                     <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Chemin de l'argent</p>
                     <p className="mt-1 text-sm text-slate-700 dark:text-slate-300">
-                      {money(checkingAccountBalance)} + {money(projectedIncoming)} - {money(projectedDeductions)} = <span className="font-semibold text-slate-950 dark:text-white">{money(projectedCurrentBalance)}</span>
+                      {money(openingBalanceForMath)} + {money(projectedIncoming)} - {money(projectedDeductions)} = <span className="font-semibold text-slate-950 dark:text-white">{money(projectedCurrentBalance)}</span>
                     </p>
                   </div>
                   <p className="text-xs text-slate-500 dark:text-slate-400">
