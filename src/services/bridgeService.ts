@@ -57,7 +57,7 @@ export class BridgeService {
     return Boolean(clientId && clientSecret);
   }
 
-  private static getHeaders(userUuid?: string): Record<string, string> {
+  private static getHeaders(accessToken?: string): Record<string, string> {
     const { clientId, clientSecret } = this.getCredentials();
     if (!clientId || !clientSecret) {
       throw new Error('Veuillez d\'abord saisir votre Client ID et Client Secret Bridge (Bankin\').');
@@ -71,8 +71,8 @@ export class BridgeService {
       'Accept': 'application/json',
     };
 
-    if (userUuid) {
-      headers['User-Uuid'] = userUuid;
+    if (accessToken) {
+      headers['Authorization'] = `Bearer ${accessToken}`;
     }
 
     return headers;
@@ -135,8 +135,28 @@ export class BridgeService {
     return userUuid;
   }
 
+  public static async getAccessToken(): Promise<string> {
+    const userUuid = await this.getOrCreateUserUuid();
+    const headers = this.getHeaders(); // Just Client-Id and Client-Secret
+
+    const response = await this.fetchWithFallback(`/v3/aggregation/authorization/token`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ user_uuid: userUuid }),
+    });
+
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({}));
+      throw new Error(err.message || err.description || `Impossible d'obtenir le token d'accès Bridge (${response.status})`);
+    }
+
+    const data = await response.json();
+    return data.access_token;
+  }
+
   public static async listBanks(): Promise<BridgeBank[]> {
-    const headers = this.getHeaders();
+    const accessToken = await this.getAccessToken();
+    const headers = this.getHeaders(accessToken);
     const response = await this.fetchWithFallback(`/v3/aggregation/banks?limit=100&country_code=FR`, { headers });
     
     if (!response.ok) {
@@ -150,7 +170,8 @@ export class BridgeService {
 
   public static async createConnectUrl(redirectUrl: string): Promise<string> {
     const userUuid = await this.getOrCreateUserUuid();
-    const headers = this.getHeaders();
+    const accessToken = await this.getAccessToken();
+    const headers = this.getHeaders(accessToken);
     
     const payload = JSON.stringify({
       user_uuid: userUuid,
@@ -173,8 +194,8 @@ export class BridgeService {
   }
 
   public static async listAccounts(): Promise<BridgeAccount[]> {
-    const userUuid = await this.getOrCreateUserUuid();
-    const headers = this.getHeaders(userUuid);
+    const accessToken = await this.getAccessToken();
+    const headers = this.getHeaders(accessToken);
 
     const response = await this.fetchWithFallback(`/v3/aggregation/accounts`, { headers });
     
@@ -192,8 +213,8 @@ export class BridgeService {
   }
 
   public static async listTransactions(): Promise<BridgeRawTransaction[]> {
-    const userUuid = await this.getOrCreateUserUuid();
-    const headers = this.getHeaders(userUuid);
+    const accessToken = await this.getAccessToken();
+    const headers = this.getHeaders(accessToken);
 
     const response = await this.fetchWithFallback(`/v3/aggregation/transactions?limit=500`, { headers });
     
