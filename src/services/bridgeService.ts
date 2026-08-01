@@ -80,28 +80,28 @@ export class BridgeService {
   }
 
   private static async fetchWithFallback(endpoint: string, options: RequestInit = {}): Promise<Response> {
-    // 1. Try Vercel / Vite proxy endpoint (/api/bridge-proxy/...)
-    try {
-      const response = await fetch(`${BRIDGE_PROXY_URL}${endpoint}`, options);
-      if (response.status !== 404) {
-        return response;
-      }
-    } catch (e) {
-      // Ignore proxy error and fall through
-    }
-
-    // 2. Try CORS proxy fallback
+    // 1. Try CORS proxy first (corsproxy.io preserves all custom headers Client-Id, Client-Secret, Bridge-Version)
     try {
       const corsUrl = `https://corsproxy.io/?${encodeURIComponent(`${BRIDGE_BASE_URL}${endpoint}`)}`;
       const response = await fetch(corsUrl, options);
-      if (response.ok || response.status === 400 || response.status === 401 || response.status === 403) {
+      if (response.status < 400 || response.status === 400 || response.status === 409) {
         return response;
       }
     } catch (e) {
-      // Ignore CORS proxy error and fall through
+      // Fall through if corsproxy network fails
     }
 
-    // 3. Fallback to direct URL
+    // 2. Try Vercel / Vite proxy endpoint (/api/bridge-proxy/...)
+    try {
+      const response = await fetch(`${BRIDGE_PROXY_URL}${endpoint}`, options);
+      if (response.status < 400 || response.status === 400 || response.status === 409) {
+        return response;
+      }
+    } catch (e) {
+      // Fall through
+    }
+
+    // 3. Fallback to direct API call
     return fetch(`${BRIDGE_BASE_URL}${endpoint}`, options);
   }
 
@@ -118,25 +118,24 @@ export class BridgeService {
     return data.resources || [];
   }
 
-  public static async getOrCreateUserToken(email = 'user@pathly.app'): Promise<string> {
+  public static async getOrCreateUserToken(email?: string): Promise<string> {
     const cachedToken = localStorage.getItem(STORAGE_KEY_USER_TOKEN);
     if (cachedToken) return cachedToken;
 
+    const { clientId } = this.getCredentials();
+    const userEmail = email || `user_${clientId.replace(/[^a-zA-Z0-9]/g, '').substring(0, 12)}@pathly.app`;
     const headers = this.getHeaders();
     
     // Create a new user for Bridge API
     const response = await this.fetchWithFallback(`/users`, {
       method: 'POST',
       headers,
-      body: JSON.stringify({ email }),
+      body: JSON.stringify({ email: userEmail }),
     });
 
-    if (!response.ok) {
+    if (!response.ok && response.status !== 400 && response.status !== 409) {
       const err = await response.json().catch(() => ({}));
-      // If user already exists, attempt authentication directly
-      if (response.status !== 400 && response.status !== 409) {
-        throw new Error(err.message || `Impossible de créer l'utilisateur Bridge (${response.status})`);
-      }
+      throw new Error(err.message || `Impossible de créer l'utilisateur Bridge (${response.status})`);
     }
 
     const data = await response.json().catch(() => ({}));
@@ -146,7 +145,7 @@ export class BridgeService {
     const authResp = await this.fetchWithFallback(`/users/authenticate`, {
       method: 'POST',
       headers,
-      body: JSON.stringify({ email }),
+      body: JSON.stringify({ email: userEmail }),
     });
 
     if (!authResp.ok) {
