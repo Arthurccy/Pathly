@@ -52,6 +52,9 @@ export interface BankAccount {
   bankName?: string;
   accountNumber?: string;
   description?: string;
+  gocardlessAccountId?: string;
+  gocardlessInstitutionId?: string;
+  lastSyncedAt?: string;
 }
 
 export interface Transaction {
@@ -71,6 +74,7 @@ export interface Transaction {
   transferToAccountId?: string; // For transfers between accounts
   isChecked?: boolean; // Manual verification status
   attachments?: string[]; // File URLs
+  gocardlessTransactionId?: string;
 }
 
 export interface RecurringPattern {

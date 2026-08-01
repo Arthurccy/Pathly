@@ -5,6 +5,7 @@ import {
   ArrowDownRight,
   ArrowUpRight,
   AlertCircle,
+  Building2,
   CalendarDays,
   CheckCircle2,
   Eye,
@@ -28,6 +29,7 @@ import BudgetProgress from './BudgetProgress';
 import CashFlowChart from './CashFlowChart';
 import AccountsOverview from './AccountsOverview';
 import SavingsGoalsProgress from './SavingsGoalsProgress';
+import { BankSyncModal } from './BankSyncModal';
 
 interface DashboardProps {
   onViewChange?: (view: string) => void;
@@ -72,6 +74,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onViewChange }) => {
 
   const [viewMode, setViewMode] = useState<'monthly' | 'yearly'>('monthly');
   const [showAccountFilter, setShowAccountFilter] = useState(false);
+  const [isBankSyncOpen, setIsBankSyncOpen] = useState(false);
 
   const monthStartDay = user?.settings?.monthStartDay || 1;
   const now = new Date();
@@ -330,6 +333,14 @@ const Dashboard: React.FC<DashboardProps> = ({ onViewChange }) => {
               </div>
 
               <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:justify-end">
+                <button
+                  type="button"
+                  onClick={() => setIsBankSyncOpen(true)}
+                  className="inline-flex min-h-11 items-center justify-center gap-2 rounded-md bg-sky-600 px-3.5 py-2 text-sm font-semibold text-white shadow-sm hover:bg-sky-700 transition focus:outline-none focus:ring-2 focus:ring-sky-500 focus:ring-offset-2 dark:focus:ring-offset-slate-950"
+                >
+                  <Building2 className="h-4 w-4" />
+                  <span>Synchro banque</span>
+                </button>
                 {primaryActions.map(action => {
                   const Icon = action.icon;
                   const isPrimary = action.style === 'primary';
@@ -566,6 +577,11 @@ const Dashboard: React.FC<DashboardProps> = ({ onViewChange }) => {
           periodEnd={currentMonthPeriod.end}
         />
       </section>
+
+      <BankSyncModal
+        isOpen={isBankSyncOpen}
+        onClose={() => setIsBankSyncOpen(false)}
+      />
     </div>
   );
 };
