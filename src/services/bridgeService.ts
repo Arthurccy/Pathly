@@ -169,12 +169,10 @@ export class BridgeService {
   }
 
   public static async createConnectUrl(redirectUrl: string): Promise<string> {
-    const userUuid = await this.getOrCreateUserUuid();
     const accessToken = await this.getAccessToken();
     const headers = this.getHeaders(accessToken);
     
     const payload = JSON.stringify({
-      user_uuid: userUuid,
       callback_url: redirectUrl,
     });
 
