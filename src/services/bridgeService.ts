@@ -80,21 +80,23 @@ export class BridgeService {
   }
 
   private static async fetchWithFallback(endpoint: string, options: RequestInit = {}): Promise<Response> {
-    // 1. Try CORS proxy first (corsproxy.io preserves all custom headers Client-Id, Client-Secret, Bridge-Version)
+    // 1. Try Vercel Serverless Proxy endpoint (/api/bridge-proxy?path=...)
     try {
-      const corsUrl = `https://corsproxy.io/?${encodeURIComponent(`${BRIDGE_BASE_URL}${endpoint}`)}`;
-      const response = await fetch(corsUrl, options);
-      if (response.status < 400 || response.status === 400 || response.status === 409) {
+      const proxyPath = endpoint.startsWith('/') ? endpoint.substring(1) : endpoint;
+      const proxyUrl = `${BRIDGE_PROXY_URL}/${proxyPath}`;
+      const response = await fetch(proxyUrl, options);
+      if (response.status < 500) {
         return response;
       }
     } catch (e) {
-      // Fall through if corsproxy network fails
+      // Fall through if local network issue
     }
 
-    // 2. Try Vercel / Vite proxy endpoint (/api/bridge-proxy/...)
+    // 2. Try CORS proxy fallback
     try {
-      const response = await fetch(`${BRIDGE_PROXY_URL}${endpoint}`, options);
-      if (response.status < 400 || response.status === 400 || response.status === 409) {
+      const corsUrl = `https://corsproxy.io/?${encodeURIComponent(`${BRIDGE_BASE_URL}${endpoint}`)}`;
+      const response = await fetch(corsUrl, options);
+      if (response.status < 500) {
         return response;
       }
     } catch (e) {

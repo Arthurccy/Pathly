@@ -5,7 +5,7 @@
   "rewrites": [
     {
       "source": "/api/bridge-proxy/:path*",
-      "destination": "https://api.bridgeapi.io/v2/:path*"
+      "destination": "/api/bridge-proxy?path=:path*"
     },
     {
       "source": "/api/gocardless-proxy/:path*",
