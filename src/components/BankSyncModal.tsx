@@ -79,6 +79,29 @@ export const BankSyncModal: React.FC<BankSyncModalProps> = ({ isOpen, onClose })
     }
   }, [isOpen]);
 
+  // Load GoCardless institutions when switching to gocardless tab in select_bank step
+  useEffect(() => {
+    if (provider === 'gocardless' && activeStep === 'select_bank') {
+      const loadInsts = async () => {
+        try {
+          if (!GoCardlessService.isConfigured()) {
+            setActiveStep('credentials');
+            return;
+          }
+          setLoading(true);
+          const insts = await GoCardlessService.getInstitutions('FR');
+          setGcInstitutions(insts);
+        } catch (err: any) {
+          setError('Erreur lors du chargement des banques GoCardless: ' + err.message);
+          setActiveStep('credentials');
+        } finally {
+          setLoading(false);
+        }
+      };
+      loadInsts();
+    }
+  }, [provider, activeStep]);
+
   const saveCredentials = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
