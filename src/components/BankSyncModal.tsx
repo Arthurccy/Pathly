@@ -48,6 +48,9 @@ export const BankSyncModal: React.FC<BankSyncModalProps> = ({ isOpen, onClose })
   const [bridgeAccounts, setBridgeAccounts] = useState<BridgeAccount[]>([]);
   const [accountMappings, setAccountMappings] = useState<Record<string, string>>({}); // bridgeAccountId -> pathlyAccountId or 'new'
 
+  const [gcInstitutions, setGcInstitutions] = useState<GoCardlessInstitution[]>([]);
+  const [selectedGcInst, setSelectedGcInst] = useState<string>('');
+
   useEffect(() => {
     if (!isOpen) return;
 
@@ -94,6 +97,8 @@ export const BankSyncModal: React.FC<BankSyncModalProps> = ({ isOpen, onClose })
           throw new Error('Veuillez remplir le Secret ID et la Secret Key de GoCardless.');
         }
         GoCardlessService.setCredentials(gcSecretId.trim(), gcSecretKey.trim());
+        const insts = await GoCardlessService.getInstitutions('FR');
+        setGcInstitutions(insts);
       }
       setActiveStep('select_bank');
       setStatusMessage('Identifiants API enregistrés avec succès !');
@@ -108,11 +113,19 @@ export const BankSyncModal: React.FC<BankSyncModalProps> = ({ isOpen, onClose })
     setLoading(true);
     setError(null);
     try {
+      const redirectUrl = `${window.location.origin}${window.location.pathname}`;
       if (provider === 'bridge') {
-        const redirectUrl = `${window.location.origin}${window.location.pathname}`;
         localStorage.setItem('pathly_pending_bridge', 'true');
         const connectUrl = await BridgeService.createConnectUrl(redirectUrl);
         window.location.href = connectUrl;
+      } else if (provider === 'gocardless') {
+        if (!selectedGcInst) {
+          throw new Error('Veuillez sélectionner une banque.');
+        }
+        localStorage.setItem('pathly_pending_gocardless', 'true');
+        const requisition = await GoCardlessService.createRequisition(selectedGcInst, redirectUrl);
+        localStorage.setItem('pathly_gocardless_req_id', requisition.id);
+        window.location.href = requisition.link;
       }
     } catch (err: any) {
       setError(err.message || 'Erreur lors de l\'initialisation de la connexion bancaire.');
@@ -135,6 +148,36 @@ export const BankSyncModal: React.FC<BankSyncModalProps> = ({ isOpen, onClose })
         });
         setAccountMappings(initialMapping);
         setActiveStep('link_accounts');
+      } else if (provider === 'gocardless' || localStorage.getItem('pathly_pending_gocardless') || new URLSearchParams(window.location.search).get('ref')) {
+        const params = new URLSearchParams(window.location.search);
+        let reqId = params.get('ref') || localStorage.getItem('pathly_gocardless_req_id');
+        if (!reqId) throw new Error('Session GoCardless introuvable.');
+
+        const requisition = await GoCardlessService.getRequisition(reqId);
+        const gcAccounts: BridgeAccount[] = [];
+        for (const accountId of requisition.accounts) {
+            const details = await GoCardlessService.getAccountDetails(accountId);
+            const balance = await GoCardlessService.getAccountBalances(accountId);
+            gcAccounts.push({
+                id: accountId,
+                name: details.name || details.iban || 'Compte Bancaire',
+                balance: balance,
+                currency_code: 'EUR',
+                type: 'checking',
+                status: 0,
+                updated_at: new Date().toISOString()
+            });
+        }
+        setBridgeAccounts(gcAccounts);
+        setProvider('gocardless');
+
+        const initialMapping: Record<string, string> = {};
+        gcAccounts.forEach(acc => {
+          const match = accounts.find(a => a.gocardlessAccountId === `gc_${acc.id}`);
+          initialMapping[acc.id] = match ? match.id : 'new';
+        });
+        setAccountMappings(initialMapping);
+        setActiveStep('link_accounts');
       }
     } catch (err: any) {
       setError(err.message || 'Impossible de récupérer la connexion bancaire.');
@@ -153,11 +196,16 @@ export const BankSyncModal: React.FC<BankSyncModalProps> = ({ isOpen, onClose })
     let syncedCount = 0;
 
     try {
-      const allTransactions = await BridgeService.listTransactions();
+      let allBridgeTransactions: any[] = [];
+      if (provider === 'bridge') {
+        allBridgeTransactions = await BridgeService.listTransactions();
+      }
 
       for (const bridgeAcc of bridgeAccounts) {
         const selectedOption = accountMappings[bridgeAcc.id];
         let targetAccountId = selectedOption;
+        const prefix = provider === 'bridge' ? 'bridge_' : 'gc_';
+        const gcAccId = `${prefix}${bridgeAcc.id}`;
 
         if (selectedOption === 'new') {
           const newAccName = bridgeAcc.name || 'Compte Bancaire Synchro';
@@ -169,8 +217,8 @@ export const BankSyncModal: React.FC<BankSyncModalProps> = ({ isOpen, onClose })
             color: '#3B82F6',
             isActive: true,
             order: accounts.length + 1,
-            bankName: 'Bridge Bankin\'',
-            gocardlessAccountId: `bridge_${bridgeAcc.id}`,
+            bankName: provider === 'bridge' ? 'Bridge Bankin\'' : 'GoCardless',
+            gocardlessAccountId: gcAccId,
             lastSyncedAt: new Date().toISOString(),
           };
           const created = await addAccount(newAccount);
@@ -181,7 +229,7 @@ export const BankSyncModal: React.FC<BankSyncModalProps> = ({ isOpen, onClose })
             await updateAccount({
               ...existing,
               balance: bridgeAcc.balance,
-              gocardlessAccountId: `bridge_${bridgeAcc.id}`,
+              gocardlessAccountId: gcAccId,
               lastSyncedAt: new Date().toISOString(),
             });
           }
@@ -189,24 +237,39 @@ export const BankSyncModal: React.FC<BankSyncModalProps> = ({ isOpen, onClose })
 
         // Sync transactions for this account
         if (targetAccountId) {
-          const accTxs = allTransactions.filter(t => t.account_id === bridgeAcc.id);
           const existingGcTxIds = new Set(
             transactions
               .filter(t => t.gocardlessTransactionId)
               .map(t => t.gocardlessTransactionId)
           );
 
-          for (const rawTx of accTxs) {
-            const normalized = BridgeService.normalizeTransaction(
-              rawTx,
-              targetAccountId,
-              accounts[0]?.userId || 'user',
-              categories
-            );
-
-            if (!existingGcTxIds.has(normalized.gocardlessTransactionId)) {
-              await addTransaction(normalized);
-              syncedCount++;
+          if (provider === 'bridge') {
+            const accTxs = allBridgeTransactions.filter(t => t.account_id === bridgeAcc.id);
+            for (const rawTx of accTxs) {
+              const normalized = BridgeService.normalizeTransaction(
+                rawTx,
+                targetAccountId,
+                accounts[0]?.userId || 'user',
+                categories
+              );
+              if (!existingGcTxIds.has(normalized.gocardlessTransactionId)) {
+                await addTransaction(normalized);
+                syncedCount++;
+              }
+            }
+          } else {
+            const accTxs = await GoCardlessService.getAccountTransactions(bridgeAcc.id);
+            for (const rawTx of accTxs) {
+              const normalized = GoCardlessService.normalizeTransaction(
+                rawTx,
+                targetAccountId,
+                accounts[0]?.userId || 'user',
+                categories
+              );
+              if (!existingGcTxIds.has(normalized.gocardlessTransactionId)) {
+                await addTransaction(normalized);
+                syncedCount++;
+              }
             }
           }
         }
@@ -508,6 +571,26 @@ export const BankSyncModal: React.FC<BankSyncModalProps> = ({ isOpen, onClose })
                 <p className="mt-1.5 max-w-md mx-auto text-xs leading-relaxed text-slate-600 dark:text-slate-400">
                   En cliquant sur le bouton ci-dessous, vous serez redirigé vers le portail sécurisé de votre banque pour valider l'accès à vos comptes et importer vos transactions dans Pathly.
                 </p>
+
+                {provider === 'gocardless' && (
+                  <div className="mt-4 text-left">
+                    <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                      Choisissez votre banque
+                    </label>
+                    <select
+                      value={selectedGcInst}
+                      onChange={e => setSelectedGcInst(e.target.value)}
+                      className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-sky-500 focus:outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-white"
+                    >
+                      <option value="">-- Sélectionnez une banque --</option>
+                      {gcInstitutions.map(inst => (
+                        <option key={inst.id} value={inst.id}>
+                          {inst.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
               </div>
 
               <div className="flex items-center justify-center gap-3">
