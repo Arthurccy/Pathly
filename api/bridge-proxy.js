@@ -25,7 +25,8 @@ export default async function handler(req, res) {
 
     const pathWithoutQuery = path.split('?')[0];
     const queryString = req.url.includes('?') ? req.url.substring(req.url.indexOf('?')) : '';
-    const targetUrl = `https://api.bridgeapi.io/v2/${pathWithoutQuery}${queryString}`;
+    const formattedPath = pathWithoutQuery.startsWith('/') ? pathWithoutQuery : '/' + pathWithoutQuery;
+    const targetUrl = `https://api.bridgeapi.io${formattedPath}${queryString}`;
 
     const headers = {
       'Content-Type': 'application/json',
@@ -36,6 +37,7 @@ export default async function handler(req, res) {
     if (req.headers['client-secret']) headers['Client-Secret'] = req.headers['client-secret'];
     headers['Bridge-Version'] = req.headers['bridge-version'] || '2025-01-15';
     if (req.headers['authorization']) headers['Authorization'] = req.headers['authorization'];
+    if (req.headers['user-uuid']) headers['User-Uuid'] = req.headers['user-uuid'];
 
     const fetchOptions = {
       method: req.method,

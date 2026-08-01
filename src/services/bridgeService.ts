@@ -1,9 +1,10 @@
 import { BankAccount, Category, Transaction } from '../types';
 
-const BRIDGE_BASE_URL = 'https://api.bridgeapi.io/v2';
+const BRIDGE_BASE_URL = 'https://api.bridgeapi.io';
 const BRIDGE_PROXY_URL = '/api/bridge-proxy';
 const STORAGE_KEY_CLIENT_ID = 'pathly_bridge_client_id';
 const STORAGE_KEY_CLIENT_SECRET = 'pathly_bridge_client_secret';
+const STORAGE_KEY_USER_UUID = 'pathly_bridge_user_uuid';
 
 export interface BridgeBank {
   id: number;
@@ -56,26 +57,32 @@ export class BridgeService {
     return Boolean(clientId && clientSecret);
   }
 
-  private static getHeaders(): Record<string, string> {
+  private static getHeaders(userUuid?: string): Record<string, string> {
     const { clientId, clientSecret } = this.getCredentials();
     if (!clientId || !clientSecret) {
       throw new Error('Veuillez d\'abord saisir votre Client ID et Client Secret Bridge (Bankin\').');
     }
 
-    return {
+    const headers: Record<string, string> = {
       'Client-Id': clientId,
       'Client-Secret': clientSecret,
       'Bridge-Version': '2025-01-15',
       'Content-Type': 'application/json',
       'Accept': 'application/json',
     };
+
+    if (userUuid) {
+      headers['User-Uuid'] = userUuid;
+    }
+
+    return headers;
   }
 
   private static async fetchWithFallback(endpoint: string, options: RequestInit = {}): Promise<Response> {
     // 1. Try Vercel Serverless Proxy endpoint (/api/bridge-proxy?path=...)
     try {
       const proxyPath = endpoint.startsWith('/') ? endpoint.substring(1) : endpoint;
-      const proxyUrl = `${BRIDGE_PROXY_URL}/${proxyPath}`;
+      const proxyUrl = `${BRIDGE_PROXY_URL}?path=${encodeURIComponent(proxyPath)}`;
       const response = await fetch(proxyUrl, options);
       if (response.status < 500) {
         return response;
@@ -99,9 +106,38 @@ export class BridgeService {
     return fetch(`${BRIDGE_BASE_URL}${endpoint}`, options);
   }
 
+  public static async getOrCreateUserUuid(): Promise<string> {
+    const cachedUuid = localStorage.getItem(STORAGE_KEY_USER_UUID);
+    if (cachedUuid) return cachedUuid;
+
+    const headers = this.getHeaders();
+    
+    // Bridge API v3 POST /users creates user and returns { uuid }
+    const response = await this.fetchWithFallback(`/v3/aggregation/users`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({}),
+    });
+
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({}));
+      throw new Error(err.message || `Impossible de créer l'utilisateur Bridge API v3 (${response.status})`);
+    }
+
+    const data = await response.json();
+    const userUuid = data.uuid || data.id;
+
+    if (!userUuid) {
+      throw new Error('UUID utilisateur Bridge non reçu.');
+    }
+
+    localStorage.setItem(STORAGE_KEY_USER_UUID, userUuid);
+    return userUuid;
+  }
+
   public static async listBanks(): Promise<BridgeBank[]> {
     const headers = this.getHeaders();
-    const response = await this.fetchWithFallback(`/banks?limit=100&country_code=FR`, { headers });
+    const response = await this.fetchWithFallback(`/v3/aggregation/banks?limit=100&country_code=FR`, { headers });
     
     if (!response.ok) {
       const err = await response.json().catch(() => ({}));
@@ -109,53 +145,38 @@ export class BridgeService {
     }
 
     const data = await response.json();
-    return data.resources || [];
+    return data.resources || data.data || [];
   }
 
   public static async createConnectUrl(redirectUrl: string): Promise<string> {
+    const userUuid = await this.getOrCreateUserUuid();
     const headers = this.getHeaders();
+    
     const payload = JSON.stringify({
+      user_uuid: userUuid,
       callback_url: redirectUrl,
-      redirect_url: redirectUrl,
     });
 
-    const candidateEndpoints = [
-      '/connect/sessions',
-      '/connect/url',
-      '/connect/items/add/url',
-      '/single-sign-on/url',
-    ];
+    const response = await this.fetchWithFallback(`/v3/aggregation/connect-sessions`, {
+      method: 'POST',
+      headers,
+      body: payload,
+    });
 
-    let lastError = '';
-
-    for (const endpoint of candidateEndpoints) {
-      try {
-        const response = await this.fetchWithFallback(endpoint, {
-          method: 'POST',
-          headers,
-          body: payload,
-        });
-
-        if (response.ok) {
-          const data = await response.json();
-          const url = data.redirect_url || data.url || data.link || data.connect_url;
-          if (url) return url;
-        } else if (response.status !== 404) {
-          const err = await response.json().catch(() => ({}));
-          lastError = err.message || err.description || `Erreur Bridge API (${response.status})`;
-        }
-      } catch (e: any) {
-        lastError = e.message || 'Erreur réseau';
-      }
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({}));
+      throw new Error(err.message || err.description || `Impossible de générer le lien de connexion bancaire Bridge (${response.status}). Vérifiez vos clés Sandbox.`);
     }
 
-    throw new Error(lastError || 'Impossible de générer le lien de connexion bancaire Bridge (Vérifiez les clés Sandbox).');
+    const data = await response.json();
+    return data.redirect_url || data.url || data.link || data.connect_url;
   }
 
   public static async listAccounts(): Promise<BridgeAccount[]> {
-    const headers = this.getHeaders();
+    const userUuid = await this.getOrCreateUserUuid();
+    const headers = this.getHeaders(userUuid);
 
-    const response = await this.fetchWithFallback(`/accounts`, { headers });
+    const response = await this.fetchWithFallback(`/v3/aggregation/accounts`, { headers });
     
     if (response.status === 404) {
       return [];
@@ -167,13 +188,14 @@ export class BridgeService {
     }
 
     const data = await response.json();
-    return data.resources || [];
+    return data.resources || data.data || [];
   }
 
   public static async listTransactions(): Promise<BridgeRawTransaction[]> {
-    const headers = this.getHeaders();
+    const userUuid = await this.getOrCreateUserUuid();
+    const headers = this.getHeaders(userUuid);
 
-    const response = await this.fetchWithFallback(`/transactions?limit=500`, { headers });
+    const response = await this.fetchWithFallback(`/v3/aggregation/transactions?limit=500`, { headers });
     
     if (response.status === 404) {
       return [];
@@ -185,7 +207,7 @@ export class BridgeService {
     }
 
     const data = await response.json();
-    return data.resources || [];
+    return data.resources || data.data || [];
   }
 
   public static autoCategorizeTransaction(
