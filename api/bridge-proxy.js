@@ -14,7 +14,7 @@ export default async function handler(req, res) {
   }
 
   try {
-    // Extract endpoint path from path parameter or URL query
+    // Extract endpoint path from query param or URL
     let path = req.query.path;
     if (Array.isArray(path)) {
       path = path.join('/');
@@ -23,10 +23,8 @@ export default async function handler(req, res) {
       path = match ? match[1] : '';
     }
 
-    // Strip out query string from path if present
     const pathWithoutQuery = path.split('?')[0];
     const queryString = req.url.includes('?') ? req.url.substring(req.url.indexOf('?')) : '';
-
     const targetUrl = `https://api.bridgeapi.io/v2/${pathWithoutQuery}${queryString}`;
 
     const headers = {
@@ -44,8 +42,14 @@ export default async function handler(req, res) {
       headers,
     };
 
-    if (['POST', 'PUT', 'PATCH'].includes(req.method) && req.body) {
-      fetchOptions.body = typeof req.body === 'string' ? req.body : JSON.stringify(req.body);
+    if (['POST', 'PUT', 'PATCH'].includes(req.method)) {
+      if (typeof req.body === 'string') {
+        fetchOptions.body = req.body;
+      } else if (req.body && Object.keys(req.body).length > 0) {
+        fetchOptions.body = JSON.stringify(req.body);
+      } else {
+        fetchOptions.body = '{}';
+      }
     }
 
     const response = await fetch(targetUrl, fetchOptions);

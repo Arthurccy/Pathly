@@ -120,46 +120,34 @@ export class BridgeService {
     return data.resources || [];
   }
 
-  public static async getOrCreateUserToken(email?: string): Promise<string> {
+  public static async getOrCreateUserToken(): Promise<string> {
     const cachedToken = localStorage.getItem(STORAGE_KEY_USER_TOKEN);
     if (cachedToken) return cachedToken;
 
-    const { clientId } = this.getCredentials();
-    const userEmail = email || `user_${clientId.replace(/[^a-zA-Z0-9]/g, '').substring(0, 12)}@pathly.app`;
     const headers = this.getHeaders();
     
-    // Create a new user for Bridge API
+    // Bridge API v2 POST /users creates user and returns { uuid, user_token }
     const response = await this.fetchWithFallback(`/users`, {
       method: 'POST',
       headers,
-      body: JSON.stringify({ email: userEmail }),
+      body: JSON.stringify({}),
     });
 
-    if (!response.ok && response.status !== 400 && response.status !== 409) {
+    if (!response.ok) {
       const err = await response.json().catch(() => ({}));
       throw new Error(err.message || `Impossible de créer l'utilisateur Bridge (${response.status})`);
     }
 
-    const data = await response.json().catch(() => ({}));
+    const data = await response.json();
     const userUuid = data.uuid;
-    
-    // Authenticate user to get user_token
-    const authResp = await this.fetchWithFallback(`/users/authenticate`, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify({ email: userEmail }),
-    });
+    const token = data.user_token || data.token;
 
-    if (!authResp.ok) {
-      const err = await authResp.json().catch(() => ({}));
-      throw new Error(err.message || `Impossible d'authentifier l'utilisateur Bridge (${authResp.status})`);
+    if (!token) {
+      throw new Error(data.message || 'Jeton utilisateur Bridge non reçu.');
     }
 
-    const authData = await authResp.json();
-    const token = authData.user_token;
-
     if (userUuid) localStorage.setItem(STORAGE_KEY_USER_UUID, userUuid);
-    if (token) localStorage.setItem(STORAGE_KEY_USER_TOKEN, token);
+    localStorage.setItem(STORAGE_KEY_USER_TOKEN, token);
 
     return token;
   }
