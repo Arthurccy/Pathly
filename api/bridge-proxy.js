@@ -34,7 +34,7 @@ export default async function handler(req, res) {
 
     if (req.headers['client-id']) headers['Client-Id'] = req.headers['client-id'];
     if (req.headers['client-secret']) headers['Client-Secret'] = req.headers['client-secret'];
-    if (req.headers['bridge-version']) headers['Bridge-Version'] = req.headers['bridge-version'];
+    headers['Bridge-Version'] = req.headers['bridge-version'] || '2025-01-15';
     if (req.headers['authorization']) headers['Authorization'] = req.headers['authorization'];
 
     const fetchOptions = {

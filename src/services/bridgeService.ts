@@ -67,7 +67,7 @@ export class BridgeService {
     const headers: Record<string, string> = {
       'Client-Id': clientId,
       'Client-Secret': clientSecret,
-      'Bridge-Version': '2021-06-01',
+      'Bridge-Version': '2025-01-15',
       'Content-Type': 'application/json',
       'Accept': 'application/json',
     };
