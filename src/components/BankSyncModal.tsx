@@ -69,9 +69,9 @@ export const BankSyncModal: React.FC<BankSyncModalProps> = ({ isOpen, onClose })
       setActiveStep('credentials');
     }
 
-    // Check if returning from OAuth callback
+    // Check if returning from OAuth callback in URL parameters
     const params = new URLSearchParams(window.location.search);
-    if (params.get('item_id') || params.get('requisition_id') || localStorage.getItem('pathly_pending_bridge')) {
+    if (params.get('item_id') || params.get('requisition_id') || params.get('client_reference')) {
       handleOAuthReturn();
     }
   }, [isOpen]);

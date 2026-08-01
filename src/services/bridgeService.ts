@@ -138,6 +138,10 @@ export class BridgeService {
 
     const response = await this.fetchWithFallback(`/accounts`, { headers });
     
+    if (response.status === 404) {
+      return [];
+    }
+
     if (!response.ok) {
       const err = await response.json().catch(() => ({}));
       throw new Error(err.message || err.description || `Impossible de récupérer les comptes Bridge (${response.status})`);
@@ -152,6 +156,10 @@ export class BridgeService {
 
     const response = await this.fetchWithFallback(`/transactions?limit=500`, { headers });
     
+    if (response.status === 404) {
+      return [];
+    }
+
     if (!response.ok) {
       const err = await response.json().catch(() => ({}));
       throw new Error(err.message || err.description || `Impossible de récupérer les transactions Bridge (${response.status})`);
