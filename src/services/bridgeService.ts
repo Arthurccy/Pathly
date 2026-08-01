@@ -1,6 +1,7 @@
 import { BankAccount, Category, Transaction } from '../types';
 
 const BRIDGE_BASE_URL = 'https://api.bridgeapi.io/v2';
+const BRIDGE_PROXY_URL = '/api/bridge-proxy';
 const STORAGE_KEY_CLIENT_ID = 'pathly_bridge_client_id';
 const STORAGE_KEY_CLIENT_SECRET = 'pathly_bridge_client_secret';
 const STORAGE_KEY_USER_UUID = 'pathly_bridge_user_uuid';
@@ -78,9 +79,35 @@ export class BridgeService {
     return headers;
   }
 
+  private static async fetchWithFallback(endpoint: string, options: RequestInit = {}): Promise<Response> {
+    // 1. Try Vercel / Vite proxy endpoint (/api/bridge-proxy/...)
+    try {
+      const response = await fetch(`${BRIDGE_PROXY_URL}${endpoint}`, options);
+      if (response.status !== 404) {
+        return response;
+      }
+    } catch (e) {
+      // Ignore proxy error and fall through
+    }
+
+    // 2. Try CORS proxy fallback
+    try {
+      const corsUrl = `https://corsproxy.io/?${encodeURIComponent(`${BRIDGE_BASE_URL}${endpoint}`)}`;
+      const response = await fetch(corsUrl, options);
+      if (response.ok || response.status === 400 || response.status === 401 || response.status === 403) {
+        return response;
+      }
+    } catch (e) {
+      // Ignore CORS proxy error and fall through
+    }
+
+    // 3. Fallback to direct URL
+    return fetch(`${BRIDGE_BASE_URL}${endpoint}`, options);
+  }
+
   public static async listBanks(): Promise<BridgeBank[]> {
     const headers = this.getHeaders();
-    const response = await fetch(`${BRIDGE_BASE_URL}/banks?limit=100&country_code=FR`, { headers });
+    const response = await this.fetchWithFallback(`/banks?limit=100&country_code=FR`, { headers });
     
     if (!response.ok) {
       const err = await response.json().catch(() => ({}));
@@ -98,7 +125,7 @@ export class BridgeService {
     const headers = this.getHeaders();
     
     // Create a new user for Bridge API
-    const response = await fetch(`${BRIDGE_BASE_URL}/users`, {
+    const response = await this.fetchWithFallback(`/users`, {
       method: 'POST',
       headers,
       body: JSON.stringify({ email }),
@@ -106,14 +133,17 @@ export class BridgeService {
 
     if (!response.ok) {
       const err = await response.json().catch(() => ({}));
-      throw new Error(err.message || `Impossible de créer l'utilisateur Bridge (${response.status})`);
+      // If user already exists, attempt authentication directly
+      if (response.status !== 400 && response.status !== 409) {
+        throw new Error(err.message || `Impossible de créer l'utilisateur Bridge (${response.status})`);
+      }
     }
 
-    const data = await response.json();
+    const data = await response.json().catch(() => ({}));
     const userUuid = data.uuid;
     
     // Authenticate user to get user_token
-    const authResp = await fetch(`${BRIDGE_BASE_URL}/users/authenticate`, {
+    const authResp = await this.fetchWithFallback(`/users/authenticate`, {
       method: 'POST',
       headers,
       body: JSON.stringify({ email }),
@@ -137,7 +167,7 @@ export class BridgeService {
     const userToken = await this.getOrCreateUserToken();
     const headers = this.getHeaders(userToken);
 
-    const response = await fetch(`${BRIDGE_BASE_URL}/connect/items/add/url`, {
+    const response = await this.fetchWithFallback(`/connect/items/add/url`, {
       method: 'POST',
       headers,
       body: JSON.stringify({
@@ -158,7 +188,7 @@ export class BridgeService {
     const userToken = await this.getOrCreateUserToken();
     const headers = this.getHeaders(userToken);
 
-    const response = await fetch(`${BRIDGE_BASE_URL}/accounts`, { headers });
+    const response = await this.fetchWithFallback(`/accounts`, { headers });
     
     if (!response.ok) {
       const err = await response.json().catch(() => ({}));
@@ -173,7 +203,7 @@ export class BridgeService {
     const userToken = await this.getOrCreateUserToken();
     const headers = this.getHeaders(userToken);
 
-    const response = await fetch(`${BRIDGE_BASE_URL}/transactions?limit=500`, { headers });
+    const response = await this.fetchWithFallback(`/transactions?limit=500`, { headers });
     
     if (!response.ok) {
       const err = await response.json().catch(() => ({}));

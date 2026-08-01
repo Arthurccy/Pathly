@@ -4,6 +4,14 @@
   "framework": "vite",
   "rewrites": [
     {
+      "source": "/api/bridge-proxy/:path*",
+      "destination": "https://api.bridgeapi.io/v2/:path*"
+    },
+    {
+      "source": "/api/gocardless-proxy/:path*",
+      "destination": "https://bankaccountdata.gocardless.com/api/v2/:path*"
+    },
+    {
       "source": "/(.*)",
       "destination": "/index.html"
     }
