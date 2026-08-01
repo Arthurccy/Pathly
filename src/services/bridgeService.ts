@@ -114,23 +114,42 @@ export class BridgeService {
 
   public static async createConnectUrl(redirectUrl: string): Promise<string> {
     const headers = this.getHeaders();
-
-    const response = await this.fetchWithFallback(`/connect/items/add/url`, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify({
-        callback_url: redirectUrl,
-        redirect_url: redirectUrl,
-      }),
+    const payload = JSON.stringify({
+      callback_url: redirectUrl,
+      redirect_url: redirectUrl,
     });
 
-    if (!response.ok) {
-      const err = await response.json().catch(() => ({}));
-      throw new Error(err.message || err.description || `Erreur de création du lien de connexion Bridge (${response.status})`);
+    const candidateEndpoints = [
+      '/connect/sessions',
+      '/connect/url',
+      '/connect/items/add/url',
+      '/single-sign-on/url',
+    ];
+
+    let lastError = '';
+
+    for (const endpoint of candidateEndpoints) {
+      try {
+        const response = await this.fetchWithFallback(endpoint, {
+          method: 'POST',
+          headers,
+          body: payload,
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          const url = data.redirect_url || data.url || data.link || data.connect_url;
+          if (url) return url;
+        } else if (response.status !== 404) {
+          const err = await response.json().catch(() => ({}));
+          lastError = err.message || err.description || `Erreur Bridge API (${response.status})`;
+        }
+      } catch (e: any) {
+        lastError = e.message || 'Erreur réseau';
+      }
     }
 
-    const data = await response.json();
-    return data.redirect_url || data.url || data.link;
+    throw new Error(lastError || 'Impossible de générer le lien de connexion bancaire Bridge (Vérifiez les clés Sandbox).');
   }
 
   public static async listAccounts(): Promise<BridgeAccount[]> {
