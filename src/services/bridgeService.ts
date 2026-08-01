@@ -173,6 +173,7 @@ export class BridgeService {
     const headers = this.getHeaders(accessToken);
     
     const payload = JSON.stringify({
+      user_email: 'user@pathly.app',
       callback_url: redirectUrl,
     });
 
