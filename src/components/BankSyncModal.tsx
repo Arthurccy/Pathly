@@ -87,8 +87,8 @@ export const BankSyncModal: React.FC<BankSyncModalProps> = ({ isOpen, onClose })
           throw new Error('Veuillez remplir le Client ID et le Client Secret de Bridge (Bankin\').');
         }
         BridgeService.setCredentials(bridgeClientId.trim(), bridgeClientSecret.trim());
-        // Verify credentials by attempting to get a token or list banks
-        await BridgeService.getOrCreateUserToken();
+        // Verify credentials by attempting to list banks
+        await BridgeService.listBanks();
       } else {
         if (!gcSecretId.trim() || !gcSecretKey.trim()) {
           throw new Error('Veuillez remplir le Secret ID et la Secret Key de GoCardless.');

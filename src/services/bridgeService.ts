@@ -4,8 +4,6 @@ const BRIDGE_BASE_URL = 'https://api.bridgeapi.io/v2';
 const BRIDGE_PROXY_URL = '/api/bridge-proxy';
 const STORAGE_KEY_CLIENT_ID = 'pathly_bridge_client_id';
 const STORAGE_KEY_CLIENT_SECRET = 'pathly_bridge_client_secret';
-const STORAGE_KEY_USER_UUID = 'pathly_bridge_user_uuid';
-const STORAGE_KEY_USER_TOKEN = 'pathly_bridge_user_token';
 
 export interface BridgeBank {
   id: number;
@@ -58,25 +56,19 @@ export class BridgeService {
     return Boolean(clientId && clientSecret);
   }
 
-  private static getHeaders(userToken?: string): Record<string, string> {
+  private static getHeaders(): Record<string, string> {
     const { clientId, clientSecret } = this.getCredentials();
     if (!clientId || !clientSecret) {
       throw new Error('Veuillez d\'abord saisir votre Client ID et Client Secret Bridge (Bankin\').');
     }
 
-    const headers: Record<string, string> = {
+    return {
       'Client-Id': clientId,
       'Client-Secret': clientSecret,
       'Bridge-Version': '2025-01-15',
       'Content-Type': 'application/json',
       'Accept': 'application/json',
     };
-
-    if (userToken) {
-      headers['Authorization'] = `Bearer ${userToken}`;
-    }
-
-    return headers;
   }
 
   private static async fetchWithFallback(endpoint: string, options: RequestInit = {}): Promise<Response> {
@@ -113,75 +105,42 @@ export class BridgeService {
     
     if (!response.ok) {
       const err = await response.json().catch(() => ({}));
-      throw new Error(err.message || `Erreur lors de la récupération des banques Bridge (${response.status})`);
+      throw new Error(err.message || err.description || `Erreur lors de la récupération des banques Bridge (${response.status})`);
     }
 
     const data = await response.json();
     return data.resources || [];
   }
 
-  public static async getOrCreateUserToken(): Promise<string> {
-    const cachedToken = localStorage.getItem(STORAGE_KEY_USER_TOKEN);
-    if (cachedToken) return cachedToken;
-
-    const headers = this.getHeaders();
-    
-    // Bridge API v2 POST /users creates user and returns { uuid, user_token }
-    const response = await this.fetchWithFallback(`/users`, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify({}),
-    });
-
-    if (!response.ok) {
-      const err = await response.json().catch(() => ({}));
-      throw new Error(err.message || `Impossible de créer l'utilisateur Bridge (${response.status})`);
-    }
-
-    const data = await response.json();
-    const userUuid = data.uuid;
-    const token = data.user_token || data.token;
-
-    if (!token) {
-      throw new Error(data.message || 'Jeton utilisateur Bridge non reçu.');
-    }
-
-    if (userUuid) localStorage.setItem(STORAGE_KEY_USER_UUID, userUuid);
-    localStorage.setItem(STORAGE_KEY_USER_TOKEN, token);
-
-    return token;
-  }
-
   public static async createConnectUrl(redirectUrl: string): Promise<string> {
-    const userToken = await this.getOrCreateUserToken();
-    const headers = this.getHeaders(userToken);
+    const headers = this.getHeaders();
 
     const response = await this.fetchWithFallback(`/connect/items/add/url`, {
       method: 'POST',
       headers,
       body: JSON.stringify({
         callback_url: redirectUrl,
+        redirect_url: redirectUrl,
       }),
     });
 
     if (!response.ok) {
       const err = await response.json().catch(() => ({}));
-      throw new Error(err.message || `Erreur de création du lien de connexion Bridge (${response.status})`);
+      throw new Error(err.message || err.description || `Erreur de création du lien de connexion Bridge (${response.status})`);
     }
 
     const data = await response.json();
-    return data.redirect_url;
+    return data.redirect_url || data.url || data.link;
   }
 
   public static async listAccounts(): Promise<BridgeAccount[]> {
-    const userToken = await this.getOrCreateUserToken();
-    const headers = this.getHeaders(userToken);
+    const headers = this.getHeaders();
 
     const response = await this.fetchWithFallback(`/accounts`, { headers });
     
     if (!response.ok) {
       const err = await response.json().catch(() => ({}));
-      throw new Error(err.message || `Impossible de récupérer les comptes Bridge (${response.status})`);
+      throw new Error(err.message || err.description || `Impossible de récupérer les comptes Bridge (${response.status})`);
     }
 
     const data = await response.json();
@@ -189,14 +148,13 @@ export class BridgeService {
   }
 
   public static async listTransactions(): Promise<BridgeRawTransaction[]> {
-    const userToken = await this.getOrCreateUserToken();
-    const headers = this.getHeaders(userToken);
+    const headers = this.getHeaders();
 
     const response = await this.fetchWithFallback(`/transactions?limit=500`, { headers });
     
     if (!response.ok) {
       const err = await response.json().catch(() => ({}));
-      throw new Error(err.message || `Impossible de récupérer les transactions Bridge (${response.status})`);
+      throw new Error(err.message || err.description || `Impossible de récupérer les transactions Bridge (${response.status})`);
     }
 
     const data = await response.json();
