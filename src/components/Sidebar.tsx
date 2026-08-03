@@ -51,7 +51,8 @@ const groups = [
     items: [
       { id: 'import-csv', label: 'Import CSV', icon: Upload },
       { id: 'rules', label: 'Règles auto', icon: SlidersHorizontal },
-      { id: 'wealth-simulator', label: 'Simulateur', icon: BarChart3 },
+      { id: 'budget-simulator', label: 'Simul. Budget', icon: Target },
+      { id: 'wealth-simulator', label: 'Simul. Patrimoine', icon: BarChart3 },
       { id: 'categories', label: 'Catégories', icon: SlidersHorizontal },
       { id: 'export', label: 'Export', icon: FileText },
       { id: 'settings', label: 'Paramètres', icon: Settings },

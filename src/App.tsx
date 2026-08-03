@@ -13,6 +13,7 @@ import CategoryManager from './components/CategoryManager';
 import AccountManager from './components/AccountManager';
 import DebtManager from './components/DebtManager';
 import WealthSimulator from './components/WealthSimulator';
+import BudgetSimulator from './components/BudgetSimulator';
 import AdvancedAnalytics from './components/AdvancedAnalytics';
 import AdvancedSavingsGoals from './components/AdvancedSavingsGoals';
 import ExportManager from './components/ExportManager';
@@ -91,6 +92,8 @@ const AppContent: React.FC = () => {
         return <DebtManager />;
       case 'wealth-simulator':
         return <WealthSimulator />;
+      case 'budget-simulator':
+        return <BudgetSimulator />;
       case 'analytics':
         return <AdvancedAnalytics />;
       case 'goals':
