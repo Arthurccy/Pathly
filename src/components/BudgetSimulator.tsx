@@ -6,7 +6,7 @@ interface SimulatedEvent {
   id: string;
   date: string;
   type: 'income' | 'fixed' | 'debts' | 'budgets';
-  newValue: number;
+  newValue: string;
 }
 
 const BudgetSimulator: React.FC = () => {
@@ -57,7 +57,7 @@ const BudgetSimulator: React.FC = () => {
       id: Date.now().toString(),
       date: new Date().toISOString().substring(0, 7),
       type: 'income',
-      newValue: 0
+      newValue: ''
     }]);
   };
   
@@ -97,10 +97,11 @@ const BudgetSimulator: React.FC = () => {
       
       events.forEach(e => {
         if (e.date <= projMonth) {
-          if (e.type === 'income') monthIncome = e.newValue;
-          if (e.type === 'fixed') monthFixed = e.newValue;
-          if (e.type === 'debts') monthDebts = e.newValue;
-          if (e.type === 'budgets') monthBudgets = e.newValue;
+          const val = parseFloat(e.newValue) || 0;
+          if (e.type === 'income') monthIncome = val;
+          if (e.type === 'fixed') monthFixed = val;
+          if (e.type === 'debts') monthDebts = val;
+          if (e.type === 'budgets') monthBudgets = val;
         }
       });
       
@@ -252,36 +253,40 @@ const BudgetSimulator: React.FC = () => {
 
           <div className="space-y-3">
             {events.map(event => (
-              <div key={event.id} className="flex items-center gap-3 bg-gray-50 dark:bg-gray-900/50 p-3 rounded-lg border border-gray-100 dark:border-gray-700">
-                <input 
-                  type="month" 
-                  value={event.date}
-                  onChange={e => updateEvent(event.id, { date: e.target.value })}
-                  className="px-2 py-1.5 border border-gray-300 dark:border-gray-600 rounded-md text-sm bg-white dark:bg-gray-700 dark:text-white"
-                />
-                <select 
-                  value={event.type}
-                  onChange={e => updateEvent(event.id, { type: e.target.value as any })}
-                  className="px-2 py-1.5 border border-gray-300 dark:border-gray-600 rounded-md text-sm bg-white dark:bg-gray-700 dark:text-white"
-                >
-                  <option value="income">Revenus</option>
-                  <option value="fixed">Charges fixes</option>
-                  <option value="debts">Dettes</option>
-                  <option value="budgets">Budgets</option>
-                </select>
-                <div className="relative flex-1">
+              <div key={event.id} className="flex flex-col sm:flex-row items-center gap-3 bg-gray-50 dark:bg-gray-900/50 p-3 rounded-lg border border-gray-100 dark:border-gray-700">
+                <div className="flex w-full sm:w-auto gap-3">
                   <input 
-                    type="number"
-                    value={event.newValue}
-                    onChange={e => updateEvent(event.id, { newValue: parseFloat(e.target.value) || 0 })}
-                    className="w-full pl-2 pr-7 py-1.5 border border-gray-300 dark:border-gray-600 rounded-md text-sm bg-white dark:bg-gray-700 dark:text-white"
-                    placeholder="Nouveau montant..."
+                    type="month" 
+                    value={event.date}
+                    onChange={e => updateEvent(event.id, { date: e.target.value })}
+                    className="flex-1 sm:w-auto px-2 py-1.5 border border-gray-300 dark:border-gray-600 rounded-md text-sm bg-white dark:bg-gray-700 dark:text-white"
                   />
-                  <Euro className="absolute right-2 top-2 h-4 w-4 text-gray-400" />
+                  <select 
+                    value={event.type}
+                    onChange={e => updateEvent(event.id, { type: e.target.value as any })}
+                    className="flex-1 sm:w-auto px-2 py-1.5 border border-gray-300 dark:border-gray-600 rounded-md text-sm bg-white dark:bg-gray-700 dark:text-white"
+                  >
+                    <option value="income">Revenus</option>
+                    <option value="fixed">Charges fixes</option>
+                    <option value="debts">Dettes</option>
+                    <option value="budgets">Budgets</option>
+                  </select>
                 </div>
-                <button onClick={() => removeEvent(event.id)} className="text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 p-1.5 rounded-md">
-                  <Trash2 className="h-4 w-4" />
-                </button>
+                <div className="relative w-full sm:flex-1 flex gap-2 items-center">
+                  <div className="relative flex-1">
+                    <input 
+                      type="number"
+                      value={event.newValue}
+                      onChange={e => updateEvent(event.id, { newValue: e.target.value })}
+                      className="w-full pl-2 pr-7 py-1.5 border border-gray-300 dark:border-gray-600 rounded-md text-sm bg-white dark:bg-gray-700 dark:text-white"
+                      placeholder="Nouveau montant..."
+                    />
+                    <Euro className="absolute right-2 top-2 h-4 w-4 text-gray-400" />
+                  </div>
+                  <button onClick={() => removeEvent(event.id)} className="text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 p-1.5 rounded-md shrink-0">
+                    <Trash2 className="h-5 w-5 sm:h-4 sm:w-4" />
+                  </button>
+                </div>
               </div>
             ))}
             {events.length === 0 && (
