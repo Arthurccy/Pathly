@@ -1,9 +1,16 @@
 import React, { useState, useMemo } from 'react';
-import { Target, TrendingUp, AlertTriangle, Gauge, CheckCircle2, ChevronRight, Calculator, Plus, Minus, Euro } from 'lucide-react';
+import { Target, TrendingUp, AlertTriangle, Gauge, CheckCircle2, ChevronRight, Calculator, Plus, Minus, Euro, Info, Trash2, CalendarClock } from 'lucide-react';
 import { useBudget } from '../contexts/BudgetContext';
 
+interface SimulatedEvent {
+  id: string;
+  date: string;
+  type: 'income' | 'fixed' | 'debts' | 'budgets';
+  newValue: number;
+}
+
 const BudgetSimulator: React.FC = () => {
-  const { getCashFlowProjection, accounts } = useBudget();
+  const { getCashFlowProjection, accounts, debts, budgets, categories, transactions } = useBudget();
   
   // Calculate initial savings balance
   const initialSavingsBalance = useMemo(() => {
@@ -36,6 +43,37 @@ const BudgetSimulator: React.FC = () => {
   const currentBudgets = parseFloat(simBudgets) || 0;
   const currentSavings = baselineSavings; // Keep savings static for simple simulation
 
+  const [events, setEvents] = useState<SimulatedEvent[]>(() => {
+    const saved = localStorage.getItem('pathly_simulated_events');
+    return saved ? JSON.parse(saved) : [];
+  });
+
+  React.useEffect(() => {
+    localStorage.setItem('pathly_simulated_events', JSON.stringify(events));
+  }, [events]);
+
+  const addEvent = () => {
+    setEvents([...events, {
+      id: Date.now().toString(),
+      date: new Date().toISOString().substring(0, 7),
+      type: 'income',
+      newValue: 0
+    }]);
+  };
+  
+  const updateEvent = (id: string, updates: Partial<SimulatedEvent>) => {
+    setEvents(events.map(e => e.id === id ? { ...e, ...updates } : e));
+  };
+  
+  const removeEvent = (id: string) => {
+    setEvents(events.filter(e => e.id !== id));
+  };
+
+  const getDebtsTooltip = () => debts.filter(d => d.isActive && d.remainingAmount > 0).map(d => `${d.name}: ${d.minimumPayment}€`).join('\n') || 'Aucune dette active';
+  const getBudgetsTooltip = () => budgets.filter(b => b.isActive).map(b => `${categories.find(c => c.id === b.categoryId)?.name || 'Budget'}: ${b.amount}€`).join('\n') || 'Aucun budget actif';
+  const getIncomeTooltip = () => transactions.filter(t => t.isRecurring && t.type === 'income').map(t => `${t.description}: ${t.amount}€`).join('\n') || 'Moyenne sur 6 mois';
+  const getFixedTooltip = () => transactions.filter(t => t.isRecurring && (t.type === 'expense' || t.type === 'bill')).map(t => `${t.description}: ${t.amount}€`).join('\n') || 'Moyenne sur 6 mois';
+
   const totalExpenses = currentFixed + currentDebts + currentSavings + currentBudgets;
   const surplus = currentIncome - totalExpenses;
   const marginPercent = currentIncome > 0 ? (surplus / currentIncome) * 100 : 0;
@@ -43,18 +81,43 @@ const BudgetSimulator: React.FC = () => {
   // Calculate true projections using actual scheduled transactions
   const { trueProjection1Year, trueProjection5Years } = useMemo(() => {
     const projections = getCashFlowProjection(60);
-    return {
-      trueProjection1Year: projections[11]?.projectedTotalBalance || 0,
-      trueProjection5Years: projections[59]?.projectedTotalBalance || 0
-    };
-  }, [getCashFlowProjection]);
+    if (projections.length === 0) return { trueProjection1Year: 0, trueProjection5Years: 0 };
+    
+    let cumulativeDelta = 0;
+    let trueProj1Y = 0;
+    let trueProj5Y = 0;
+    
+    projections.forEach((proj, i) => {
+      const projMonth = proj.date.toISOString().substring(0, 7);
+      
+      let monthIncome = currentIncome;
+      let monthFixed = currentFixed;
+      let monthDebts = currentDebts;
+      let monthBudgets = currentBudgets;
+      
+      events.forEach(e => {
+        if (e.date <= projMonth) {
+          if (e.type === 'income') monthIncome = e.newValue;
+          if (e.type === 'fixed') monthFixed = e.newValue;
+          if (e.type === 'debts') monthDebts = e.newValue;
+          if (e.type === 'budgets') monthBudgets = e.newValue;
+        }
+      });
+      
+      const monthSurplus = monthIncome - (monthFixed + monthDebts + monthBudgets + baselineSavings);
+      const baselineSurplus = baselineIncome - (baselineFixed + baselineDebts + baselineSavings + baselineBudgets);
+      
+      cumulativeDelta += (monthSurplus - baselineSurplus);
+      
+      if (i === 11) trueProj1Y = proj.projectedTotalBalance + cumulativeDelta;
+      if (i === 59) trueProj5Y = proj.projectedTotalBalance + cumulativeDelta;
+    });
 
-  // Add the user's simulated tweaks (delta surplus) to the true projections
-  const baselineSurplus = baselineIncome - (baselineFixed + baselineDebts + baselineSavings + baselineBudgets);
-  const deltaSurplus = surplus - baselineSurplus;
-  
-  const projectedSavings1Year = trueProjection1Year + (deltaSurplus * 12);
-  const projectedSavings5Years = trueProjection5Years + (deltaSurplus * 60);
+    return {
+      trueProjection1Year: trueProj1Y || projections[11]?.projectedTotalBalance || 0,
+      trueProjection5Years: trueProj5Y || projections[59]?.projectedTotalBalance || 0
+    };
+  }, [getCashFlowProjection, currentIncome, currentFixed, currentDebts, currentBudgets, baselineIncome, baselineFixed, baselineDebts, baselineBudgets, baselineSavings, events]);
 
   const getStatus = (balance: number) => {
     if (balance < 0) return { label: 'Déficit', Icon: AlertTriangle, color: 'text-red-600 dark:text-red-400', bg: 'bg-red-50 dark:bg-red-950/30' };
@@ -89,7 +152,9 @@ const BudgetSimulator: React.FC = () => {
           
           <div className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Revenus nets mensuels (€)</label>
+              <label className="flex items-center gap-1.5 text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Revenus nets mensuels (€) <Info className="h-4 w-4 text-gray-400 cursor-help" title={getIncomeTooltip()} />
+              </label>
               <div className="relative">
                 <input 
                   type="number" 
@@ -107,7 +172,9 @@ const BudgetSimulator: React.FC = () => {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Charges fixes (Loyer, Assurances...) (€)</label>
+              <label className="flex items-center gap-1.5 text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Charges fixes (Loyer, Assurances...) (€) <Info className="h-4 w-4 text-gray-400 cursor-help" title={getFixedTooltip()} />
+              </label>
               <div className="relative">
                 <input 
                   type="number" 
@@ -125,7 +192,9 @@ const BudgetSimulator: React.FC = () => {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Remboursements de Dettes (€)</label>
+              <label className="flex items-center gap-1.5 text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Remboursements de Dettes (€) <Info className="h-4 w-4 text-gray-400 cursor-help" title={getDebtsTooltip()} />
+              </label>
               <div className="relative">
                 <input 
                   type="number" 
@@ -138,7 +207,9 @@ const BudgetSimulator: React.FC = () => {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Budgets de vie (Courses, Loisirs...) (€)</label>
+              <label className="flex items-center gap-1.5 text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Budgets de vie (Courses, Loisirs...) (€) <Info className="h-4 w-4 text-gray-400 cursor-help" title={getBudgetsTooltip()} />
+              </label>
               <div className="relative">
                 <input 
                   type="number" 
@@ -161,6 +232,63 @@ const BudgetSimulator: React.FC = () => {
             >
               Réinitialiser avec mes vraies moyennes
             </button>
+          </div>
+        </div>
+
+        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6 flex flex-col justify-between">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+              <CalendarClock className="h-5 w-5 text-indigo-500" />
+              Événements futurs
+            </h2>
+            <button onClick={addEvent} className="text-sm font-medium text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 px-3 py-1.5 rounded-lg flex items-center gap-1">
+              <Plus className="h-4 w-4" /> Ajouter
+            </button>
+          </div>
+          
+          <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
+            Définissez vos changements de vie pour ajuster dynamiquement les prévisions à long terme.
+          </p>
+
+          <div className="space-y-3">
+            {events.map(event => (
+              <div key={event.id} className="flex items-center gap-3 bg-gray-50 dark:bg-gray-900/50 p-3 rounded-lg border border-gray-100 dark:border-gray-700">
+                <input 
+                  type="month" 
+                  value={event.date}
+                  onChange={e => updateEvent(event.id, { date: e.target.value })}
+                  className="px-2 py-1.5 border border-gray-300 dark:border-gray-600 rounded-md text-sm bg-white dark:bg-gray-700 dark:text-white"
+                />
+                <select 
+                  value={event.type}
+                  onChange={e => updateEvent(event.id, { type: e.target.value as any })}
+                  className="px-2 py-1.5 border border-gray-300 dark:border-gray-600 rounded-md text-sm bg-white dark:bg-gray-700 dark:text-white"
+                >
+                  <option value="income">Revenus</option>
+                  <option value="fixed">Charges fixes</option>
+                  <option value="debts">Dettes</option>
+                  <option value="budgets">Budgets</option>
+                </select>
+                <div className="relative flex-1">
+                  <input 
+                    type="number"
+                    value={event.newValue}
+                    onChange={e => updateEvent(event.id, { newValue: parseFloat(e.target.value) || 0 })}
+                    className="w-full pl-2 pr-7 py-1.5 border border-gray-300 dark:border-gray-600 rounded-md text-sm bg-white dark:bg-gray-700 dark:text-white"
+                    placeholder="Nouveau montant..."
+                  />
+                  <Euro className="absolute right-2 top-2 h-4 w-4 text-gray-400" />
+                </div>
+                <button onClick={() => removeEvent(event.id)} className="text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 p-1.5 rounded-md">
+                  <Trash2 className="h-4 w-4" />
+                </button>
+              </div>
+            ))}
+            {events.length === 0 && (
+              <div className="text-center py-6 border-2 border-dashed border-gray-200 dark:border-gray-700 rounded-lg text-sm text-gray-500">
+                Aucun événement futur programmé.
+              </div>
+            )}
           </div>
         </div>
 
@@ -226,11 +354,11 @@ const BudgetSimulator: React.FC = () => {
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <p className="text-xs text-gray-500 dark:text-gray-400">Dans 1 an</p>
-                <p className="text-lg font-bold text-blue-600 dark:text-blue-400">{projectedSavings1Year.toLocaleString('fr-FR', { maximumFractionDigits: 0 })} €</p>
+                <p className="text-lg font-bold text-blue-600 dark:text-blue-400">{trueProjection1Year.toLocaleString('fr-FR', { maximumFractionDigits: 0 })} €</p>
               </div>
               <div>
                 <p className="text-xs text-gray-500 dark:text-gray-400">Dans 5 ans</p>
-                <p className="text-lg font-bold text-blue-600 dark:text-blue-400">{projectedSavings5Years.toLocaleString('fr-FR', { maximumFractionDigits: 0 })} €</p>
+                <p className="text-lg font-bold text-blue-600 dark:text-blue-400">{trueProjection5Years.toLocaleString('fr-FR', { maximumFractionDigits: 0 })} €</p>
               </div>
             </div>
             <p className="text-xs text-gray-500 mt-3 italic">
