@@ -2,6 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { TrendingUp, Calculator, Target, DollarSign, Percent, Calendar } from 'lucide-react';
 import { Line } from 'react-chartjs-2';
 import { useBudget } from '../contexts/BudgetContext';
+import { useAuth } from '../contexts/AuthContext';
 
 interface SimulationScenario {
   id: string;
@@ -17,22 +18,39 @@ interface SimulationScenario {
 
 const WealthSimulator: React.FC = () => {
   const { accounts, savingsGoals } = useBudget();
+  const { user } = useAuth();
   
-  const [scenarios, setScenarios] = useState<SimulationScenario[]>([
-    {
-      id: 'scenario-1',
-      name: 'Scénario conservateur',
-      currentWealth: accounts.reduce((sum, acc) => sum + acc.balance, 0),
-      monthlyContribution: 500,
-      years: 30,
-      returnRate: 4,
-      inflationRate: 2,
-      taxRate: 30,
-      withdrawalRate: 4,
+  const storageKey = `pathly_wealth_scenarios_${user?.id || 'guest'}`;
+
+  const defaultScenario: SimulationScenario = {
+    id: 'scenario-1',
+    name: 'Scénario conservateur',
+    currentWealth: accounts.reduce((sum, acc) => sum + acc.balance, 0),
+    monthlyContribution: 500,
+    years: 30,
+    returnRate: 4,
+    inflationRate: 2,
+    taxRate: 30,
+    withdrawalRate: 4,
+  };
+
+  const [scenarios, setScenarios] = useState<SimulationScenario[]>(() => {
+    const saved = localStorage.getItem(storageKey);
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch (e) {
+        console.error('Failed to parse scenarios', e);
+      }
     }
-  ]);
+    return [defaultScenario];
+  });
   
-  const [activeScenario, setActiveScenario] = useState(scenarios[0]);
+  React.useEffect(() => {
+    localStorage.setItem(storageKey, JSON.stringify(scenarios));
+  }, [scenarios, storageKey]);
+
+  const [activeScenario, setActiveScenario] = useState<SimulationScenario>(scenarios[0]);
   const [showForm, setShowForm] = useState(false);
   
   const [formData, setFormData] = useState({
