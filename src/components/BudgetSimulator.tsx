@@ -81,13 +81,12 @@ const BudgetSimulator: React.FC = () => {
   const marginPercent = currentIncome > 0 ? (surplus / currentIncome) * 100 : 0;
   
   // Calculate true projections using actual scheduled transactions
-  const { trueProjection1Year, trueProjection5Years } = useMemo(() => {
+  const yearlyProjections = useMemo(() => {
     const projections = getCashFlowProjection(60);
-    if (projections.length === 0) return { trueProjection1Year: 0, trueProjection5Years: 0 };
-    
+    if (projections.length === 0) return Array(5).fill(0);
+
     let cumulativeDelta = 0;
-    let trueProj1Y = 0;
-    let trueProj5Y = 0;
+    const trueProjections = Array(5).fill(0);
     
     projections.forEach((proj, i) => {
       const projMonth = proj.date.toISOString().substring(0, 7);
@@ -116,11 +115,14 @@ const BudgetSimulator: React.FC = () => {
       
       cumulativeDelta += (monthPatrimonySurplus - baselinePatrimonySurplus);
       
-      if (i === 11) trueProj1Y = proj.projectedTotalBalance + cumulativeDelta;
-      if (i === 59) trueProj5Y = proj.projectedTotalBalance + cumulativeDelta;
+      if (i === 11) trueProjections[0] = proj.projectedTotalBalance + cumulativeDelta;
+      if (i === 23) trueProjections[1] = proj.projectedTotalBalance + cumulativeDelta;
+      if (i === 35) trueProjections[2] = proj.projectedTotalBalance + cumulativeDelta;
+      if (i === 47) trueProjections[3] = proj.projectedTotalBalance + cumulativeDelta;
+      if (i === 59) trueProjections[4] = proj.projectedTotalBalance + cumulativeDelta;
     });
 
-    return { trueProjection1Year: trueProj1Y, trueProjection5Years: trueProj5Y };
+    return trueProjections;
   }, [getCashFlowProjection, currentIncome, currentFixed, currentDebts, currentBudgets, currentSavings, baselineIncome, baselineFixed, baselineDebts, baselineBudgets, baselineSavings, events]);
 
   const getStatus = (balance: number) => {
@@ -376,16 +378,14 @@ const BudgetSimulator: React.FC = () => {
           
           <div className="mt-4 p-4 border border-gray-100 dark:border-gray-700 rounded-lg bg-gray-50 dark:bg-gray-800/50">
             <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-3">Prévision du Patrimoine (avec vos transactions planifiées)</h3>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <p className="text-xs text-gray-500 dark:text-gray-400">Dans 1 an</p>
-                <p className="text-lg font-bold text-blue-600 dark:text-blue-400">{trueProjection1Year.toLocaleString('fr-FR', { maximumFractionDigits: 0 })} €</p>
+              <div className="grid grid-cols-2 sm:grid-cols-5 gap-4">
+                {[1, 2, 3, 4, 5].map((year, idx) => (
+                  <div key={year} className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-xl border border-blue-100 dark:border-blue-800">
+                    <p className="text-sm font-medium text-blue-800 dark:text-blue-300 mb-1">Dans {year} an{year > 1 ? 's' : ''}</p>
+                    <p className="text-lg font-bold text-blue-600 dark:text-blue-400">{yearlyProjections[idx].toLocaleString('fr-FR', { maximumFractionDigits: 0 })} €</p>
+                  </div>
+                ))}
               </div>
-              <div>
-                <p className="text-xs text-gray-500 dark:text-gray-400">Dans 5 ans</p>
-                <p className="text-lg font-bold text-blue-600 dark:text-blue-400">{trueProjection5Years.toLocaleString('fr-FR', { maximumFractionDigits: 0 })} €</p>
-              </div>
-            </div>
             <p className="text-xs text-gray-500 mt-3 italic">
               * Inclut la réalité de vos comptes (épargne + courant) et intègre vos futures transactions planifiées.
             </p>
