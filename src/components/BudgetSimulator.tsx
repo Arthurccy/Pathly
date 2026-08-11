@@ -74,6 +74,7 @@ const BudgetSimulator: React.FC = () => {
   const getBudgetsTooltip = () => budgets.filter(b => b.isActive).map(b => `${categories.find(c => c.id === b.categoryId)?.name || 'Budget'}: ${b.amount}€`).join('\n') || 'Aucun budget actif';
   const getIncomeTooltip = () => transactions.filter(t => t.isRecurring && t.type === 'income').map(t => `${t.description}: ${t.amount}€`).join('\n') || 'Moyenne sur 6 mois';
   const getFixedTooltip = () => transactions.filter(t => t.isRecurring && (t.type === 'expense' || t.type === 'bill')).map(t => `${t.description}: ${t.amount}€`).join('\n') || 'Moyenne sur 6 mois';
+  const getSavingsTooltip = () => transactions.filter(t => t.isRecurring && t.type === 'transfer' && !t.isExcludedFromReports).map(t => `${t.description}: ${t.amount}€`).join('\n') || 'Moyenne sur 6 mois';
 
   const totalExpenses = currentFixed + currentDebts + currentSavings + currentBudgets;
   const surplus = currentIncome - totalExpenses;
@@ -224,12 +225,7 @@ const BudgetSimulator: React.FC = () => {
             
             <div>
               <label className="flex items-center gap-1.5 text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Épargne mensuelle (€)
-                {renderTooltip(
-                  "Épargne", 
-                  "Virements vers vos comptes d'épargne planifiés", 
-                  getProjectedRecurringTransactions(6).filter(t => t.type === 'transfer' && !t.isExcludedFromReports)
-                )}
+                Épargne mensuelle (€) <Info className="h-4 w-4 text-gray-400 cursor-help" title={getSavingsTooltip()} />
               </label>
               <div className="relative">
                 <input
