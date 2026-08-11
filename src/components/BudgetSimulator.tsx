@@ -5,7 +5,7 @@ import { useBudget } from '../contexts/BudgetContext';
 interface SimulatedEvent {
   id: string;
   date: string;
-  type: 'income' | 'fixed' | 'debts' | 'budgets';
+  type: 'income' | 'fixed' | 'debts' | 'budgets' | 'savings';
   newValue: string;
 }
 
@@ -36,12 +36,13 @@ const BudgetSimulator: React.FC = () => {
   const [simFixed, setSimFixed] = useState(baselineFixed.toString());
   const [simDebts, setSimDebts] = useState(baselineDebts.toString());
   const [simBudgets, setSimBudgets] = useState(baselineBudgets.toString());
+  const [simSavings, setSimSavings] = useState(baselineSavings.toString());
   
   const currentIncome = parseFloat(simIncome) || 0;
   const currentFixed = parseFloat(simFixed) || 0;
   const currentDebts = parseFloat(simDebts) || 0;
   const currentBudgets = parseFloat(simBudgets) || 0;
-  const currentSavings = baselineSavings; // Keep savings static for simple simulation
+  const currentSavings = parseFloat(simSavings) || 0;
 
   const [events, setEvents] = useState<SimulatedEvent[]>(() => {
     const saved = localStorage.getItem('pathly_simulated_events');
@@ -94,6 +95,7 @@ const BudgetSimulator: React.FC = () => {
       let monthFixed = currentFixed;
       let monthDebts = currentDebts;
       let monthBudgets = currentBudgets;
+      let monthSavings = currentSavings;
       
       events.forEach(e => {
         if (e.date <= projMonth) {
@@ -102,10 +104,11 @@ const BudgetSimulator: React.FC = () => {
           if (e.type === 'fixed') monthFixed = val;
           if (e.type === 'debts') monthDebts = val;
           if (e.type === 'budgets') monthBudgets = val;
+          if (e.type === 'savings') monthSavings = val;
         }
       });
       
-      const monthSurplus = monthIncome - (monthFixed + monthDebts + monthBudgets + baselineSavings);
+      const monthSurplus = monthIncome - (monthFixed + monthDebts + monthBudgets + monthSavings);
       const baselineSurplus = baselineIncome - (baselineFixed + baselineDebts + baselineSavings + baselineBudgets);
       
       cumulativeDelta += (monthSurplus - baselineSurplus);
@@ -114,11 +117,8 @@ const BudgetSimulator: React.FC = () => {
       if (i === 59) trueProj5Y = proj.projectedTotalBalance + cumulativeDelta;
     });
 
-    return {
-      trueProjection1Year: trueProj1Y || projections[11]?.projectedTotalBalance || 0,
-      trueProjection5Years: trueProj5Y || projections[59]?.projectedTotalBalance || 0
-    };
-  }, [getCashFlowProjection, currentIncome, currentFixed, currentDebts, currentBudgets, baselineIncome, baselineFixed, baselineDebts, baselineBudgets, baselineSavings, events]);
+    return { trueProjection1Year: trueProj1Y, trueProjection5Years: trueProj5Y };
+  }, [getCashFlowProjection, currentIncome, currentFixed, currentDebts, currentBudgets, currentSavings, baselineIncome, baselineFixed, baselineDebts, baselineBudgets, baselineSavings, events]);
 
   const getStatus = (balance: number) => {
     if (balance < 0) return { label: 'Déficit', Icon: AlertTriangle, color: 'text-red-600 dark:text-red-400', bg: 'bg-red-50 dark:bg-red-950/30' };
@@ -222,12 +222,33 @@ const BudgetSimulator: React.FC = () => {
               </div>
             </div>
             
+            <div>
+              <label className="flex items-center gap-1.5 text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Épargne mensuelle (€)
+                {renderTooltip(
+                  "Épargne", 
+                  "Virements vers vos comptes d'épargne planifiés", 
+                  getProjectedRecurringTransactions(6).filter(t => t.type === 'transfer' && !t.isExcludedFromReports)
+                )}
+              </label>
+              <div className="relative">
+                <input
+                  type="number"
+                  value={simSavings}
+                  onChange={(e) => setSimSavings(e.target.value)}
+                  className="w-full pl-3 pr-10 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-indigo-500 dark:bg-gray-700 dark:text-white"
+                />
+                <Euro className="absolute right-3 top-2.5 h-5 w-5 text-gray-400" />
+              </div>
+            </div>
+            
             <button
               onClick={() => {
                 setSimIncome(baselineIncome.toString());
                 setSimFixed(baselineFixed.toString());
                 setSimDebts(baselineDebts.toString());
                 setSimBudgets(baselineBudgets.toString());
+                setSimSavings(baselineSavings.toString());
               }}
               className="text-sm text-indigo-600 dark:text-indigo-400 font-medium hover:underline"
             >
@@ -270,6 +291,7 @@ const BudgetSimulator: React.FC = () => {
                     <option value="fixed">Charges fixes</option>
                     <option value="debts">Dettes</option>
                     <option value="budgets">Budgets</option>
+                    <option value="savings">Épargne</option>
                   </select>
                 </div>
                 <div className="flex gap-2 items-center">
