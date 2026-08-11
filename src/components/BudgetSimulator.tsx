@@ -253,18 +253,18 @@ const BudgetSimulator: React.FC = () => {
 
           <div className="space-y-3">
             {events.map(event => (
-              <div key={event.id} className="flex flex-col sm:flex-row items-center gap-3 bg-gray-50 dark:bg-gray-900/50 p-3 rounded-lg border border-gray-100 dark:border-gray-700">
-                <div className="flex w-full sm:w-auto gap-3">
+              <div key={event.id} className="flex flex-col gap-3 bg-gray-50 dark:bg-gray-900/50 p-3 rounded-lg border border-gray-100 dark:border-gray-700">
+                <div className="flex gap-3">
                   <input 
                     type="month" 
                     value={event.date}
                     onChange={e => updateEvent(event.id, { date: e.target.value })}
-                    className="flex-1 sm:w-auto px-2 py-1.5 border border-gray-300 dark:border-gray-600 rounded-md text-sm bg-white dark:bg-gray-700 dark:text-white"
+                    className="flex-1 px-2 py-1.5 border border-gray-300 dark:border-gray-600 rounded-md text-sm bg-white dark:bg-gray-700 dark:text-white"
                   />
                   <select 
                     value={event.type}
                     onChange={e => updateEvent(event.id, { type: e.target.value as any })}
-                    className="flex-1 sm:w-auto px-2 py-1.5 border border-gray-300 dark:border-gray-600 rounded-md text-sm bg-white dark:bg-gray-700 dark:text-white"
+                    className="flex-1 px-2 py-1.5 border border-gray-300 dark:border-gray-600 rounded-md text-sm bg-white dark:bg-gray-700 dark:text-white"
                   >
                     <option value="income">Revenus</option>
                     <option value="fixed">Charges fixes</option>
@@ -272,19 +272,19 @@ const BudgetSimulator: React.FC = () => {
                     <option value="budgets">Budgets</option>
                   </select>
                 </div>
-                <div className="relative w-full sm:flex-1 flex gap-2 items-center">
+                <div className="flex gap-2 items-center">
                   <div className="relative flex-1">
                     <input 
                       type="number"
                       value={event.newValue}
                       onChange={e => updateEvent(event.id, { newValue: e.target.value })}
-                      className="w-full pl-2 pr-7 py-1.5 border border-gray-300 dark:border-gray-600 rounded-md text-sm bg-white dark:bg-gray-700 dark:text-white"
+                      className="w-full pl-3 pr-8 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm bg-white dark:bg-gray-700 dark:text-white focus:ring-2 focus:ring-indigo-500"
                       placeholder="Nouveau montant..."
                     />
-                    <Euro className="absolute right-2 top-2 h-4 w-4 text-gray-400" />
+                    <Euro className="absolute right-3 top-2.5 h-4 w-4 text-gray-400" />
                   </div>
-                  <button onClick={() => removeEvent(event.id)} className="text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 p-1.5 rounded-md shrink-0">
-                    <Trash2 className="h-5 w-5 sm:h-4 sm:w-4" />
+                  <button onClick={() => removeEvent(event.id)} className="text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 p-2 rounded-md shrink-0 transition-colors">
+                    <Trash2 className="h-5 w-5" />
                   </button>
                 </div>
               </div>
