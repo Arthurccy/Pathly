@@ -3,7 +3,12 @@ import { Target, TrendingUp, AlertTriangle, Gauge, CheckCircle2, ChevronRight, C
 import { useBudget } from '../contexts/BudgetContext';
 
 const BudgetSimulator: React.FC = () => {
-  const { getCashFlowProjection } = useBudget();
+  const { getCashFlowProjection, accounts } = useBudget();
+  
+  // Calculate initial savings balance
+  const initialSavingsBalance = useMemo(() => {
+    return accounts?.filter(a => a.type === 'savings').reduce((sum, a) => sum + a.balance, 0) || 0;
+  }, [accounts]);
   
   // Calculate baselines based on 6 months projection
   const { baselineIncome, baselineFixed, baselineDebts, baselineSavings, baselineBudgets } = useMemo(() => {
@@ -34,6 +39,10 @@ const BudgetSimulator: React.FC = () => {
   const totalExpenses = currentFixed + currentDebts + currentSavings + currentBudgets;
   const surplus = currentIncome - totalExpenses;
   const marginPercent = currentIncome > 0 ? (surplus / currentIncome) * 100 : 0;
+  
+  const monthlySavingsCapacity = currentSavings + (surplus > 0 ? surplus : 0);
+  const projectedSavings1Year = initialSavingsBalance + (monthlySavingsCapacity * 12);
+  const projectedSavings5Years = initialSavingsBalance + (monthlySavingsCapacity * 12 * 5);
 
   const getStatus = (balance: number) => {
     if (balance < 0) return { label: 'Déficit', Icon: AlertTriangle, color: 'text-red-600 dark:text-red-400', bg: 'bg-red-50 dark:bg-red-950/30' };
@@ -199,6 +208,20 @@ const BudgetSimulator: React.FC = () => {
               ⚠️ Attention, cette simulation génère un déficit de <strong>{Math.abs(surplus * 12).toLocaleString('fr-FR')} €</strong> par an. Vous devrez piocher dans vos réserves ou réduire vos budgets de vie.
             </div>
           )}
+          
+          <div className="mt-4 p-4 border border-gray-100 dark:border-gray-700 rounded-lg bg-gray-50 dark:bg-gray-800/50">
+            <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-3">Prévision d'Épargne Totale</h3>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <p className="text-xs text-gray-500 dark:text-gray-400">Dans 1 an</p>
+                <p className="text-lg font-bold text-blue-600 dark:text-blue-400">{projectedSavings1Year.toLocaleString('fr-FR')} €</p>
+              </div>
+              <div>
+                <p className="text-xs text-gray-500 dark:text-gray-400">Dans 5 ans</p>
+                <p className="text-lg font-bold text-blue-600 dark:text-blue-400">{projectedSavings5Years.toLocaleString('fr-FR')} €</p>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </div>
