@@ -40,9 +40,21 @@ const BudgetSimulator: React.FC = () => {
   const surplus = currentIncome - totalExpenses;
   const marginPercent = currentIncome > 0 ? (surplus / currentIncome) * 100 : 0;
   
-  const monthlySavingsCapacity = currentSavings + (surplus > 0 ? surplus : 0);
-  const projectedSavings1Year = initialSavingsBalance + (monthlySavingsCapacity * 12);
-  const projectedSavings5Years = initialSavingsBalance + (monthlySavingsCapacity * 12 * 5);
+  // Calculate true projections using actual scheduled transactions
+  const { trueProjection1Year, trueProjection5Years } = useMemo(() => {
+    const projections = getCashFlowProjection(60);
+    return {
+      trueProjection1Year: projections[11]?.projectedTotalBalance || 0,
+      trueProjection5Years: projections[59]?.projectedTotalBalance || 0
+    };
+  }, [getCashFlowProjection]);
+
+  // Add the user's simulated tweaks (delta surplus) to the true projections
+  const baselineSurplus = baselineIncome - (baselineFixed + baselineDebts + baselineSavings + baselineBudgets);
+  const deltaSurplus = surplus - baselineSurplus;
+  
+  const projectedSavings1Year = trueProjection1Year + (deltaSurplus * 12);
+  const projectedSavings5Years = trueProjection5Years + (deltaSurplus * 60);
 
   const getStatus = (balance: number) => {
     if (balance < 0) return { label: 'Déficit', Icon: AlertTriangle, color: 'text-red-600 dark:text-red-400', bg: 'bg-red-50 dark:bg-red-950/30' };
@@ -210,17 +222,20 @@ const BudgetSimulator: React.FC = () => {
           )}
           
           <div className="mt-4 p-4 border border-gray-100 dark:border-gray-700 rounded-lg bg-gray-50 dark:bg-gray-800/50">
-            <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-3">Prévision d'Épargne Totale</h3>
+            <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-3">Prévision du Patrimoine (avec vos transactions planifiées)</h3>
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <p className="text-xs text-gray-500 dark:text-gray-400">Dans 1 an</p>
-                <p className="text-lg font-bold text-blue-600 dark:text-blue-400">{projectedSavings1Year.toLocaleString('fr-FR')} €</p>
+                <p className="text-lg font-bold text-blue-600 dark:text-blue-400">{projectedSavings1Year.toLocaleString('fr-FR', { maximumFractionDigits: 0 })} €</p>
               </div>
               <div>
                 <p className="text-xs text-gray-500 dark:text-gray-400">Dans 5 ans</p>
-                <p className="text-lg font-bold text-blue-600 dark:text-blue-400">{projectedSavings5Years.toLocaleString('fr-FR')} €</p>
+                <p className="text-lg font-bold text-blue-600 dark:text-blue-400">{projectedSavings5Years.toLocaleString('fr-FR', { maximumFractionDigits: 0 })} €</p>
               </div>
             </div>
+            <p className="text-xs text-gray-500 mt-3 italic">
+              * Inclut la réalité de vos comptes (épargne + courant) et intègre vos futures transactions planifiées.
+            </p>
           </div>
         </div>
       </div>
