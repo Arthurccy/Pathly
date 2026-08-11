@@ -109,10 +109,12 @@ const BudgetSimulator: React.FC = () => {
         }
       });
       
-      const monthSurplus = monthIncome - (monthFixed + monthDebts + monthBudgets + monthSavings);
-      const baselineSurplus = baselineIncome - (baselineFixed + baselineDebts + baselineSavings + baselineBudgets);
+      // Calculate the true delta on PATRIMONY (Checking + Savings).
+      // Savings is an internal transfer, so it doesn't reduce total patrimony.
+      const monthPatrimonySurplus = monthIncome - (monthFixed + monthDebts + monthBudgets);
+      const baselinePatrimonySurplus = baselineIncome - (baselineFixed + baselineDebts + baselineBudgets);
       
-      cumulativeDelta += (monthSurplus - baselineSurplus);
+      cumulativeDelta += (monthPatrimonySurplus - baselinePatrimonySurplus);
       
       if (i === 11) trueProj1Y = proj.projectedTotalBalance + cumulativeDelta;
       if (i === 59) trueProj5Y = proj.projectedTotalBalance + cumulativeDelta;
