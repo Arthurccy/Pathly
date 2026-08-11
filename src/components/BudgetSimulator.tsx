@@ -378,11 +378,12 @@ const BudgetSimulator: React.FC = () => {
           
           <div className="mt-4 p-4 border border-gray-100 dark:border-gray-700 rounded-lg bg-gray-50 dark:bg-gray-800/50">
             <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-3">Prévision du Patrimoine (avec vos transactions planifiées)</h3>
-              <div className="grid grid-cols-2 sm:grid-cols-5 gap-4">
+              <div className="flex overflow-x-auto pb-4 pt-2 -mx-2 px-2 gap-3 snap-x snap-mandatory sm:grid sm:grid-cols-5 sm:overflow-visible sm:pb-0 sm:pt-0 sm:mx-0 sm:px-0 sm:snap-none hide-scrollbar">
                 {[1, 2, 3, 4, 5].map((year, idx) => (
-                  <div key={year} className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-xl border border-blue-100 dark:border-blue-800">
-                    <p className="text-sm font-medium text-blue-800 dark:text-blue-300 mb-1">Dans {year} an{year > 1 ? 's' : ''}</p>
-                    <p className="text-lg font-bold text-blue-600 dark:text-blue-400">{yearlyProjections[idx].toLocaleString('fr-FR', { maximumFractionDigits: 0 })} €</p>
+                  <div key={year} className="snap-center shrink-0 w-[140px] sm:w-auto bg-gradient-to-br from-white to-blue-50/50 dark:from-gray-800 dark:to-blue-900/20 p-4 rounded-xl border border-blue-100 dark:border-blue-800/50 shadow-sm hover:shadow-md transition-shadow flex flex-col items-center justify-center text-center relative overflow-hidden">
+                    <div className="absolute top-0 right-0 w-16 h-16 bg-blue-500/5 dark:bg-blue-400/5 rounded-bl-full"></div>
+                    <p className="text-xs font-semibold text-blue-800/70 dark:text-blue-300/70 uppercase tracking-wider mb-2">Dans {year} an{year > 1 ? 's' : ''}</p>
+                    <p className="text-xl font-bold text-blue-600 dark:text-blue-400">{yearlyProjections[idx].toLocaleString('fr-FR', { maximumFractionDigits: 0 })} €</p>
                   </div>
                 ))}
               </div>
