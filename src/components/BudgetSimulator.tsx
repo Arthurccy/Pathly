@@ -97,14 +97,36 @@ const BudgetSimulator: React.FC = () => {
       let monthBudgets = currentBudgets;
       let monthSavings = currentSavings;
       
+      const parseEventValue = (input: string, currentValue: number): number => {
+        const trimmed = (input || '').trim();
+        if (!trimmed) return currentValue; // Ignore empty values, don't reset to 0
+        
+        if (trimmed.endsWith('%')) {
+          const percent = parseFloat(trimmed.slice(0, -1));
+          if (!isNaN(percent)) {
+            if (trimmed.startsWith('+') || trimmed.startsWith('-')) {
+              return currentValue * (1 + percent / 100);
+            }
+            return currentValue * (percent / 100);
+          }
+        }
+        
+        if (trimmed.startsWith('+') || trimmed.startsWith('-')) {
+          const val = parseFloat(trimmed);
+          if (!isNaN(val)) return currentValue + val;
+        }
+        
+        const absoluteVal = parseFloat(trimmed);
+        return isNaN(absoluteVal) ? currentValue : absoluteVal;
+      };
+      
       events.forEach(e => {
         if (e.date <= projMonth) {
-          const val = parseFloat(e.newValue) || 0;
-          if (e.type === 'income') monthIncome = val;
-          if (e.type === 'fixed') monthFixed = val;
-          if (e.type === 'debts') monthDebts = val;
-          if (e.type === 'budgets') monthBudgets = val;
-          if (e.type === 'savings') monthSavings = val;
+          if (e.type === 'income') monthIncome = parseEventValue(e.newValue, monthIncome);
+          if (e.type === 'fixed') monthFixed = parseEventValue(e.newValue, monthFixed);
+          if (e.type === 'debts') monthDebts = parseEventValue(e.newValue, monthDebts);
+          if (e.type === 'budgets') monthBudgets = parseEventValue(e.newValue, monthBudgets);
+          if (e.type === 'savings') monthSavings = parseEventValue(e.newValue, monthSavings);
         }
       });
       
@@ -297,11 +319,11 @@ const BudgetSimulator: React.FC = () => {
                 <div className="flex gap-2 items-center">
                   <div className="relative flex-1">
                     <input 
-                      type="number"
+                      type="text"
                       value={event.newValue}
                       onChange={e => updateEvent(event.id, { newValue: e.target.value })}
                       className="w-full pl-3 pr-8 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm bg-white dark:bg-gray-700 dark:text-white focus:ring-2 focus:ring-indigo-500"
-                      placeholder="Nouveau montant..."
+                      placeholder="ex: 2500, +10%, -50..."
                     />
                     <Euro className="absolute right-3 top-2.5 h-4 w-4 text-gray-400" />
                   </div>
