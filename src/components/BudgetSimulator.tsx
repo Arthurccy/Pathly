@@ -82,46 +82,46 @@ const BudgetSimulator: React.FC = () => {
   
   // Calculate true projections using actual scheduled transactions
   const yearlyProjections = useMemo(() => {
-    const projections = getCashFlowProjection(60);
-    if (projections.length === 0) return Array(5).fill(0);
+    const projections = getCashFlowProjection(180); // 15 years
+    if (projections.length === 0) return [];
 
     let cumulativeDelta = 0;
-    const trueProjections = Array(5).fill(0);
+    const trueProjections: any[] = [];
+    
+    let monthIncome = currentIncome;
+    let monthFixed = currentFixed;
+    let monthDebts = currentDebts;
+    let monthBudgets = currentBudgets;
+    let monthSavings = currentSavings;
+      
+    const parseEventValue = (input: string, currentValue: number): number => {
+      const trimmed = (input || '').trim();
+      if (!trimmed) return currentValue; 
+      
+      if (trimmed.endsWith('%')) {
+        const percent = parseFloat(trimmed.slice(0, -1));
+        if (!isNaN(percent)) {
+          if (trimmed.startsWith('+') || trimmed.startsWith('-')) {
+            return currentValue * (1 + percent / 100);
+          }
+          return currentValue * (percent / 100);
+        }
+      }
+      
+      if (trimmed.startsWith('+') || trimmed.startsWith('-')) {
+        const val = parseFloat(trimmed);
+        if (!isNaN(val)) return currentValue + val;
+      }
+      
+      const absoluteVal = parseFloat(trimmed);
+      return isNaN(absoluteVal) ? currentValue : absoluteVal;
+    };
     
     projections.forEach((proj, i) => {
       const projMonth = proj.date.toISOString().substring(0, 7);
       
-      let monthIncome = currentIncome;
-      let monthFixed = currentFixed;
-      let monthDebts = currentDebts;
-      let monthBudgets = currentBudgets;
-      let monthSavings = currentSavings;
-      
-      const parseEventValue = (input: string, currentValue: number): number => {
-        const trimmed = (input || '').trim();
-        if (!trimmed) return currentValue; // Ignore empty values, don't reset to 0
-        
-        if (trimmed.endsWith('%')) {
-          const percent = parseFloat(trimmed.slice(0, -1));
-          if (!isNaN(percent)) {
-            if (trimmed.startsWith('+') || trimmed.startsWith('-')) {
-              return currentValue * (1 + percent / 100);
-            }
-            return currentValue * (percent / 100);
-          }
-        }
-        
-        if (trimmed.startsWith('+') || trimmed.startsWith('-')) {
-          const val = parseFloat(trimmed);
-          if (!isNaN(val)) return currentValue + val;
-        }
-        
-        const absoluteVal = parseFloat(trimmed);
-        return isNaN(absoluteVal) ? currentValue : absoluteVal;
-      };
-      
       events.forEach(e => {
-        if (e.date <= projMonth) {
+        if (e.date === projMonth) { // Only trigger on exact month match to prevent re-applying
           if (e.type === 'income') monthIncome = parseEventValue(e.newValue, monthIncome);
           if (e.type === 'fixed') monthFixed = parseEventValue(e.newValue, monthFixed);
           if (e.type === 'debts') monthDebts = parseEventValue(e.newValue, monthDebts);
@@ -130,18 +130,21 @@ const BudgetSimulator: React.FC = () => {
         }
       });
       
-      // Calculate the true delta on PATRIMONY (Checking + Savings).
-      // Savings is an internal transfer, so it doesn't reduce total patrimony.
       const monthPatrimonySurplus = monthIncome - (monthFixed + monthDebts + monthBudgets);
       const baselinePatrimonySurplus = baselineIncome - (baselineFixed + baselineDebts + baselineBudgets);
       
       cumulativeDelta += (monthPatrimonySurplus - baselinePatrimonySurplus);
       
-      if (i === 11) trueProjections[0] = proj.projectedTotalBalance + cumulativeDelta;
-      if (i === 23) trueProjections[1] = proj.projectedTotalBalance + cumulativeDelta;
-      if (i === 35) trueProjections[2] = proj.projectedTotalBalance + cumulativeDelta;
-      if (i === 47) trueProjections[3] = proj.projectedTotalBalance + cumulativeDelta;
-      if (i === 59) trueProjections[4] = proj.projectedTotalBalance + cumulativeDelta;
+      if ((i + 1) % 12 === 0) {
+        trueProjections.push({
+          yearOffset: (i + 1) / 12,
+          date: proj.date,
+          patrimony: proj.projectedTotalBalance + cumulativeDelta,
+          income: monthIncome,
+          expenses: monthFixed + monthDebts + monthBudgets,
+          savings: monthSavings
+        });
+      }
     });
 
     return trueProjections;
@@ -401,11 +404,11 @@ const BudgetSimulator: React.FC = () => {
           <div className="mt-4 p-4 border border-gray-100 dark:border-gray-700 rounded-lg bg-gray-50 dark:bg-gray-800/50">
             <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-3">Prévision du Patrimoine (avec vos transactions planifiées)</h3>
               <div className="flex overflow-x-auto pb-4 pt-2 -mx-2 px-2 gap-3 snap-x snap-mandatory sm:grid sm:grid-cols-5 sm:overflow-visible sm:pb-0 sm:pt-0 sm:mx-0 sm:px-0 sm:snap-none hide-scrollbar">
-                {[1, 2, 3, 4, 5].map((year, idx) => (
-                  <div key={year} className="snap-center shrink-0 w-[140px] sm:w-auto bg-gradient-to-br from-white to-blue-50/50 dark:from-gray-800 dark:to-blue-900/20 p-4 rounded-xl border border-blue-100 dark:border-blue-800/50 shadow-sm hover:shadow-md transition-shadow flex flex-col items-center justify-center text-center relative overflow-hidden">
+                {yearlyProjections.slice(0, 5).map((proj: any) => (
+                  <div key={proj.yearOffset} className="snap-center shrink-0 w-[140px] sm:w-auto bg-gradient-to-br from-white to-blue-50/50 dark:from-gray-800 dark:to-blue-900/20 p-4 rounded-xl border border-blue-100 dark:border-blue-800/50 shadow-sm hover:shadow-md transition-shadow flex flex-col items-center justify-center text-center relative overflow-hidden">
                     <div className="absolute top-0 right-0 w-16 h-16 bg-blue-500/5 dark:bg-blue-400/5 rounded-bl-full"></div>
-                    <p className="text-xs font-semibold text-blue-800/70 dark:text-blue-300/70 uppercase tracking-wider mb-2">Dans {year} an{year > 1 ? 's' : ''}</p>
-                    <p className="text-xl font-bold text-blue-600 dark:text-blue-400">{yearlyProjections[idx].toLocaleString('fr-FR', { maximumFractionDigits: 0 })} €</p>
+                    <p className="text-xs font-semibold text-blue-800/70 dark:text-blue-300/70 uppercase tracking-wider mb-2">Dans {proj.yearOffset} an{proj.yearOffset > 1 ? 's' : ''}</p>
+                    <p className="text-xl font-bold text-blue-600 dark:text-blue-400">{proj.patrimony.toLocaleString('fr-FR', { maximumFractionDigits: 0 })} €</p>
                   </div>
                 ))}
               </div>
@@ -413,6 +416,43 @@ const BudgetSimulator: React.FC = () => {
               * Inclut la réalité de vos comptes (épargne + courant) et intègre vos futures transactions planifiées.
             </p>
           </div>
+          
+          {yearlyProjections.length > 5 && (
+            <div className="mt-6 p-4 border border-gray-100 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800">
+              <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
+                <CalendarClock className="h-5 w-5 text-indigo-500" />
+                Évolution Détaillée (15 ans)
+              </h3>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm text-left">
+                  <thead className="text-xs text-gray-500 dark:text-gray-400 uppercase bg-gray-50 dark:bg-gray-900/50 border-b border-gray-200 dark:border-gray-700">
+                    <tr>
+                      <th className="px-4 py-3 font-medium">Année</th>
+                      <th className="px-4 py-3 font-medium">Revenus (Mensuel)</th>
+                      <th className="px-4 py-3 font-medium">Dépenses (Mensuel)</th>
+                      <th className="px-4 py-3 font-medium">Épargne (Mensuel)</th>
+                      <th className="px-4 py-3 font-medium text-right text-indigo-600 dark:text-indigo-400">Patrimoine Estimé</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
+                    {yearlyProjections.map((proj: any) => (
+                      <tr key={proj.yearOffset} className="hover:bg-gray-50 dark:hover:bg-gray-750 transition-colors">
+                        <td className="px-4 py-3 font-medium text-gray-900 dark:text-gray-100">
+                          {proj.date.getFullYear()} <span className="text-xs text-gray-400 font-normal ml-1">(+{proj.yearOffset} an{proj.yearOffset > 1 ? 's' : ''})</span>
+                        </td>
+                        <td className="px-4 py-3 text-green-600 dark:text-green-400 font-medium">+{proj.income.toLocaleString('fr-FR', { maximumFractionDigits: 0 })} €</td>
+                        <td className="px-4 py-3 text-red-500 dark:text-red-400 font-medium">-{proj.expenses.toLocaleString('fr-FR', { maximumFractionDigits: 0 })} €</td>
+                        <td className="px-4 py-3 text-blue-500 dark:text-blue-400">{proj.savings.toLocaleString('fr-FR', { maximumFractionDigits: 0 })} €</td>
+                        <td className="px-4 py-3 text-right font-bold text-gray-900 dark:text-white">
+                          {proj.patrimony.toLocaleString('fr-FR', { maximumFractionDigits: 0 })} €
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>
