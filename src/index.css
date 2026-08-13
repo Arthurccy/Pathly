@@ -11,6 +11,17 @@
   body {
     overflow-x: hidden;
     -webkit-font-smoothing: antialiased;
+    overscroll-behavior-y: none; /* Prevent iOS pull-to-refresh bounce */
+  }
+
+  /* Fix for iOS Safari bottom bar hiding 100vh content */
+  @supports (height: 100dvh) {
+    .min-h-screen {
+      min-height: 100dvh !important;
+    }
+    .h-screen {
+      height: 100dvh !important;
+    }
   }
 
   input,
