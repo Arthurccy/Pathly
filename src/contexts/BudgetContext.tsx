@@ -1393,7 +1393,7 @@ export const BudgetProvider: React.FC<BudgetProviderProps> = ({ children }) => {
             dueDate = startOfDay(addMonths(dueDate, 1));
           }
 
-          if (dueDate > monthEnd || (i === 0 && dueDate < today)) return sum;
+          if (dueDate > monthEnd) return sum;
           if (isDebtAlreadyRepresented(debt, dueDate)) return sum;
           return sum + Math.min(debt.minimumPayment, debt.remainingAmount);
         }, 0);
