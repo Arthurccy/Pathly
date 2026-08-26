@@ -269,10 +269,7 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({
 
     try {
       setIsSaving(true);
-      const category = categories.find(c => c.id === transaction.categoryId);
-      const isRent = isRentTransaction(transaction, category?.name);
-
-      if (transaction.id.includes('-projected-') && isRent) {
+      if (transaction.id.includes('-projected-') || transaction.id.startsWith('projected-')) {
         const { id, userId, ...transactionData } = transaction as any;
         await addTransaction({
           ...transactionData,
@@ -299,7 +296,7 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({
     const isProjectedRecurring = transaction.id.includes('-projected-');
     const isDebtPayment = transaction.id.startsWith('debt-');
     const isRent = isRentTransaction(transaction, category?.name);
-    const canMarkCompleted = transaction.status !== 'completed' && !isDebtPayment && (!isProjectedRecurring || isRent);
+    const canMarkCompleted = transaction.status !== 'completed' && !isDebtPayment;
 
     return (
       <div key={transaction.id} className="p-3 transition-colors hover:bg-gray-50 dark:hover:bg-gray-700/50 sm:p-4">
