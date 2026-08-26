@@ -1295,7 +1295,7 @@ export const BudgetProvider: React.FC<BudgetProviderProps> = ({ children }) => {
           transaction.type,
           transaction.amount,
           transaction.description.trim().toLowerCase(),
-          transaction.date.toISOString().split('T')[0],
+          format(transaction.date, 'yyyy-MM-dd'),
         ].join('|'))
       );
 
@@ -1310,7 +1310,7 @@ export const BudgetProvider: React.FC<BudgetProviderProps> = ({ children }) => {
             t.type,
             t.amount,
             t.description.trim().toLowerCase(),
-            t.date.toISOString().split('T')[0],
+            format(t.date, 'yyyy-MM-dd'),
           ].join('|'))
         );
       const pendingTransactions = transactions.filter(t =>
@@ -1326,7 +1326,7 @@ export const BudgetProvider: React.FC<BudgetProviderProps> = ({ children }) => {
           t.type,
           t.amount,
           t.description.trim().toLowerCase(),
-          t.date.toISOString().split('T')[0],
+          format(t.date, 'yyyy-MM-dd'),
         ].join('|'))
       );
       const actualMonthTransactionKeys = new Set(
@@ -1338,7 +1338,7 @@ export const BudgetProvider: React.FC<BudgetProviderProps> = ({ children }) => {
             transaction.type,
             transaction.amount,
             transaction.description.trim().toLowerCase(),
-            transaction.date.toISOString().split('T')[0],
+            format(transaction.date, 'yyyy-MM-dd'),
           ].join('|'))
       );
       const projectedRecurringTransactions = getProjectedRecurringTransactions(monthStart, monthEnd)
@@ -1351,7 +1351,7 @@ export const BudgetProvider: React.FC<BudgetProviderProps> = ({ children }) => {
             t.type,
             t.amount,
             t.description.trim().toLowerCase(),
-            t.date.toISOString().split('T')[0],
+            format(t.date, 'yyyy-MM-dd'),
           ].join('|'))
         );
       const plannedTransactions = scheduledTransactions.concat(pendingTransactions, projectedRecurringTransactions);
