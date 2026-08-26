@@ -1329,30 +1329,31 @@ export const BudgetProvider: React.FC<BudgetProviderProps> = ({ children }) => {
           format(t.date, 'yyyy-MM-dd'),
         ].join('|'))
       );
-      const actualMonthTransactionKeys = new Set(
-        monthTransactions
-          .concat(scheduledTransactions, pendingTransactions)
-          .map(transaction => [
-            transaction.accountId,
-            transaction.categoryId,
-            transaction.type,
-            transaction.amount,
-            transaction.description.trim().toLowerCase(),
-            format(transaction.date, 'yyyy-MM-dd'),
-          ].join('|'))
-      );
+      const actualTransactions = monthTransactions.concat(scheduledTransactions, pendingTransactions);
+      const isRecurringAlreadyRepresented = (projected: Transaction) => {
+        const maxDateDistanceMs = 7 * 24 * 60 * 60 * 1000;
+
+        return actualTransactions.some(actual => {
+          if (actual.accountId !== projected.accountId) return false;
+          if (actual.categoryId !== projected.categoryId) return false;
+          if (actual.type !== projected.type) return false;
+          if (Math.abs(actual.amount - projected.amount) > 0.01) return false;
+          if (Math.abs(startOfDay(actual.date).getTime() - startOfDay(projected.date).getTime()) > maxDateDistanceMs) return false;
+
+          const projDesc = projected.description.trim().toLowerCase();
+          const actDesc = actual.description.trim().toLowerCase();
+          if (projDesc && actDesc) {
+            if (projDesc.includes(actDesc) || actDesc.includes(projDesc)) return true;
+          }
+          return true;
+        });
+      };
+
       const projectedRecurringTransactions = getProjectedRecurringTransactions(monthStart, monthEnd)
         .filter(t =>
           !isExcludedFromReports(t) &&
           cashFlowAccountIds.has(t.accountId) &&
-          !actualMonthTransactionKeys.has([
-            t.accountId,
-            t.categoryId,
-            t.type,
-            t.amount,
-            t.description.trim().toLowerCase(),
-            format(t.date, 'yyyy-MM-dd'),
-          ].join('|'))
+          !isRecurringAlreadyRepresented(t)
         );
       const plannedTransactions = scheduledTransactions.concat(pendingTransactions, projectedRecurringTransactions);
       const visibleMonthTransactions = monthTransactions.concat(plannedTransactions);
