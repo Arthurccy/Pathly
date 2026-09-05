@@ -984,16 +984,17 @@ export const BudgetProvider: React.FC<BudgetProviderProps> = ({ children }) => {
 
     const now = new Date();
     const recurringTransactions = transactions.filter(t => t.isRecurring && t.recurringPattern?.isActive);
-    const occurrenceExists = (template: Transaction, date: Date, accountId = template.accountId) =>
-      transactions.some(transaction =>
+    const occurrenceExists = (template: Transaction, date: Date, accountId = template.accountId) => {
+      const maxDateDistanceMs = 7 * 24 * 60 * 60 * 1000;
+      return transactions.some(transaction =>
         !transaction.isRecurring &&
         transaction.accountId === accountId &&
         transaction.categoryId === template.categoryId &&
         transaction.type === template.type &&
-        transaction.amount === template.amount &&
-        transaction.description === template.description &&
-        isSameDay(transaction.date, date)
+        Math.abs(transaction.amount - template.amount) < 0.01 &&
+        Math.abs(startOfDay(transaction.date).getTime() - startOfDay(date).getTime()) <= maxDateDistanceMs
       );
+    };
 
     recurringTransactions.forEach(template => {
       const pattern = template.recurringPattern!;
