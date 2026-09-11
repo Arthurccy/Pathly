@@ -15,7 +15,8 @@ import {
   ExportOptions
 } from '../types';
 import { useAuth } from './AuthContext';
-import { supabaseService } from '../services/supabaseService';
+import * as supabaseService from '../services/supabaseService';
+import { supabase } from '../lib/supabase';
 import { db } from '../services/database';
 import { getCustomMonthEnd, getCustomMonthStart } from '../utils/dateUtils';
 import { 
@@ -164,6 +165,85 @@ export const BudgetProvider: React.FC<BudgetProviderProps> = ({ children }) => {
     end: endOfMonth(new Date())
   });
   const [selectedAccountIds, setSelectedAccountIds] = useState<string[]>([]);
+
+  // --- ONE TIME CLEANUP ---
+  useEffect(() => {
+    const cleanup = async () => {
+      if (!user || transactions.length === 0 || debtPayments.length === 0 || debts.length === 0) return;
+      const alreadyCleaned = localStorage.getItem('pathly_debt_cleaned_v2');
+      if (alreadyCleaned) return;
+
+      const debtCategory = categories.find(c => c.type === 'debt');
+      if (!debtCategory) return;
+
+      console.log('🧹 Démarrage du nettoyage des dettes en double...');
+
+      // 1. Transactions
+      const debtTx = transactions.filter(t => t.categoryId === debtCategory.id && t.description.startsWith('Dette:'));
+      const groupedTx: any = {};
+      debtTx.forEach(t => {
+        const key = `${new Date(t.date).toISOString().split('T')[0]}_${t.description}`;
+        if (!groupedTx[key]) groupedTx[key] = [];
+        groupedTx[key].push(t);
+      });
+
+      const txToDelete: string[] = [];
+      Object.values(groupedTx).forEach((group: any) => {
+        if (group.length > 1) {
+          txToDelete.push(...group.slice(1).map((t: any) => t.id));
+        }
+      });
+
+      if (txToDelete.length > 0) {
+        for (const id of txToDelete) {
+          await deleteTransaction(id);
+        }
+      }
+
+      // 2. Debt Payments
+      const groupedDp: any = {};
+      debtPayments.forEach(dp => {
+        const key = `${dp.debtId}_${new Date(dp.date).toISOString().split('T')[0]}`;
+        if (!groupedDp[key]) groupedDp[key] = [];
+        groupedDp[key].push(dp);
+      });
+
+      const dpToDelete: string[] = [];
+      const principalToRestore: any = {};
+      Object.values(groupedDp).forEach((group: any) => {
+        if (group.length > 1) {
+          const duplicates = group.slice(1);
+          duplicates.forEach((dp: any) => {
+            dpToDelete.push(dp.id);
+            if (!principalToRestore[dp.debtId]) principalToRestore[dp.debtId] = 0;
+            principalToRestore[dp.debtId] += dp.principal;
+          });
+        }
+      });
+
+      if (dpToDelete.length > 0) {
+        for (const id of dpToDelete) {
+          await supabase.from('debt_payments').delete().eq('id', id);
+        }
+        
+        for (const [debtId, principal] of Object.entries(principalToRestore)) {
+          const debt = debts.find(d => d.id === debtId);
+          if (debt) {
+            const newAmount = debt.remainingAmount + (principal as number);
+            await updateDebt(debtId, { remainingAmount: newAmount, isActive: newAmount > 0 });
+            debt.remainingAmount = newAmount;
+            if (newAmount > 0) debt.isActive = true;
+          }
+        }
+      }
+
+      localStorage.setItem('pathly_debt_cleaned_v2', 'true');
+      console.log('✅ Nettoyage terminé !');
+      window.location.reload();
+    };
+    cleanup();
+  }, [user?.id, transactions.length, debtPayments.length, debts.length, categories.length]);
+  // --- FIN CLEANUP ---
 
   useEffect(() => {
     accountsRef.current = accounts;
@@ -1172,6 +1252,11 @@ export const BudgetProvider: React.FC<BudgetProviderProps> = ({ children }) => {
           remainingAmount: newRemainingAmount,
           isActive: newRemainingAmount > 0
         });
+        
+        // Mutate the object in place so subsequent immediate renders don't re-trigger
+        debt.dueDate = currentDueDate;
+        debt.remainingAmount = newRemainingAmount;
+        if (newRemainingAmount <= 0) debt.isActive = false;
       }
     });
   };
