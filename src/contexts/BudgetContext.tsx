@@ -15,7 +15,7 @@ import {
   ExportOptions
 } from '../types';
 import { useAuth } from './AuthContext';
-import * as supabaseService from '../services/supabaseService';
+import { supabaseService } from '../services/supabaseService';
 import { supabase } from '../lib/supabase';
 import { db } from '../services/database';
 import { getCustomMonthEnd, getCustomMonthStart } from '../utils/dateUtils';
