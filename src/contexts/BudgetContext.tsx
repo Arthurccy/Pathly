@@ -173,8 +173,9 @@ export const BudgetProvider: React.FC<BudgetProviderProps> = ({ children }) => {
     if (!user || transactions.length === 0 || accounts.length === 0) return;
 
     generateRecurringTransactions();
+    generateAutoDebtPayments();
     reconcileScheduledTransactionStatuses();
-  }, [user?.id, transactions, accounts]);
+  }, [user?.id, transactions, accounts, debts]);
 
   useEffect(() => {
     if (user) {
@@ -1099,6 +1100,78 @@ export const BudgetProvider: React.FC<BudgetProviderProps> = ({ children }) => {
 
         pattern.nextDate = nextDate;
         pattern.currentOccurrence = updatedPattern.currentOccurrence;
+      }
+    });
+  };
+
+  // Auto-deduct debts logic
+  const generateAutoDebtPayments = () => {
+    if (!user) return;
+    const now = new Date();
+
+    debts.forEach(debt => {
+      if (!debt.isActive || debt.remainingAmount <= 0) return;
+
+      let currentDueDate = new Date(debt.dueDate);
+      let updated = false;
+      let newRemainingAmount = debt.remainingAmount;
+
+      while (
+        isBefore(startOfDay(currentDueDate), startOfDay(now)) || 
+        (isSameDay(currentDueDate, now) && !isAfter(getAutoCompletionDate(currentDueDate), now))
+      ) {
+        const expectedAmount = Math.min(debt.minimumPayment, newRemainingAmount);
+        
+        if (expectedAmount > 0) {
+          const monthlyRate = debt.interestRate / 100 / 12;
+          const interest = newRemainingAmount * monthlyRate;
+          const principal = expectedAmount - interest;
+
+          // 1. Create actual transaction (expense)
+          const debtCategory = categories.find(c => c.type === 'debt');
+          const categoryId = debt.categoryId || (debtCategory ? debtCategory.id : '');
+          
+          const newTransactionData = {
+            userId: user.id,
+            accountId: debt.accountId,
+            amount: expectedAmount,
+            description: `Dette: ${debt.name}`,
+            date: new Date(currentDueDate),
+            categoryId,
+            type: 'expense' as const,
+            status: 'completed' as const,
+            isRecurring: false,
+          };
+          
+          addTransaction(newTransactionData);
+
+          // 2. Create debt payment record
+          supabaseService.createDebtPayment({
+            debtId: debt.id,
+            amount: expectedAmount,
+            principal: principal > 0 ? principal : expectedAmount,
+            interest: interest > 0 ? interest : 0,
+            date: new Date(currentDueDate),
+            paymentMethod: 'Auto',
+          }).then(newPayment => {
+            setDebtPayments(prev => [newPayment, ...prev]);
+          }).catch(console.error);
+
+          newRemainingAmount -= (principal > 0 ? principal : expectedAmount);
+        }
+
+        currentDueDate = addMonths(currentDueDate, 1);
+        updated = true;
+
+        if (newRemainingAmount <= 0) break;
+      }
+
+      if (updated) {
+        updateDebt(debt.id, {
+          dueDate: currentDueDate,
+          remainingAmount: newRemainingAmount,
+          isActive: newRemainingAmount > 0
+        });
       }
     });
   };
