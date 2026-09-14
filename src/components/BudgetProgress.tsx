@@ -445,61 +445,61 @@ const BudgetProgress: React.FC<BudgetProgressProps> = ({ viewMode = 'monthly' })
         </div>
       </div>
 
-      <div className="mb-4 grid grid-cols-1 gap-2 sm:grid-cols-3">
-        <div className="rounded-md border border-gray-200 bg-gray-50 p-2.5 dark:border-gray-700 dark:bg-gray-900/50">
+      <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
+        <div className="rounded-md border border-gray-200 bg-gray-50 p-3 dark:border-gray-700 dark:bg-gray-900/50">
           <p className="text-xs text-gray-500 dark:text-gray-400">Reste estimé fin du mois</p>
-          <p className={`mt-0.5 text-base font-semibold ${projectedCurrentBalance >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}>
+          <p className={`mt-0.5 text-lg font-semibold ${projectedCurrentBalance >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}>
             {projectedCurrentBalance.toFixed(2)} €
           </p>
-          <p className="mt-0.5 text-[10px] text-gray-500 dark:text-gray-400 leading-tight">Même référence que la carte du haut.</p>
+          <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400 leading-tight">Même référence que la carte du haut.</p>
         </div>
 
-        <div className="rounded-md border border-gray-200 bg-gray-50 p-2.5 dark:border-gray-700 dark:bg-gray-900/50">
+        <div className="rounded-md border border-gray-200 bg-gray-50 p-3 dark:border-gray-700 dark:bg-gray-900/50">
           <p className="text-xs text-gray-500 dark:text-gray-400">Écart au plan</p>
-          <p className={`mt-0.5 text-base font-semibold ${budgetPlanIsOver ? 'text-red-600 dark:text-red-400' : 'text-emerald-600 dark:text-emerald-400'}`}>
+          <p className={`mt-0.5 text-lg font-semibold ${budgetPlanIsOver ? 'text-red-600 dark:text-red-400' : 'text-emerald-600 dark:text-emerald-400'}`}>
             {budgetPlanIsOver ? '-' : '+'}{Math.abs(totalBudgetGap).toFixed(2)} €
           </p>
-          <p className="mt-0.5 text-[10px] text-gray-500 dark:text-gray-400 leading-tight">
+          <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400 leading-tight">
             {budgetPlanIsOver ? 'Dépassements et hors budget inclus.' : 'Marge restante sur tes budgets.'}
           </p>
         </div>
 
-        <div className="rounded-md border border-gray-200 bg-gray-50 p-2.5 dark:border-gray-700 dark:bg-gray-900/50">
+        <div className="rounded-md border border-gray-200 bg-gray-50 p-3 dark:border-gray-700 dark:bg-gray-900/50">
           <p className="text-xs text-gray-500 dark:text-gray-400">Réallocation possible</p>
-          <p className="mt-0.5 text-base font-semibold text-blue-600 dark:text-blue-400">
+          <p className="mt-0.5 text-lg font-semibold text-blue-600 dark:text-blue-400">
             {remainingBudgets.toFixed(2)} €
           </p>
-          <p className="mt-0.5 text-[10px] text-gray-500 dark:text-gray-400 leading-tight">Budgets encore libres ailleurs.</p>
+          <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400 leading-tight">Budgets encore libres ailleurs.</p>
         </div>
       </div>
 
 
       
       {budgetProgress.length > 0 ? (
-        <div className="space-y-1.5">
+        <div className="space-y-2">
           {budgetProgress.map((item, index) => (
             <button
               key={index}
               type="button"
               onClick={() => setSelectedCategoryId(item.categoryId)}
-              className="block w-full space-y-1 rounded-md px-2 py-1.5 text-left transition hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:hover:bg-gray-700/50"
+              className="block w-full space-y-1.5 rounded-lg px-2.5 py-2 text-left transition hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:hover:bg-gray-700/50"
             >
               <div className="flex justify-between items-center">
-                <div className="flex items-center space-x-1.5">
+                <div className="flex items-center space-x-2">
                   <div
-                    className="w-2.5 h-2.5 rounded-full"
+                    className="w-3 h-3 rounded-full"
                     style={{ backgroundColor: item.color }}
                   />
-                  <span className="text-xs font-medium text-gray-700 dark:text-gray-300">
+                  <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
                     {item.category}
                   </span>
                   {item.isUnplanned && (
-                    <span className="rounded-full bg-red-100 px-1.5 py-0.5 text-[10px] font-medium text-red-700 dark:bg-red-900/30 dark:text-red-300">
+                    <span className="rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-700 dark:bg-red-900/30 dark:text-red-300">
                       Non prévu
                     </span>
                   )}
                 </div>
-                <span className={`text-xs font-medium ${
+                <span className={`text-sm font-medium ${
                   item.isOverBudget ? 'text-red-600 dark:text-red-400' : 'text-gray-600 dark:text-gray-400'
                 }`}>
                   {item.isUnplanned
@@ -522,7 +522,7 @@ const BudgetProgress: React.FC<BudgetProgressProps> = ({ viewMode = 'monthly' })
                 />
               </div>
               
-              <div className="flex justify-between text-[10px] text-gray-500 dark:text-gray-400">
+              <div className="flex justify-between text-xs text-gray-500 dark:text-gray-400">
                 <span>
                   {item.percentage.toFixed(1)}% engagé
                   {item.planned > 0 ? ` · ${item.planned.toFixed(2)} € à venir` : ''}
