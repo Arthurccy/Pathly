@@ -76,6 +76,8 @@ interface RecentTransactionsProps {
   mode?: 'recent' | 'upcoming' | 'all';
   periodStart?: Date;
   periodEnd?: Date;
+  collapsible?: boolean;
+  initialLimit?: number;
 }
 
 const RecentTransactions: React.FC<RecentTransactionsProps> = ({
@@ -84,9 +86,12 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({
   mode = 'recent',
   periodStart,
   periodEnd,
+  collapsible = false,
+  initialLimit = 3,
 }) => {
   const { transactions, categories, accounts, debts, addTransaction, updateTransaction, deleteTransaction, getProjectedRecurringTransactions } = useBudget();
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
+  const [showAll, setShowAll] = useState(!collapsible);
   const [formData, setFormData] = useState({
     amount: '',
     description: '',
@@ -409,88 +414,102 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({
                   </div>
                 </section>
               ))
-            ) : recentTransactions.map((transaction) => {
-              const category = categories.find(c => c.id === transaction.categoryId);
-              const account = accounts.find(a => a.id === transaction.accountId);
-              const IconComponent = category ? (LucideIcons as any)[category.icon] : LucideIcons.DollarSign;
-              const displayImpact = getTransactionDisplayImpact(transaction);
-              const isProjectedRecurring = transaction.id.includes('-projected-');
+            ) : (
+              <>
+                {recentTransactions.slice(0, showAll ? undefined : initialLimit).map((transaction) => {
+                  const category = categories.find(c => c.id === transaction.categoryId);
+                  const account = accounts.find(a => a.id === transaction.accountId);
+                  const IconComponent = category ? (LucideIcons as any)[category.icon] : LucideIcons.DollarSign;
+                  const displayImpact = getTransactionDisplayImpact(transaction);
+                  const isProjectedRecurring = transaction.id.includes('-projected-');
 
-              return (
-                <div key={transaction.id} className="p-3 transition-colors hover:bg-gray-50 dark:hover:bg-gray-700/50 sm:p-4">
-                  <div className="flex items-start gap-3 sm:items-center sm:gap-4">
-                    <div
-                      className="p-2 rounded-lg"
-                      style={{ backgroundColor: `${category?.color || '#6B7280'}20` }}
-                    >
-                      <IconComponent
-                        className="h-5 w-5"
-                        style={{ color: category?.color || '#6B7280' }}
-                      />
-                    </div>
+                  return (
+                    <div key={transaction.id} className="p-3 transition-colors hover:bg-gray-50 dark:hover:bg-gray-700/50 sm:p-4">
+                      <div className="flex items-start gap-3 sm:items-center sm:gap-4">
+                        <div
+                          className="p-2 rounded-lg"
+                          style={{ backgroundColor: `${category?.color || '#6B7280'}20` }}
+                        >
+                          <IconComponent
+                            className="h-5 w-5"
+                            style={{ color: category?.color || '#6B7280' }}
+                          />
+                        </div>
 
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-medium text-gray-900 dark:text-white">
-                        {transaction.description}
-                      </p>
-                      <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1">
-                        <span className="text-xs text-gray-500 dark:text-gray-400">
-                          {category?.name || 'Sans categorie'}
-                        </span>
-                        {account && (
-                          <>
-                            <span className="text-xs text-gray-400 dark:text-gray-500">-</span>
-                            <span className="text-xs text-gray-500 dark:text-gray-400">{account.name}</span>
-                          </>
-                        )}
-                        <span className="text-xs text-gray-400 dark:text-gray-500">-</span>
-                        <span className="text-xs text-gray-500 dark:text-gray-400">
-                          {format(transaction.date, 'dd MMM yyyy', { locale: fr })}
-                        </span>
-                        {transaction.status !== 'completed' && (
-                          <>
-                            <span className="text-xs text-gray-400 dark:text-gray-500">-</span>
-                            <span className="text-xs font-medium text-blue-600 dark:text-blue-400">
-                              {transaction.status === 'scheduled' ? 'Planifiée' : 'En attente'}
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-sm font-medium text-gray-900 dark:text-white">
+                            {transaction.description}
+                          </p>
+                          <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1">
+                            <span className="text-xs text-gray-500 dark:text-gray-400">
+                              {category?.name || 'Sans categorie'}
                             </span>
-                          </>
-                        )}
+                            {account && (
+                              <>
+                                <span className="text-xs text-gray-400 dark:text-gray-500">-</span>
+                                <span className="text-xs text-gray-500 dark:text-gray-400">{account.name}</span>
+                              </>
+                            )}
+                            <span className="text-xs text-gray-400 dark:text-gray-500">-</span>
+                            <span className="text-xs text-gray-500 dark:text-gray-400">
+                              {format(transaction.date, 'dd MMM yyyy', { locale: fr })}
+                            </span>
+                            {transaction.status !== 'completed' && (
+                              <>
+                                <span className="text-xs text-gray-400 dark:text-gray-500">-</span>
+                                <span className="text-xs font-medium text-blue-600 dark:text-blue-400">
+                                  {transaction.status === 'scheduled' ? 'Planifiée' : 'En attente'}
+                                </span>
+                              </>
+                            )}
+                          </div>
+                        </div>
+
+                        <div className="flex shrink-0 flex-col items-end gap-2 sm:flex-row sm:items-center sm:gap-3">
+                          <p className={`whitespace-nowrap text-sm font-semibold ${
+                            displayImpact >= 0
+                              ? 'text-green-600 dark:text-green-400'
+                              : 'text-red-600 dark:text-red-400'
+                          }`}>
+                            {displayImpact >= 0 ? '+' : '-'}{Math.abs(displayImpact).toFixed(2)} EUR
+                          </p>
+                          {!isProjectedRecurring && (
+                            <button
+                              type="button"
+                              onClick={() => openEditor(transaction)}
+                              className="rounded-full p-2 text-gray-400 transition hover:bg-gray-100 hover:text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:hover:bg-gray-700 dark:hover:text-gray-200 sm:rounded-lg"
+                              aria-label="Modifier la transaction"
+                            >
+                              <LucideIcons.Pencil className="h-4 w-4" />
+                            </button>
+                          )}
+                          {(!isProjectedRecurring || isRentTransaction(transaction, category?.name)) && !transaction.id.startsWith('debt-') && transaction.status !== 'completed' && (
+                            <button
+                              type="button"
+                              onClick={() => handleMarkAsCompleted(transaction)}
+                              className="rounded-full p-2 text-gray-400 transition hover:bg-gray-100 hover:text-gray-700 focus:outline-none focus:ring-2 focus:ring-green-500 dark:hover:bg-gray-700 dark:hover:text-gray-200 sm:rounded-lg"
+                              aria-label="Marquer comme terminé"
+                            >
+                              <LucideIcons.Check className="h-4 w-4" />
+                            </button>
+                          )}
+                        </div>
                       </div>
                     </div>
-
-                    <div className="flex shrink-0 flex-col items-end gap-2 sm:flex-row sm:items-center sm:gap-3">
-                      <p className={`whitespace-nowrap text-sm font-semibold ${
-                        displayImpact >= 0
-                          ? 'text-green-600 dark:text-green-400'
-                          : 'text-red-600 dark:text-red-400'
-                      }`}>
-                        {displayImpact >= 0 ? '+' : '-'}{Math.abs(displayImpact).toFixed(2)} EUR
-                      </p>
-                      {!isProjectedRecurring && (
-                        <button
-                          type="button"
-                          onClick={() => openEditor(transaction)}
-                          className="rounded-full p-2 text-gray-400 transition hover:bg-gray-100 hover:text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:hover:bg-gray-700 dark:hover:text-gray-200 sm:rounded-lg"
-                          aria-label="Modifier la transaction"
-                        >
-                          <LucideIcons.Pencil className="h-4 w-4" />
-                        </button>
-                      )}
-                      {(!isProjectedRecurring || isRentTransaction(transaction, category?.name)) && !transaction.id.startsWith('debt-') && transaction.status !== 'completed' && (
-                        <button
-                          type="button"
-                          onClick={() => handleMarkAsCompleted(transaction)}
-                          className="rounded-full p-2 text-gray-400 transition hover:bg-gray-100 hover:text-gray-700 focus:outline-none focus:ring-2 focus:ring-green-500 dark:hover:bg-gray-700 dark:hover:text-gray-200 sm:rounded-lg"
-                          aria-label="Marquer comme terminé"
-                        >
-                          <LucideIcons.Check className="h-4 w-4" />
-                        </button>
-                      )}
-                    </div>
+                  );
+                })}
+                {collapsible && recentTransactions.length > initialLimit && (
+                  <div className="p-3 text-center sm:p-4">
+                    <button
+                      onClick={() => setShowAll(!showAll)}
+                      className="text-sm font-medium text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
+                    >
+                      {showAll ? 'Voir moins' : `Voir plus (${recentTransactions.length - initialLimit} de plus)`}
+                    </button>
                   </div>
-                </div>
-              );
-            })}
+                )}
+              </>
+            )}
           </div>
         ) : (
           <div className="p-8 text-center text-gray-500 dark:text-gray-400">

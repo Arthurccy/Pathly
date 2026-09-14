@@ -569,12 +569,20 @@ const Dashboard: React.FC<DashboardProps> = ({ onViewChange }) => {
       </section>
 
       <section className="grid grid-cols-1 gap-5 xl:grid-cols-2">
-        <RecentTransactions title="Dernieres transactions terminees" />
+        <RecentTransactions 
+          title="Dernieres transactions terminees" 
+          limit={20}
+          collapsible={true}
+          initialLimit={5}
+        />
         <RecentTransactions
           title="Operations a venir"
           mode="upcoming"
           periodStart={currentMonthPeriod.start}
           periodEnd={currentMonthPeriod.end}
+          limit={20}
+          collapsible={true}
+          initialLimit={5}
         />
       </section>
 

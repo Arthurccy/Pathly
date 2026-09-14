@@ -41,7 +41,7 @@ const CashFlowChart: React.FC = () => {
 
   const monthStartDay = user?.settings?.monthStartDay || 1;
   const currentBudgetPeriod = getCustomMonthPeriod(new Date(), monthStartDay);
-  const cashFlowData = getCashFlowProjection(6, currentBudgetPeriod.start, monthStartDay);
+  const cashFlowData = getCashFlowProjection(12, currentBudgetPeriod.start, monthStartDay);
   const firstProjection = cashFlowData[0];
   const finalProjection = cashFlowData[cashFlowData.length - 1];
   const money = (value: number, digits = 0) =>
@@ -220,6 +220,8 @@ const CashFlowChart: React.FC = () => {
     },
   };
 
+  const [showAllMonths, setShowAllMonths] = useState(false);
+
   return (
     <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6">
       <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
@@ -238,12 +240,8 @@ const CashFlowChart: React.FC = () => {
         </div>
       </div>
 
-      <div className="h-64">
-        <Line data={data} options={options} />
-      </div>
-
       <div className="mt-5 space-y-3">
-        {monthlyPlan.map(item => {
+        {monthlyPlan.slice(0, showAllMonths ? undefined : 3).map(item => {
           const StatusIcon = item.status.Icon;
           const resultClass = item.planBalance >= 0
             ? 'text-slate-950 dark:text-white'
@@ -318,6 +316,17 @@ const CashFlowChart: React.FC = () => {
           );
         })}
       </div>
+      
+      {monthlyPlan.length > 3 && (
+        <div className="mt-4 flex justify-center">
+          <button
+            onClick={() => setShowAllMonths(!showAllMonths)}
+            className="text-sm font-medium text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
+          >
+            {showAllMonths ? 'Voir moins' : 'Voir plus (1 an)'}
+          </button>
+        </div>
+      )}
 
       <div className="mt-4 grid grid-cols-1 gap-4 text-center sm:grid-cols-3">
         <div>
