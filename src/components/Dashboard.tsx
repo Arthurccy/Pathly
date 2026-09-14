@@ -157,12 +157,8 @@ const Dashboard: React.FC<DashboardProps> = ({ onViewChange }) => {
   const projectedSavingsBalance = projection?.projectedSavingsBalance ?? 0;
   const projectedTotalWithSavings = projection?.projectedTotalBalance ?? projectedCurrentBalance;
   const projectionDelta = projectedIncoming - projectedDeductions;
-  const projectedBaseExpenses = projection?.baseExpenses ?? 0;
-  const projectedDebtPayments = projection?.debtPayments ?? 0;
   const projectedBudgetReserve = projection?.budgetReserve ?? 0;
-  const projectedTransfersOut = projection?.transfersOut ?? 0;
-  const projectedSavingsOut = projection?.savings ?? 0;
-  const openingBalanceForMath = projection?.openingBalance ?? checkingAccountBalance;
+
 
   const upcomingTransactions = useMemo(
     () => transactions
@@ -179,9 +175,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onViewChange }) => {
   const upcomingIncome = upcomingTransactions
     .filter(transaction => getImpact(transaction) > 0)
     .reduce((sum, transaction) => sum + getImpact(transaction), 0);
-  const upcomingOutflows = upcomingTransactions
-    .filter(transaction => getImpact(transaction) < 0)
-    .reduce((sum, transaction) => sum + Math.abs(getImpact(transaction)), 0);
+
 
   const nextGoal = savingsGoals
     .filter(goal => !goal.isCompleted)
@@ -248,13 +242,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onViewChange }) => {
     },
   ];
 
-  const flowSteps = [
-    { label: 'Départ', value: openingBalanceForMath, prefix: '', color: 'bg-sky-500', text: 'text-sky-700 dark:text-sky-300' },
-    { label: 'Revenus', value: projectedIncoming, prefix: '+', color: 'bg-emerald-500', text: 'text-emerald-700 dark:text-emerald-300' },
-    { label: 'Sorties prévues', value: projectedBaseExpenses + projectedDebtPayments + projectedTransfersOut + projectedSavingsOut, prefix: '-', color: 'bg-rose-500', text: 'text-rose-700 dark:text-rose-300' },
-    { label: 'Budgets libres', value: projectedBudgetReserve, prefix: '-', color: 'bg-amber-500', text: 'text-amber-700 dark:text-amber-300' },
-    { label: 'Reste', value: projectedCurrentBalance, prefix: '', color: projectedCurrentBalance >= 0 ? 'bg-emerald-500' : 'bg-red-500', text: projectedCurrentBalance >= 0 ? 'text-emerald-700 dark:text-emerald-300' : 'text-red-700 dark:text-red-300' },
-  ];
+
 
   const statCards = [
     {
@@ -383,44 +371,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onViewChange }) => {
               })}
             </div>
 
-            <div className="mt-4 rounded-lg border border-slate-200 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-900/70">
-              <div className="flex flex-col gap-4">
-                <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
-                  <div>
-                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Chemin de l'argent</p>
-                    <p className="mt-1 text-sm text-slate-700 dark:text-slate-300">
-                      {money(openingBalanceForMath)} + {money(projectedIncoming)} - {money(projectedDeductions)} = <span className="font-semibold text-slate-950 dark:text-white">{money(projectedCurrentBalance)}</span>
-                    </p>
-                  </div>
-                  <p className="text-xs text-slate-500 dark:text-slate-400">
-                    Budgets restants déjà réservés : {money(projectedBudgetReserve)}
-                  </p>
-                </div>
 
-                <div className="grid gap-2 sm:grid-cols-5">
-                  {flowSteps.map((step, index) => (
-                    <div key={step.label} className="relative rounded-md bg-white p-3 ring-1 ring-slate-200 dark:bg-slate-950 dark:ring-slate-800">
-                      <div className={`mb-3 h-1.5 rounded-full ${step.color}`} />
-                      <p className="text-xs font-medium text-slate-500 dark:text-slate-400">{step.label}</p>
-                      <p className={`mt-1 break-words text-base font-semibold ${step.text}`}>
-                        {step.prefix}{money(step.value)}
-                      </p>
-                      {index < flowSteps.length - 1 && (
-                        <span className="absolute -right-1.5 top-1/2 hidden h-3 w-3 -translate-y-1/2 rotate-45 border-r border-t border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-950 sm:block" />
-                      )}
-                    </div>
-                  ))}
-                </div>
-
-                <div className="grid grid-cols-2 gap-2 text-xs text-slate-600 dark:text-slate-400 sm:grid-cols-5">
-                  <span className="rounded-md bg-white px-2.5 py-2 ring-1 ring-slate-200 dark:bg-slate-950 dark:ring-slate-800">Dépenses {compactMoney(projectedBaseExpenses)}</span>
-                  <span className="rounded-md bg-white px-2.5 py-2 ring-1 ring-slate-200 dark:bg-slate-950 dark:ring-slate-800">Dettes {compactMoney(projectedDebtPayments)}</span>
-                  <span className="rounded-md bg-white px-2.5 py-2 ring-1 ring-slate-200 dark:bg-slate-950 dark:ring-slate-800">Budgets {compactMoney(projectedBudgetReserve)}</span>
-                  <span className="rounded-md bg-white px-2.5 py-2 ring-1 ring-slate-200 dark:bg-slate-950 dark:ring-slate-800">Virements {compactMoney(projectedTransfersOut)}</span>
-                  <span className="rounded-md bg-white px-2.5 py-2 ring-1 ring-slate-200 dark:bg-slate-950 dark:ring-slate-800">Épargne {compactMoney(projectedSavingsOut)}</span>
-                </div>
-              </div>
-            </div>
           </div>
 
           <aside className={`border-t p-4 text-white xl:border-l xl:border-t-0 sm:p-5 lg:p-6 ${

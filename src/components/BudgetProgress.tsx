@@ -473,47 +473,7 @@ const BudgetProgress: React.FC<BudgetProgressProps> = ({ viewMode = 'monthly' })
         </div>
       </div>
 
-      <div className="mb-5 rounded-lg bg-gray-950 p-4 text-white dark:bg-white dark:text-gray-950">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <p className="text-sm text-gray-300 dark:text-gray-600">Reste final estimé</p>
-            <p className="mt-1 text-xs text-gray-400 dark:text-gray-500">
-              Budgets restants déjà inclus. Libre ailleurs: {remainingBudgets.toFixed(2)} €
-            </p>
-          </div>
-          <p className={`text-2xl font-semibold ${finalProjectedAfterBudgets >= 0 ? 'text-emerald-300 dark:text-emerald-700' : 'text-red-300 dark:text-red-700'}`}>
-            {finalProjectedAfterBudgets.toFixed(2)} €
-          </p>
-        </div>
-      </div>
 
-      <div className={`mb-5 rounded-lg border p-4 ${
-        budgetPlanIsOver
-          ? 'border-amber-200 bg-amber-50 dark:border-amber-900/60 dark:bg-amber-900/20'
-          : 'border-emerald-200 bg-emerald-50 dark:border-emerald-900/60 dark:bg-emerald-900/20'
-      }`}>
-        <p className={`text-sm font-medium ${
-          budgetPlanIsOver ? 'text-amber-900 dark:text-amber-100' : 'text-emerald-900 dark:text-emerald-100'
-        }`}>
-          {budgetActionMessage}
-        </p>
-        {budgetPlanIsOver && (
-          <p className="mt-2 text-xs text-amber-800 dark:text-amber-200">
-            À couvrir: {pressureToCover.toFixed(2)} € · budgets libres: {remainingBudgets.toFixed(2)} € · dépassement encore non couvert: {uncoveredAfterReallocation.toFixed(2)} €
-          </p>
-        )}
-      </div>
-
-      {totalUnplannedSpent > 0 && (
-        <div className="mb-5 rounded-lg border border-red-200 bg-red-50 p-4 dark:border-red-900/60 dark:bg-red-900/20">
-          <p className="text-sm font-medium text-red-800 dark:text-red-200">
-            Dépenses non prévues: {totalUnplannedSpent.toFixed(2)} €
-          </p>
-          <p className="mt-1 text-xs text-red-700 dark:text-red-300">
-            Ces catégories ont eu des dépenses sur la période mais aucun budget défini.
-          </p>
-        </div>
-      )}
       
       {budgetProgress.length > 0 ? (
         <div className="space-y-4">

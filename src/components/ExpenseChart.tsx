@@ -216,103 +216,8 @@ const ExpenseChart: React.FC<ExpenseChartProps> = ({ viewMode = 'monthly' }) => 
   const remainingIncome = baseIncome - totalOutgoings;
   const plannedTransactionsCount = cashFlowTransactions.filter(t => t.status === 'scheduled' || t.status === 'pending').length + debtPaymentItems.length;
 
-  let runningBalance = baseIncome;
-  const waterfallItems: {
-    label: string;
-    shortLabel: string;
-    value: number;
-    range: [number, number];
-    color: string;
-  }[] = [
-    {
-      label: 'Revenus de base',
-      shortLabel: 'Revenus',
-      value: baseIncome,
-      range: [0, baseIncome],
-      color: '#059669',
-    },
-  ];
-
-  outgoingItems.forEach(item => {
-    const start = runningBalance;
-    runningBalance -= item.amount;
-    const label = `${format(item.date, 'dd MMM', { locale: fr })} · ${item.description} (${item.statusLabel})`;
-
-    waterfallItems.push({
-      label,
-      shortLabel: item.description,
-      value: -item.amount,
-      range: [Math.min(start, runningBalance), Math.max(start, runningBalance)],
-      color: item.color,
-    });
-  });
-
-  waterfallItems.push({
-    label: 'Reste en fin de période',
-    shortLabel: 'Reste',
-    value: remainingIncome,
-    range: [Math.min(0, remainingIncome), Math.max(0, remainingIncome)],
-    color: remainingIncome >= 0 ? '#0891B2' : '#B91C1C',
-  });
-
   const hasCashFlowData = baseIncome > 0 || totalOutgoings > 0;
   const outgoingRatio = baseIncome > 0 ? Math.min((totalOutgoings / baseIncome) * 100, 999) : 0;
-  const waterfallData = {
-    labels: waterfallItems.map(item => item.shortLabel),
-    datasets: [
-      {
-        label: 'Impact sur le revenu',
-        data: waterfallItems.map(item => item.range),
-        backgroundColor: waterfallItems.map(item => item.color),
-        borderRadius: 6,
-        borderSkipped: false,
-      },
-    ],
-  };
-  const waterfallOptions = {
-    responsive: true,
-    maintainAspectRatio: false,
-    plugins: {
-      legend: {
-        display: false,
-      },
-      tooltip: {
-        callbacks: {
-          title: (context: any) => waterfallItems[context[0].dataIndex]?.label || '',
-          label: (context: any) => {
-            const item = waterfallItems[context.dataIndex];
-            const sign = item.value > 0 ? '+' : '';
-            return `${sign}${preciseMoneyFormatter.format(item.value)}`;
-          },
-        },
-      },
-    },
-    scales: {
-      x: {
-        ticks: {
-          color: document.documentElement.classList.contains('dark') ? '#D1D5DB' : '#4B5563',
-          maxRotation: 0,
-          autoSkip: false,
-          callback: (_value: string | number, index: number) => {
-            const label = waterfallItems[index]?.shortLabel || '';
-            return label.length > 18 ? `${label.slice(0, 18)}...` : label;
-          },
-        },
-        grid: {
-          display: false,
-        },
-      },
-      y: {
-        ticks: {
-          color: document.documentElement.classList.contains('dark') ? '#D1D5DB' : '#4B5563',
-          callback: (value: string | number) => moneyFormatter.format(Number(value)),
-        },
-        grid: {
-          color: document.documentElement.classList.contains('dark') ? '#374151' : '#E5E7EB',
-        },
-      },
-    },
-  };
 
   return (
     <div className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-800 sm:p-6">
@@ -332,7 +237,7 @@ const ExpenseChart: React.FC<ExpenseChartProps> = ({ viewMode = 'monthly' }) => 
 
       {hasData ? (
         <div className="space-y-4">
-          <div className="relative mx-auto h-64 min-h-0 w-full max-w-[420px] overflow-hidden sm:h-96">
+          <div className="relative mx-auto h-48 min-h-0 w-full max-w-[280px] overflow-hidden sm:h-64">
             <Doughnut data={data} options={options} />
           </div>
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
@@ -365,64 +270,7 @@ const ExpenseChart: React.FC<ExpenseChartProps> = ({ viewMode = 'monthly' }) => 
         </div>
       )}
 
-      <div className="mt-6 border-t border-gray-200 pt-5 dark:border-gray-700">
-        <div className="mb-4 flex items-start justify-between gap-4">
-          <div>
-            <h4 className="text-base font-semibold text-gray-900 dark:text-white">
-              Lecture des revenus de la période
-            </h4>
-            <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-              {viewMode === 'monthly' ? 'Période budgétaire, pas solde final du compte' : 'Année en cours'}
-            </p>
-            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-              Montre comment les sorties consomment les revenus de la période. La référence fin de mois est la carte du haut.
-            </p>
-          </div>
-          <div className="text-right">
-            <p className="text-sm text-gray-500 dark:text-gray-400">Reste sur revenus</p>
-            <p className={`text-xl font-bold ${remainingIncome >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}>
-              {remainingIncome.toFixed(2)} €
-            </p>
-          </div>
-        </div>
 
-        {hasCashFlowData ? (
-          <>
-            <div className="grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">
-              <div className="rounded-lg bg-emerald-50 p-3 dark:bg-emerald-900/20">
-                <p className="text-gray-500 dark:text-gray-400">Revenus</p>
-                <p className="font-semibold text-emerald-700 dark:text-emerald-300">{baseIncome.toFixed(2)} €</p>
-              </div>
-              <div className="rounded-lg bg-red-50 p-3 dark:bg-red-900/20">
-                <p className="text-gray-500 dark:text-gray-400">Sorties</p>
-                <p className="font-semibold text-red-700 dark:text-red-300">-{totalOutgoings.toFixed(2)} €</p>
-              </div>
-              <div className="rounded-lg bg-sky-50 p-3 dark:bg-sky-900/20">
-                <p className="text-gray-500 dark:text-gray-400">Réduction</p>
-                <p className="font-semibold text-sky-700 dark:text-sky-300">{outgoingRatio.toFixed(0)}%</p>
-              </div>
-              <div className="rounded-lg bg-amber-50 p-3 dark:bg-amber-900/20">
-                <p className="text-gray-500 dark:text-gray-400">À venir</p>
-                <p className="font-semibold text-amber-700 dark:text-amber-300">{plannedTransactionsCount}</p>
-              </div>
-            </div>
-            <div className="mt-4 overflow-x-auto pb-3">
-              <div className="h-72" style={{ minWidth: `${Math.max(720, waterfallItems.length * 170)}px` }}>
-                <Bar data={waterfallData} options={waterfallOptions as any} />
-              </div>
-            </div>
-          </>
-        ) : (
-          <div className="flex h-48 items-center justify-center text-gray-500 dark:text-gray-400">
-            <div className="text-center">
-              <p className="text-lg mb-2">
-                Aucun revenu ou sortie {viewMode === 'monthly' ? 'ce mois-ci' : 'cette année'}
-              </p>
-              <p className="text-sm">Ajoutez des transactions pour voir l’évolution du reste disponible</p>
-            </div>
-          </div>
-        )}
-      </div>
 
       {selectedCategory && (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/60 p-0 backdrop-blur-sm sm:items-center sm:p-4">
