@@ -159,7 +159,7 @@ const BudgetSimulator: React.FC = () => {
   const status = getStatus(surplus);
 
   return (
-    <div className="space-y-6 max-w-4xl mx-auto">
+    <div className="space-y-6 max-w-7xl mx-auto">
       <div className="flex items-center space-x-3">
         <div className="p-2 bg-indigo-100 dark:bg-indigo-900/20 rounded-lg">
           <Target className="h-6 w-6 text-indigo-600 dark:text-indigo-400" />
