@@ -142,7 +142,8 @@ const BudgetSimulator: React.FC = () => {
           patrimony: proj.projectedTotalBalance + cumulativeDelta,
           income: monthIncome,
           expenses: monthFixed + monthDebts + monthBudgets,
-          savings: monthSavings
+          savings: monthSavings,
+          margin: monthIncome - (monthFixed + monthDebts + monthBudgets) - monthSavings
         });
       }
     });
@@ -431,6 +432,7 @@ const BudgetSimulator: React.FC = () => {
                       <th className="px-4 py-3 font-medium">Revenus (Mensuel)</th>
                       <th className="px-4 py-3 font-medium">Dépenses (Mensuel)</th>
                       <th className="px-4 py-3 font-medium">Épargne (Mensuel)</th>
+                      <th className="px-4 py-3 font-medium">Marge (Mensuelle)</th>
                       <th className="px-4 py-3 font-medium text-right text-indigo-600 dark:text-indigo-400">Patrimoine Estimé</th>
                     </tr>
                   </thead>
@@ -443,6 +445,9 @@ const BudgetSimulator: React.FC = () => {
                         <td className="px-4 py-3 text-green-600 dark:text-green-400 font-medium">+{proj.income.toLocaleString('fr-FR', { maximumFractionDigits: 0 })} €</td>
                         <td className="px-4 py-3 text-red-500 dark:text-red-400 font-medium">-{proj.expenses.toLocaleString('fr-FR', { maximumFractionDigits: 0 })} €</td>
                         <td className="px-4 py-3 text-blue-500 dark:text-blue-400">{proj.savings.toLocaleString('fr-FR', { maximumFractionDigits: 0 })} €</td>
+                        <td className={`px-4 py-3 font-medium ${proj.margin > 0 ? 'text-emerald-600 dark:text-emerald-400' : proj.margin < 0 ? 'text-red-600 dark:text-red-400' : 'text-gray-500 dark:text-gray-400'}`}>
+                          {proj.margin > 0 ? '+' : ''}{proj.margin.toLocaleString('fr-FR', { maximumFractionDigits: 0 })} €
+                        </td>
                         <td className="px-4 py-3 text-right font-bold text-gray-900 dark:text-white">
                           {proj.patrimony.toLocaleString('fr-FR', { maximumFractionDigits: 0 })} €
                         </td>
