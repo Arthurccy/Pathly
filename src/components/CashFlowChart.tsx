@@ -283,7 +283,7 @@ const CashFlowChart: React.FC = () => {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-3 gap-2 text-sm sm:flex sm:items-center sm:gap-4">
+                <div className="grid grid-cols-2 gap-2 text-sm sm:flex sm:items-center sm:gap-4">
                   <div>
                     <p className="text-xs text-slate-500 dark:text-slate-400">Sans les budgets</p>
                     <p className={item.plannedOnlyBalance >= 0 ? 'font-semibold text-emerald-600 dark:text-emerald-400' : 'font-semibold text-red-600 dark:text-red-400'}>
@@ -296,13 +296,7 @@ const CashFlowChart: React.FC = () => {
                       {money(item.planBalance)}
                     </p>
                   </div>
-                  <div>
-                    <p className="text-xs text-slate-500 dark:text-slate-400">Reste estimé fin de période</p>
-                    <p className={`font-semibold ${projBalanceClass}`}>
-                      {money(item.projectedBalance)}
-                    </p>
-                  </div>
-                  <span className={`col-span-3 inline-flex items-center justify-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold ring-1 sm:col-span-1 ${item.status.classes}`}>
+                  <span className={`col-span-2 inline-flex items-center justify-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold ring-1 sm:col-span-1 ${item.status.classes}`}>
                     <StatusIcon className="h-3.5 w-3.5" />
                     {item.status.label}
                   </span>
