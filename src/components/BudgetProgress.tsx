@@ -409,12 +409,35 @@ const BudgetProgress: React.FC<BudgetProgressProps> = ({ viewMode = 'monthly' })
   const selectedTransactions = selectedCategoryId
     ? transactions
         .filter(transaction =>
+          !transaction.isRecurring &&
           transaction.categoryId === selectedCategoryId &&
-          transaction.type === 'expense' &&
+          (transaction.type === 'expense' || transaction.type === 'bill') &&
           (transaction.status === 'completed' || transaction.status === 'scheduled' || transaction.status === 'pending') &&
           transaction.date >= periodStart &&
           transaction.date <= periodEnd &&
           (selectedAccountIds.length === 0 || selectedAccountIds.includes(transaction.accountId))
+        )
+        .concat(
+          projectedRecurringExpenses.filter(t =>
+            t.categoryId === selectedCategoryId &&
+            t.date >= periodStart &&
+            t.date <= periodEnd
+          )
+        )
+        .concat(
+          projectedDebtExpenses
+            .filter(d => d.categoryId === selectedCategoryId)
+            .map(d => ({
+              id: `projected-debt-${d.debtName}-${d.date.getTime()}`,
+              description: `Dette: ${d.debtName}`,
+              amount: d.amount,
+              date: d.date,
+              type: 'expense' as const,
+              status: 'scheduled' as const,
+              categoryId: d.categoryId,
+              accountId: spendingAccountIds.values().next().value || '',
+              isRecurring: false,
+            }))
         )
         .sort((a, b) => b.date.getTime() - a.date.getTime())
     : [];
