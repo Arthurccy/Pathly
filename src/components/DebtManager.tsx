@@ -23,6 +23,7 @@ const DebtManager: React.FC = () => {
     creditor: '',
     description: '',
     paymentDay: '1',
+    endDate: '',
   });
 
   const [paymentData, setPaymentData] = useState({
@@ -84,6 +85,7 @@ const DebtManager: React.FC = () => {
       creditor: formData.creditor || undefined,
       description: formData.description || undefined,
       paymentDay: parseInt(formData.paymentDay),
+      endDate: formData.endDate ? new Date(formData.endDate) : undefined,
       isActive: true,
     };
 
@@ -138,6 +140,7 @@ const DebtManager: React.FC = () => {
       creditor: '',
       description: '',
       paymentDay: '1',
+      endDate: '',
     });
     setShowForm(false);
     setEditingDebt(null);
@@ -157,6 +160,7 @@ const DebtManager: React.FC = () => {
       creditor: debt.creditor || '',
       description: debt.description || '',
       paymentDay: debt.paymentDay?.toString() || '1',
+      endDate: debt.endDate ? new Date(debt.endDate).toISOString().split('T')[0] : '',
     });
     setShowForm(true);
   };
@@ -377,6 +381,19 @@ const DebtManager: React.FC = () => {
               </div>
 
               <div>
+                <label htmlFor="endDate" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Date de fin (optionnelle)
+                </label>
+                <input
+                  type="date"
+                  id="endDate"
+                  value={formData.endDate}
+                  onChange={(e) => setFormData({ ...formData, endDate: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
+                />
+              </div>
+
+              <div>
                 <label htmlFor="creditor" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                   Créancier
                 </label>
@@ -459,7 +476,7 @@ const DebtManager: React.FC = () => {
                         </p>
                       )}
                       
-                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                      <div className="grid grid-cols-2 md:grid-cols-5 gap-4 text-sm">
                         <div>
                           <p className="text-gray-500 dark:text-gray-400">Restant</p>
                           <p className="font-semibold text-red-600 dark:text-red-400">
@@ -484,6 +501,14 @@ const DebtManager: React.FC = () => {
                             {format(debt.dueDate, 'dd/MM/yyyy')}
                           </p>
                         </div>
+                        {debt.endDate && (
+                          <div>
+                            <p className="text-gray-500 dark:text-gray-400">Date de fin</p>
+                            <p className="font-semibold text-gray-900 dark:text-white">
+                              {format(new Date(debt.endDate), 'dd/MM/yyyy')}
+                            </p>
+                          </div>
+                        )}
                       </div>
                     </div>
                     

@@ -1200,6 +1200,8 @@ export const BudgetProvider: React.FC<BudgetProviderProps> = ({ children }) => {
         isBefore(startOfDay(currentDueDate), startOfDay(now)) || 
         (isSameDay(currentDueDate, now) && !isAfter(getAutoCompletionDate(currentDueDate), now))
       ) {
+        if (debt.endDate && isAfter(currentDueDate, new Date(debt.endDate))) break;
+
         const expectedAmount = Math.min(debt.minimumPayment, newRemainingAmount);
         
         if (expectedAmount > 0) {

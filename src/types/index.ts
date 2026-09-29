@@ -139,6 +139,7 @@ export interface Debt {
   creditor?: string;
   description?: string;
   paymentDay?: number; // Day of month
+  endDate?: Date;
 }
 
 export interface DebtPayment {

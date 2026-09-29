@@ -96,6 +96,7 @@ const convertDatabaseToApp = {
     creditor: row.creditor,
     description: row.description,
     paymentDay: row.payment_day,
+    endDate: row.end_date ? new Date(row.end_date) : undefined,
   }),
 
   debtPayment: (row: any): DebtPayment => ({
@@ -204,6 +205,7 @@ const convertAppToDatabase = {
     creditor: debt.creditor,
     description: debt.description,
     payment_day: debt.paymentDay,
+    end_date: debt.endDate?.toISOString().split('T')[0],
   }),
 
   debtPayment: (payment: Omit<DebtPayment, 'id'>): any => ({
