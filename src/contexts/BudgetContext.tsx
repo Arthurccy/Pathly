@@ -790,6 +790,8 @@ export const BudgetProvider: React.FC<BudgetProviderProps> = ({ children }) => {
         setCategories(prev => [...prev, transferCategory!]);
       }
 
+      const status = startOfDay(date) > startOfDay(new Date()) ? 'scheduled' : 'completed';
+
       // Create transfer transactions
       const transferOut = await supabaseService.createTransaction({
         userId: user.id,
@@ -799,7 +801,7 @@ export const BudgetProvider: React.FC<BudgetProviderProps> = ({ children }) => {
         date,
         categoryId: transferCategory.id,
         type: 'transfer',
-        status: 'completed',
+        status,
         isRecurring: false,
         transferToAccountId: toAccountId
       });
@@ -812,16 +814,18 @@ export const BudgetProvider: React.FC<BudgetProviderProps> = ({ children }) => {
         date,
         categoryId: transferCategory.id,
         type: 'transfer',
-        status: 'completed',
+        status,
         isRecurring: false,
         transferToAccountId: fromAccountId
       });
 
       setTransactions(prev => [transferIn, transferOut, ...prev]);
 
-      // Update balances
-      await updateAccountBalance(fromAccountId, -amount);
-      await updateAccountBalance(toAccountId, amount);
+      if (status === 'completed') {
+        // Update balances
+        await updateAccountBalance(fromAccountId, -amount);
+        await updateAccountBalance(toAccountId, amount);
+      }
     } catch (error) {
       console.error('Error transferring between accounts:', error);
       throw error;
@@ -1560,15 +1564,27 @@ export const BudgetProvider: React.FC<BudgetProviderProps> = ({ children }) => {
           return sum + Math.min(debt.minimumPayment, debt.remainingAmount);
         }, 0);
 
+      const transferInFromSavings = cashMovementTransactions
+        .filter(t =>
+          t.type === 'transfer' &&
+          cashFlowAccountIds.has(t.accountId) &&
+          t.transferToAccountId &&
+          savingsAccountIds.has(t.transferToAccountId) &&
+          t.description.toLowerCase().includes('depuis')
+        )
+        .reduce((sum, t) => sum + t.amount, 0);
+
       const income = cashMovementTransactions
         .filter(t => t.type === 'income' || t.type === 'refund' || t.type === 'savings_withdrawal')
-        .reduce((sum, t) => sum + t.amount, 0);
+        .reduce((sum, t) => sum + t.amount, 0) + transferInFromSavings;
+
       const transferOutToExternalAccounts = cashMovementTransactions
         .filter(t =>
           t.type === 'transfer' &&
           cashFlowAccountIds.has(t.accountId) &&
           t.transferToAccountId &&
           !cashFlowAccountIds.has(t.transferToAccountId) &&
+          !savingsAccountIds.has(t.transferToAccountId) &&
           !t.description.toLowerCase().includes('depuis')
         )
         .reduce((sum, t) => sum + t.amount, 0);
@@ -1659,15 +1675,27 @@ export const BudgetProvider: React.FC<BudgetProviderProps> = ({ children }) => {
       if (i === 0) {
         const futurePlannedTransactions = plannedTransactions.filter(t => startOfDay(t.date) >= today);
 
+        const remainingTransferInFromSavings = futurePlannedTransactions
+          .filter(t =>
+            t.type === 'transfer' &&
+            cashFlowAccountIds.has(t.accountId) &&
+            t.transferToAccountId &&
+            savingsAccountIds.has(t.transferToAccountId) &&
+            t.description.toLowerCase().includes('depuis')
+          )
+          .reduce((sum, t) => sum + t.amount, 0);
+
         const remainingIncome = futurePlannedTransactions
           .filter(t => t.type === 'income' || t.type === 'refund' || t.type === 'savings_withdrawal')
-          .reduce((sum, t) => sum + t.amount, 0);
+          .reduce((sum, t) => sum + t.amount, 0) + remainingTransferInFromSavings;
+
         const remainingExternalTransfers = futurePlannedTransactions
           .filter(t =>
             t.type === 'transfer' &&
             cashFlowAccountIds.has(t.accountId) &&
             t.transferToAccountId &&
             !cashFlowAccountIds.has(t.transferToAccountId) &&
+            !savingsAccountIds.has(t.transferToAccountId) &&
             !t.description.toLowerCase().includes('depuis')
           )
           .reduce((sum, t) => sum + t.amount, 0);
