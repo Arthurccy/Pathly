@@ -753,7 +753,7 @@ export const BudgetProvider: React.FC<BudgetProviderProps> = ({ children }) => {
     }
   };
 
-  const transferBetweenAccounts = async (fromAccountId: string, toAccountId: string, amount: number, description: string) => {
+  const transferBetweenAccounts = async (fromAccountId: string, toAccountId: string, amount: number, description: string, date: Date = new Date()) => {
     if (!user) return;
 
     try {
@@ -796,7 +796,7 @@ export const BudgetProvider: React.FC<BudgetProviderProps> = ({ children }) => {
         accountId: fromAccountId,
         amount,
         description: `Virement vers ${toAccount.name} - ${description}`,
-        date: new Date(),
+        date,
         categoryId: transferCategory.id,
         type: 'transfer',
         status: 'completed',
@@ -809,7 +809,7 @@ export const BudgetProvider: React.FC<BudgetProviderProps> = ({ children }) => {
         accountId: toAccountId,
         amount,
         description: `Virement depuis ${fromAccount.name} - ${description}`,
-        date: new Date(),
+        date,
         categoryId: transferCategory.id,
         type: 'transfer',
         status: 'completed',

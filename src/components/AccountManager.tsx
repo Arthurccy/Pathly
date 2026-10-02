@@ -58,6 +58,7 @@ const AccountManager: React.FC = () => {
     toAccountId: '',
     amount: '',
     description: '',
+    date: new Date().toISOString().split('T')[0],
   });
 
   const accountTypes = [
@@ -167,6 +168,7 @@ const AccountManager: React.FC = () => {
       toAccountId: destinationAccountId,
       amount: '',
       description: '',
+      date: new Date().toISOString().split('T')[0],
     });
     setShowTransferModal(true);
   };
@@ -204,7 +206,8 @@ const AccountManager: React.FC = () => {
         fromAccount.id,
         toAccount.id,
         amount,
-        transferData.description.trim() || 'Transfert entre comptes'
+        transferData.description.trim() || 'Transfert entre comptes',
+        new Date(transferData.date)
       );
       setShowTransferModal(false);
       setTransferData({
@@ -212,6 +215,7 @@ const AccountManager: React.FC = () => {
         toAccountId: '',
         amount: '',
         description: '',
+        date: new Date().toISOString().split('T')[0],
       });
     } catch (error) {
       console.error('Error transferring money:', error);
@@ -1073,6 +1077,19 @@ const AccountManager: React.FC = () => {
                     onChange={(e) => setTransferData({ ...transferData, description: e.target.value })}
                     className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
                     placeholder="Ex: Mise de côté, remboursement, virement interne"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Date du transfert
+                  </label>
+                  <input
+                    type="date"
+                    value={transferData.date}
+                    onChange={(e) => setTransferData({ ...transferData, date: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
+                    required
                   />
                 </div>
               </div>
