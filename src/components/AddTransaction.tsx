@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+﻿import React, { useEffect, useMemo, useState } from 'react';
 import { AlertCircle, CheckCircle2, CreditCard, Plus, Save, X } from 'lucide-react';
 import * as LucideIcons from 'lucide-react';
 import { useBudget } from '../contexts/BudgetContext';
@@ -155,7 +155,7 @@ const AddTransaction: React.FC = () => {
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
               Type de transaction *
             </label>
-            <div className="grid grid-cols-2 gap-2 sm:gap-3">
+            <div className="grid grid-cols-3 gap-2 sm:gap-3">
               <button
                 type="button"
                 onClick={() => setFormData({ ...formData, type: 'expense', categoryId: '' })}
@@ -166,7 +166,7 @@ const AddTransaction: React.FC = () => {
                 }`}
               >
                 <div className="text-center">
-                  <div className="font-medium">Dépense</div>
+                  <div className="font-medium text-sm sm:text-base">Dépense</div>
                 </div>
               </button>
 
@@ -180,7 +180,21 @@ const AddTransaction: React.FC = () => {
                 }`}
               >
                 <div className="text-center">
-                  <div className="font-medium">Revenu</div>
+                  <div className="font-medium text-sm sm:text-base">Revenu</div>
+                </div>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setFormData({ ...formData, type: 'transfer', categoryId: categories.find(c => c.name === 'Transferts')?.id || '' })}
+                  className={`rounded-xl border-2 p-3 transition-all sm:p-4 ${
+                  formData.type === 'transfer'
+                    ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300'
+                    : 'border-gray-200 dark:border-gray-600 hover:border-gray-300 dark:hover:border-gray-500'
+                }`}
+              >
+                <div className="text-center">
+                  <div className="font-medium text-sm sm:text-base">Virement</div>
                 </div>
               </button>
             </div>
@@ -244,45 +258,69 @@ const AddTransaction: React.FC = () => {
                 </p>
               </div>
             )}
+            
+            {formData.type === 'transfer' && (
+              <div>
+                <label htmlFor="transferToAccount" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 mt-4">
+                  Compte de destination *
+                </label>
+                <select
+                  id="transferToAccount"
+                  value={formData.transferToAccountId}
+                  onChange={(e) => setFormData({ ...formData, transferToAccountId: e.target.value })}
+                  className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
+                  required={formData.type === 'transfer'}
+                >
+                  <option value="">Sélectionnez un compte...</option>
+                  {activeAccounts.filter(a => a.id !== formData.accountId).map(account => (
+                    <option key={account.id} value={account.id}>
+                      {account.name} - {account.balance.toFixed(2)} {account.currency}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
           </div>
-
-          <div>
-            <label htmlFor="category" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              Catégorie *
-            </label>
-            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 sm:gap-3 lg:grid-cols-4">
-              {availableCategories.map((category) => {
-                const IconComponent = (LucideIcons as any)[category.icon] || LucideIcons.DollarSign;
-                return (
-                  <button
-                    key={category.id}
-                    type="button"
-                    onClick={() => setFormData({ ...formData, categoryId: category.id })}
-                    className={`rounded-xl border-2 p-3 transition-all sm:p-4 ${
-                      formData.categoryId === category.id
-                        ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
-                        : 'border-gray-200 dark:border-gray-600 hover:border-gray-300 dark:hover:border-gray-500'
-                    }`}
-                  >
-                    <div className="text-center">
-                      <div
-                        className="p-2 rounded-lg mx-auto mb-2 w-fit"
-                        style={{ backgroundColor: `${category.color}20` }}
-                      >
-                        <IconComponent
-                          className="h-5 w-5"
-                          style={{ color: category.color }}
-                        />
+          {formData.type !== 'transfer' && (
+  
+            <div>
+              <label htmlFor="category" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                Catégorie *
+              </label>
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 sm:gap-3 lg:grid-cols-4">
+                {availableCategories.map((category) => {
+                  const IconComponent = (LucideIcons as any)[category.icon] || LucideIcons.DollarSign;
+                  return (
+                    <button
+                      key={category.id}
+                      type="button"
+                      onClick={() => setFormData({ ...formData, categoryId: category.id })}
+                      className={`rounded-xl border-2 p-3 transition-all sm:p-4 ${
+                        formData.categoryId === category.id
+                          ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
+                          : 'border-gray-200 dark:border-gray-600 hover:border-gray-300 dark:hover:border-gray-500'
+                      }`}
+                    >
+                      <div className="text-center">
+                        <div
+                          className="p-2 rounded-lg mx-auto mb-2 w-fit"
+                          style={{ backgroundColor: `${category.color}20` }}
+                        >
+                          <IconComponent
+                            className="h-5 w-5"
+                            style={{ color: category.color }}
+                          />
+                        </div>
+                        <div className="text-xs font-medium text-gray-700 dark:text-gray-300">
+                          {category.name}
+                        </div>
                       </div>
-                      <div className="text-xs font-medium text-gray-700 dark:text-gray-300">
-                        {category.name}
-                      </div>
-                    </div>
-                  </button>
-                );
-              })}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
-          </div>
+          )}
 
           <div className="flex items-center gap-3 mb-4">
             <input
