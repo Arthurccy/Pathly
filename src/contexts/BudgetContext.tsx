@@ -1664,7 +1664,7 @@ export const BudgetProvider: React.FC<BudgetProviderProps> = ({ children }) => {
         return sum + Math.max(budgetItem.amount - committedForCategory, 0);
       }, 0);
 
-      const totalOutflows = baseExpenses + debtPaymentsForMonth + transferOutToExternalAccounts + budgetReserve + savings;
+      const totalOutflows = baseExpenses + debtPaymentsForMonth + transferOutToExternalAccounts + transferOutToSavingsAccounts + budgetReserve + savings;
       const balance = income - totalOutflows;
       
       let projectedBalance: number;
@@ -1715,7 +1715,7 @@ export const BudgetProvider: React.FC<BudgetProviderProps> = ({ children }) => {
           .filter(t => t.type === 'savings')
           .reduce((sum, t) => sum + t.amount, 0);
 
-        const remainingOutflows = remainingBaseExpenses + debtPaymentsForMonth + remainingExternalTransfers + budgetReserve + remainingSavings;
+        const remainingOutflows = remainingBaseExpenses + debtPaymentsForMonth + remainingExternalTransfers + remainingSavingsTransfers + budgetReserve + remainingSavings;
         const remainingDelta = remainingIncome - remainingOutflows;
 
         projectedBalance = openingBalance + remainingDelta;
@@ -1737,7 +1737,7 @@ export const BudgetProvider: React.FC<BudgetProviderProps> = ({ children }) => {
         date: monthStart,
         income,
         expenses: totalOutflows,
-        savings,
+        savings: savings + transferOutToSavingsAccounts,
         balance,
         projectedBalance,
         openingBalance: monthOpeningBalance,
