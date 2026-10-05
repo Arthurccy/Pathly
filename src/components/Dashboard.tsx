@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+﻿import React, { useMemo, useState } from 'react';
 import { endOfYear, format, startOfYear, subYears } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import {
@@ -30,6 +30,7 @@ import CashFlowChart from './CashFlowChart';
 import AccountsOverview from './AccountsOverview';
 import SavingsGoalsProgress from './SavingsGoalsProgress';
 import { BankSyncModal } from './BankSyncModal';
+import OnboardingChecklist from './OnboardingChecklist';
 
 interface DashboardProps {
   onViewChange?: (view: string) => void;
@@ -297,6 +298,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onViewChange }) => {
 
   return (
     <div className="space-y-6">
+      <OnboardingChecklist onViewChange={onViewChange} />
       <section className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-950">
         <div className="grid gap-0 xl:grid-cols-[minmax(0,1fr)_24rem]">
           <div className="p-4 sm:p-5 lg:p-6">
@@ -546,3 +548,4 @@ const Dashboard: React.FC<DashboardProps> = ({ onViewChange }) => {
 };
 
 export default Dashboard;
+
