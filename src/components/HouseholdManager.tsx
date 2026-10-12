@@ -18,7 +18,8 @@ import {
   Receipt,
   Check,
   X,
-  CreditCard
+  CreditCard,
+  Scale
 } from 'lucide-react';
 import * as LucideIcons from 'lucide-react';
 import { format, startOfMonth, endOfMonth, subMonths, addMonths } from 'date-fns';
@@ -144,36 +145,39 @@ const HouseholdManager: React.FC = () => {
       <div className="flex border-b border-gray-200 dark:border-gray-700 gap-6 text-sm font-medium">
         <button
           onClick={() => setActiveTab('balance')}
-          className={`pb-3 transition border-b-2 ${
+          className={`pb-3 transition border-b-2 flex items-center gap-2 ${
             activeTab === 'balance'
               ? 'border-rose-600 text-rose-600 dark:border-rose-400 dark:text-rose-400 font-semibold'
               : 'border-transparent text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200'
           }`}
         >
-          ⚖️ Balance & "Qui doit quoi ?"
+          <Scale className="h-4 w-4" />
+          <span>Solde & Équilibre du foyer</span>
         </button>
         <button
           onClick={() => setActiveTab('expenses')}
-          className={`pb-3 transition border-b-2 flex items-center gap-1.5 ${
+          className={`pb-3 transition border-b-2 flex items-center gap-2 ${
             activeTab === 'expenses'
               ? 'border-rose-600 text-rose-600 dark:border-rose-400 dark:text-rose-400 font-semibold'
               : 'border-transparent text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200'
           }`}
         >
-          🧾 Dépenses communes du mois
-          <span className="text-xs px-1.5 py-0.2 rounded-full bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400">
+          <Receipt className="h-4 w-4" />
+          <span>Dépenses communes du mois</span>
+          <span className="text-xs px-2 py-0.5 rounded-full bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400">
             {sharedExpenses.length}
           </span>
         </button>
         <button
           onClick={() => setActiveTab('settings')}
-          className={`pb-3 transition border-b-2 flex items-center gap-1.5 ${
+          className={`pb-3 transition border-b-2 flex items-center gap-2 ${
             activeTab === 'settings'
               ? 'border-rose-600 text-rose-600 dark:border-rose-400 dark:text-rose-400 font-semibold'
               : 'border-transparent text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200'
           }`}
         >
-          ⚙️ Profils & Répartition ({ratioA}/{ratioB})
+          <SlidersHorizontal className="h-4 w-4" />
+          <span>Profils & Répartition ({ratioA}/{ratioB})</span>
         </button>
       </div>
 
@@ -214,15 +218,15 @@ const HouseholdManager: React.FC = () => {
 
                 <h2 className="text-2xl sm:text-3xl font-extrabold text-gray-900 dark:text-white">
                   {isSettled
-                    ? `${householdConfig.userB.name} est parfaitement à jour !`
+                    ? 'Comptes du foyer parfaitement équilibrés'
                     : balance < 0
-                      ? `${householdConfig.userB.name} te doit ${Math.abs(balance).toFixed(2)} € ce mois-ci`
-                      : `Tu as ${balance.toFixed(2)} € d'avance sur le pot commun`
+                      ? `Participation restante de ${householdConfig.userB.name} : ${Math.abs(balance).toFixed(2)} €`
+                      : `Avance de ${balance.toFixed(2)} € sur les dépenses communes`
                   }
                 </h2>
 
                 <p className="text-sm text-gray-600 dark:text-gray-300 max-w-2xl leading-relaxed">
-                  Sur <strong>{totalSharedAmount.toFixed(2)} €</strong> de dépenses communes payées depuis ton compte, la part équitable de {householdConfig.userB.name} ({ratioB}%) s'élève à <strong>{userBShare.toFixed(2)} €</strong>. Elle a déjà versé <strong>{totalContributionsReceived.toFixed(2)} €</strong> de provisions ce mois-ci.
+                  Sur <strong>{totalSharedAmount.toFixed(2)} €</strong> de dépenses communes enregistrées ce mois-ci, la quote-part de {householdConfig.userB.name} ({ratioB}%) s'élève à <strong>{userBShare.toFixed(2)} €</strong>. Provisions versées : <strong>{totalContributionsReceived.toFixed(2)} €</strong>.
                 </p>
               </div>
 
@@ -240,7 +244,7 @@ const HouseholdManager: React.FC = () => {
                   {balance >= 0 ? '+' : ''}{balance.toFixed(2)} €
                 </span>
                 <span className="text-xs text-gray-500 dark:text-gray-400">
-                  {isSettled ? 'Équilibré à 0 €' : balance < 0 ? `À recevoir de ${householdConfig.userB.name}` : `Crédit restant`}
+                  {isSettled ? 'Comptes équilibrés' : balance < 0 ? `Reste à régulariser (${householdConfig.userB.name})` : 'Avance enregistrée'}
                 </span>
               </div>
             </div>
@@ -569,7 +573,7 @@ const HouseholdManager: React.FC = () => {
                       : 'border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-750 text-gray-600 dark:text-gray-300'
                   }`}
                 >
-                  ⚖️ Prorata (Auto)
+                  Prorata (Auto)
                 </button>
                 <button
                   type="button"
@@ -591,7 +595,7 @@ const HouseholdManager: React.FC = () => {
                       : 'border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-750 text-gray-600 dark:text-gray-300'
                   }`}
                 >
-                  🎛️ Personnalisé
+                  Personnalisé
                 </button>
               </div>
 

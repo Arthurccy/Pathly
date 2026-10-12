@@ -378,24 +378,34 @@ const AssetManager: React.FC = () => {
       {/* Category filter pills */}
       <div className="flex items-center gap-2 overflow-x-auto pb-1 text-sm">
         {[
-          { id: 'all', label: 'Tous les biens', count: assets.length },
-          { id: 'real_estate', label: '🏠 Immobilier', count: assets.filter(a => a.category === 'real_estate').length },
-          { id: 'vehicle', label: '🚗 Véhicules', count: assets.filter(a => a.category === 'vehicle').length },
-          { id: 'valuable_item', label: '⌚ Horlogerie & Montres', count: assets.filter(a => a.category === 'valuable_item').length },
-          { id: 'crypto_hardware', label: '💎 Objets & Autres', count: assets.filter(a => a.category === 'crypto_hardware' || a.category === 'other').length },
-        ].map(tab => (
-          <button
-            key={tab.id}
-            onClick={() => setActiveCategoryFilter(tab.id)}
-            className={`whitespace-nowrap px-3.5 py-1.5 rounded-xl font-medium transition text-xs sm:text-sm ${
-              activeCategoryFilter === tab.id
-                ? 'bg-blue-600 text-white shadow-sm'
-                : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-gray-700 hover:bg-gray-50'
-            }`}
-          >
-            {tab.label} ({tab.count})
-          </button>
-        ))}
+          { id: 'all', label: 'Tous les biens', icon: Package, count: assets.length },
+          { id: 'real_estate', label: 'Immobilier', icon: Building2, count: assets.filter(a => a.category === 'real_estate').length },
+          { id: 'vehicle', label: 'Véhicules', icon: Car, count: assets.filter(a => a.category === 'vehicle').length },
+          { id: 'valuable_item', label: 'Horlogerie & Montres', icon: Watch, count: assets.filter(a => a.category === 'valuable_item').length },
+          { id: 'crypto_hardware', label: 'Objets & Autres', icon: Gem, count: assets.filter(a => a.category === 'crypto_hardware' || a.category === 'other').length },
+        ].map(tab => {
+          const TabIcon = tab.icon;
+          const isActive = activeCategoryFilter === tab.id;
+          return (
+            <button
+              key={tab.id}
+              onClick={() => setActiveCategoryFilter(tab.id)}
+              className={`whitespace-nowrap px-3.5 py-1.5 rounded-xl font-medium transition text-xs sm:text-sm flex items-center gap-2 ${
+                isActive
+                  ? 'bg-blue-600 text-white shadow-sm'
+                  : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-gray-700 hover:bg-gray-50'
+              }`}
+            >
+              <TabIcon className="h-3.5 w-3.5" />
+              <span>{tab.label}</span>
+              <span className={`text-[11px] px-1.5 py-0.5 rounded-full ${
+                isActive ? 'bg-white/20 text-white' : 'bg-gray-100 dark:bg-gray-700 text-gray-500'
+              }`}>
+                {tab.count}
+              </span>
+            </button>
+          );
+        })}
       </div>
 
       {/* Assets Grid */}
