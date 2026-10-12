@@ -160,23 +160,23 @@ const BudgetSimulator: React.FC = () => {
   const status = getStatus(surplus);
 
   return (
-    <div className="space-y-6 max-w-7xl mx-auto">
+    <div className="w-full space-y-6">
       <div className="flex items-center space-x-3">
         <div className="p-2 bg-indigo-100 dark:bg-indigo-900/20 rounded-lg">
           <Target className="h-6 w-6 text-indigo-600 dark:text-indigo-400" />
         </div>
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
+        <h1 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white">
           Simulateur de Budget
         </h1>
       </div>
       
-      <p className="text-gray-500 dark:text-gray-400">
+      <p className="text-sm sm:text-base text-gray-500 dark:text-gray-400">
         Simulez l'impact d'un changement de salaire, de loyer ou de train de vie sur votre budget mensuel. Les valeurs de départ sont vos moyennes actuelles.
       </p>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         {/* Entrées */}
-        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6 space-y-6">
+        <div className="lg:col-span-5 xl:col-span-4 bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-4 sm:p-6 space-y-6">
           <h2 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
             <Calculator className="h-5 w-5" />
             Paramètres simulés
@@ -346,7 +346,7 @@ const BudgetSimulator: React.FC = () => {
         </div>
 
         {/* Résultats */}
-        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6 flex flex-col justify-between">
+        <div className="lg:col-span-7 xl:col-span-8 bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-4 sm:p-6 flex flex-col justify-between">
           <div>
             <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-6 flex items-center justify-between">
               Résultat Simulé

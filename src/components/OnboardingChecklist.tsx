@@ -79,12 +79,12 @@ const OnboardingChecklist: React.FC<OnboardingChecklistProps> = ({ onViewChange 
     <section className="mb-8 rounded-2xl border border-blue-200 bg-gradient-to-br from-blue-50 to-indigo-50 p-6 shadow-sm dark:border-blue-900/50 dark:from-blue-950/40 dark:to-indigo-950/40">
       <div className="flex flex-col gap-6 md:flex-row md:items-start md:justify-between">
         {/* Left: title + progress */}
-        <div className="flex-1 max-w-xs">
+        <div className="w-full md:max-w-xs md:flex-1">
           <div className="flex items-center gap-2 text-blue-700 dark:text-blue-400 mb-2">
             <Sparkles className="h-5 w-5" />
             <h2 className="text-lg font-bold">Bienvenue sur Pathly !</h2>
           </div>
-          <p className="text-blue-900/80 dark:text-blue-200/80 text-sm mb-6">
+          <p className="text-blue-900/80 dark:text-blue-200/80 text-sm mb-4 md:mb-6">
             Configurez ces {steps.length} éléments pour tirer le meilleur de Pathly. Cliquez sur une étape pour y accéder, ou cochez manuellement si vous l'avez déjà faite.
           </p>
 
@@ -100,7 +100,7 @@ const OnboardingChecklist: React.FC<OnboardingChecklistProps> = ({ onViewChange 
         </div>
 
         {/* Right: step list */}
-        <div className="grid gap-2 flex-1 min-w-[280px]">
+        <div className="grid gap-2 w-full min-w-0 md:flex-1">
           {steps.map(step => (
             <div
               key={step.key}

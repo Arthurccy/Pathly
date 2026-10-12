@@ -1,4 +1,4 @@
-﻿import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { AlertCircle, CheckCircle2, CreditCard, Plus, Save, X } from 'lucide-react';
 import * as LucideIcons from 'lucide-react';
 import { useBudget } from '../contexts/BudgetContext';
@@ -287,7 +287,7 @@ const AddTransaction: React.FC = () => {
               <label htmlFor="category" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                 Catégorie *
               </label>
-              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 sm:gap-3 lg:grid-cols-4">
+              <div className="grid grid-cols-3 gap-2 sm:grid-cols-4 lg:grid-cols-5 max-h-56 overflow-y-auto pr-1">
                 {availableCategories.map((category) => {
                   const IconComponent = (LucideIcons as any)[category.icon] || LucideIcons.DollarSign;
                   return (
@@ -295,7 +295,7 @@ const AddTransaction: React.FC = () => {
                       key={category.id}
                       type="button"
                       onClick={() => setFormData({ ...formData, categoryId: category.id })}
-                      className={`rounded-xl border-2 p-3 transition-all sm:p-4 ${
+                      className={`rounded-xl border-2 p-2.5 transition-all ${
                         formData.categoryId === category.id
                           ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
                           : 'border-gray-200 dark:border-gray-600 hover:border-gray-300 dark:hover:border-gray-500'
@@ -303,7 +303,7 @@ const AddTransaction: React.FC = () => {
                     >
                       <div className="text-center">
                         <div
-                          className="p-2 rounded-lg mx-auto mb-2 w-fit"
+                          className="p-1.5 rounded-lg mx-auto mb-1.5 w-fit"
                           style={{ backgroundColor: `${category.color}20` }}
                         >
                           <IconComponent
@@ -311,7 +311,7 @@ const AddTransaction: React.FC = () => {
                             style={{ color: category.color }}
                           />
                         </div>
-                        <div className="text-xs font-medium text-gray-700 dark:text-gray-300">
+                        <div className="text-xs font-medium text-gray-700 dark:text-gray-300 leading-tight">
                           {category.name}
                         </div>
                       </div>

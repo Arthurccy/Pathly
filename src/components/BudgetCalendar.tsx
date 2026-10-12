@@ -14,6 +14,8 @@ import {
   format, 
   startOfMonth, 
   endOfMonth, 
+  startOfWeek,
+  endOfWeek,
   eachDayOfInterval, 
   isSameMonth, 
   isSameDay, 
@@ -51,9 +53,11 @@ const BudgetCalendar: React.FC = () => {
 
   const monthStart = startOfMonth(currentDate);
   const monthEnd = endOfMonth(currentDate);
-  const calendarDays = eachDayOfInterval({ start: monthStart, end: monthEnd });
+  const calendarStart = startOfWeek(monthStart, { weekStartsOn: 1 });
+  const calendarEnd = endOfWeek(monthEnd, { weekStartsOn: 1 });
+  const calendarDays = eachDayOfInterval({ start: calendarStart, end: calendarEnd });
   
-  const events = getCalendarEvents(monthStart, monthEnd);
+  const events = getCalendarEvents(calendarStart, calendarEnd);
   const monthStartDay = user?.settings?.monthStartDay || 1;
   const today = startOfDay(new Date());
   const currentCustomPeriod = getCustomMonthPeriod(today, monthStartDay);
@@ -306,12 +310,12 @@ const BudgetCalendar: React.FC = () => {
         </div>
 
         {/* Calendar Grid */}
-        <div className="overflow-x-auto p-3 sm:p-6">
-          <div className="min-w-[42rem]">
+        <div className="p-2 sm:p-6 overflow-x-auto">
+          <div className="w-full min-w-0 sm:min-w-[42rem]">
           {/* Days of week header */}
-          <div className="mb-4 grid grid-cols-7 gap-1">
+          <div className="mb-2 sm:mb-4 grid grid-cols-7 gap-1">
             {['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'].map(day => (
-              <div key={day} className="p-2 text-center text-sm font-medium text-gray-500 dark:text-gray-400">
+              <div key={day} className="p-1 sm:p-2 text-center text-xs sm:text-sm font-semibold text-gray-500 dark:text-gray-400">
                 {day}
               </div>
             ))}
@@ -329,31 +333,33 @@ const BudgetCalendar: React.FC = () => {
                   key={day.toISOString()}
                   onClick={() => handleDateClick(day)}
                   className={`
-                    min-h-[76px] cursor-pointer rounded-lg border border-gray-200 p-2
-                    transition-colors hover:bg-gray-50 dark:hover:bg-gray-700/50
+                    min-h-[56px] sm:min-h-[76px] cursor-pointer rounded-lg border border-gray-200 dark:border-gray-700/80 p-1 sm:p-2
+                    transition-colors hover:bg-gray-50 dark:hover:bg-gray-700/50 flex flex-col justify-between
                     ${isSelected ? 'ring-2 ring-blue-500 bg-blue-50 dark:bg-blue-900/20' : ''}
-                    ${!isCurrentMonth ? 'opacity-50' : ''}
-                    ${isToday(day) ? 'bg-blue-100 dark:bg-blue-900/30' : ''}
+                    ${!isCurrentMonth ? 'opacity-40 bg-gray-50/50 dark:bg-gray-900/30' : 'bg-white dark:bg-gray-800'}
+                    ${isToday(day) ? 'bg-blue-50/80 dark:bg-blue-900/30 ring-1 ring-blue-400 dark:ring-blue-500' : ''}
                   `}
                 >
-                  <div className="flex items-center justify-between mb-1">
-                    <span className={`text-sm font-medium ${
+                  <div className="flex items-center justify-between mb-0.5 sm:mb-1">
+                    <span className={`text-xs sm:text-sm font-medium ${
                       isToday(day) 
-                        ? 'text-blue-700 dark:text-blue-300' 
+                        ? 'text-blue-700 dark:text-blue-300 font-bold' 
+                        : !isCurrentMonth
+                        ? 'text-gray-400 dark:text-gray-500'
                         : 'text-gray-900 dark:text-white'
                     }`}>
                       {format(day, 'd')}
                     </span>
                     
                     {dayEvents.length > 0 && (
-                      <span className="text-xs bg-blue-500 text-white rounded-full px-1 min-w-[16px] h-4 flex items-center justify-center">
+                      <span className="text-[10px] sm:text-xs bg-blue-500 text-white rounded-full px-1 min-w-[14px] sm:min-w-[16px] h-3.5 sm:h-4 flex items-center justify-center font-semibold">
                         {dayEvents.length}
                       </span>
                     )}
                   </div>
                   
-                  {/* Events preview */}
-                  <div className="space-y-1">
+                  {/* Events preview (desktop) */}
+                  <div className="hidden sm:block space-y-1">
                     {dayEvents.slice(0, 2).map((event, index) => {
                       const Icon = getEventIcon(event);
                       return (
@@ -364,7 +370,7 @@ const BudgetCalendar: React.FC = () => {
                             ${getEventColor(event)}
                           `}
                         >
-                          <Icon className="h-3 w-3" />
+                          <Icon className="h-3 w-3 shrink-0" />
                           <span className="truncate flex-1">{event.title}</span>
                         </div>
                       );
@@ -374,6 +380,22 @@ const BudgetCalendar: React.FC = () => {
                       <div className="text-xs text-gray-500 dark:text-gray-400 px-1">
                         +{dayEvents.length - 2} autres
                       </div>
+                    )}
+                  </div>
+
+                  {/* Compact event dots (mobile) */}
+                  <div className="flex sm:hidden flex-wrap gap-1 justify-center mt-auto pb-0.5">
+                    {dayEvents.slice(0, 3).map((event, index) => (
+                      <span
+                        key={index}
+                        className={`w-1.5 h-1.5 rounded-full ${getEventColor(event)}`}
+                        title={event.title}
+                      />
+                    ))}
+                    {dayEvents.length > 3 && (
+                      <span className="text-[9px] text-gray-500 dark:text-gray-400 leading-none font-semibold">
+                        +{dayEvents.length - 3}
+                      </span>
                     )}
                   </div>
                 </div>
