@@ -12,7 +12,8 @@ import {
   CashFlow,
   RecurringPattern,
   CalendarEvent,
-  ExportOptions
+  ExportOptions,
+  SimulatedEvent
 } from '../types';
 import { useAuth } from './AuthContext';
 import { supabaseService } from '../services/supabaseService';
@@ -165,6 +166,53 @@ export const BudgetProvider: React.FC<BudgetProviderProps> = ({ children }) => {
     end: endOfMonth(new Date())
   });
   const [selectedAccountIds, setSelectedAccountIds] = useState<string[]>([]);
+
+  // Simulated Future Events (shared across BudgetSimulator & WealthSimulator, persisted to Supabase)
+  const [simulatedEvents, setSimulatedEventsState] = useState<SimulatedEvent[]>(() => {
+    try {
+      const saved = localStorage.getItem('pathly_simulated_events');
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
+
+  // Sync simulated events from user_metadata when user logs in or profile updates
+  useEffect(() => {
+    if (user?.user_metadata?.pathly_simulated_events) {
+      const dbEvents = user.user_metadata.pathly_simulated_events;
+      if (Array.isArray(dbEvents)) {
+        setSimulatedEventsState(dbEvents);
+        try {
+          localStorage.setItem('pathly_simulated_events', JSON.stringify(dbEvents));
+        } catch {}
+      }
+    }
+  }, [user?.id, user?.user_metadata?.pathly_simulated_events]);
+
+  const setSimulatedEvents = async (newEvents: SimulatedEvent[]) => {
+    setSimulatedEventsState(newEvents);
+    try {
+      localStorage.setItem('pathly_simulated_events', JSON.stringify(newEvents));
+    } catch (e) {
+      console.error('Failed to save simulated events to localStorage:', e);
+    }
+
+    if (user) {
+      try {
+        const { error } = await supabase.auth.updateUser({
+          data: { pathly_simulated_events: newEvents }
+        });
+        if (error) {
+          console.error('❌ Error saving simulated events to Supabase user_metadata:', error);
+        } else {
+          console.log('✅ Simulated events persisted to Supabase database!');
+        }
+      } catch (err) {
+        console.error('❌ Failed to update Supabase user_metadata:', err);
+      }
+    }
+  };
 
   // --- ONE TIME CLEANUP ---
   useEffect(() => {
@@ -1861,6 +1909,11 @@ export const BudgetProvider: React.FC<BudgetProviderProps> = ({ children }) => {
       setCurrentPeriod: (start: Date, end: Date) => setCurrentPeriod({ start, end }),
       selectedAccountIds,
       setSelectedAccountIds,
+      
+      // Simulated Events
+      simulatedEvents,
+      setSimulatedEvents,
+
       reloadAll,
     }}>
       {children}

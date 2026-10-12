@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { TrendingUp, Calculator, Target, DollarSign, Percent, Calendar } from 'lucide-react';
+import { TrendingUp, Calculator, Target, DollarSign, Percent, Calendar, CalendarClock } from 'lucide-react';
 import { Line } from 'react-chartjs-2';
 import { useBudget } from '../contexts/BudgetContext';
 import { useAuth } from '../contexts/AuthContext';
@@ -16,8 +16,31 @@ interface SimulationScenario {
   withdrawalRate: number;
 }
 
+const parseEventValue = (input: string, currentValue: number): number => {
+  const trimmed = (input || '').trim();
+  if (!trimmed) return currentValue; 
+  
+  if (trimmed.endsWith('%')) {
+    const percent = parseFloat(trimmed.slice(0, -1));
+    if (!isNaN(percent)) {
+      if (trimmed.startsWith('+') || trimmed.startsWith('-')) {
+        return currentValue * (1 + percent / 100);
+      }
+      return currentValue * (percent / 100);
+    }
+  }
+  
+  if (trimmed.startsWith('+') || trimmed.startsWith('-')) {
+    const val = parseFloat(trimmed);
+    if (!isNaN(val)) return currentValue + val;
+  }
+  
+  const absoluteVal = parseFloat(trimmed);
+  return isNaN(absoluteVal) ? currentValue : absoluteVal;
+};
+
 const WealthSimulator: React.FC = () => {
-  const { accounts, savingsGoals } = useBudget();
+  const { accounts, savingsGoals, simulatedEvents } = useBudget();
   const { user } = useAuth();
   
   const storageKey = `pathly_wealth_scenarios_${user?.id || 'guest'}`;
@@ -71,11 +94,28 @@ const WealthSimulator: React.FC = () => {
     
     const projections = [];
     let currentValue = currentWealth;
+    let runningContribution = monthlyContribution;
+    let totalInvested = currentWealth;
+    const now = new Date();
     
     for (let month = 0; month <= months; month++) {
       if (month > 0) {
+        // Calculate date of this month to check for future simulated events
+        const monthDate = new Date(now.getFullYear(), now.getMonth() + month, 1);
+        const monthKey = monthDate.toISOString().substring(0, 7);
+
+        // Check if any simulated events take effect on this month
+        simulatedEvents.forEach(e => {
+          if (e.date === monthKey) {
+            if (e.type === 'savings') {
+              runningContribution = parseEventValue(e.newValue, runningContribution);
+            }
+          }
+        });
+
         // Add monthly contribution
-        currentValue += monthlyContribution;
+        currentValue += runningContribution;
+        totalInvested += runningContribution;
         // Apply monthly return
         currentValue *= (1 + monthlyRate);
       }
@@ -88,8 +128,8 @@ const WealthSimulator: React.FC = () => {
         year: month / 12,
         nominalValue: currentValue,
         realValue: inflationAdjusted,
-        totalContributions: currentWealth + (monthlyContribution * month),
-        gains: currentValue - (currentWealth + (monthlyContribution * month)),
+        totalContributions: totalInvested,
+        gains: currentValue - totalInvested,
       });
     }
     
@@ -147,7 +187,7 @@ const WealthSimulator: React.FC = () => {
         },
       ],
     };
-  }, [activeScenario]);
+  }, [activeScenario, simulatedEvents]);
 
   const chartOptions = {
     responsive: true,
@@ -448,6 +488,36 @@ const WealthSimulator: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* Synchronized Future Events */}
+      {simulatedEvents.length > 0 && (
+        <div className="bg-indigo-50/60 dark:bg-indigo-950/30 rounded-xl border border-indigo-100 dark:border-indigo-900/50 p-4 sm:p-5">
+          <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+            <div className="flex items-center gap-2">
+              <CalendarClock className="h-5 w-5 text-indigo-600 dark:text-indigo-400" />
+              <h3 className="text-base font-semibold text-indigo-950 dark:text-indigo-100">
+                Événements futurs synchronisés ({simulatedEvents.length})
+              </h3>
+            </div>
+            <span className="text-xs font-medium text-indigo-700 dark:text-indigo-300 bg-indigo-100 dark:bg-indigo-900/50 px-2.5 py-1 rounded-full">
+              Sauvegardés en BDD & intégrés au patrimoine
+            </span>
+          </div>
+          <p className="text-xs text-gray-600 dark:text-gray-400 mb-3">
+            Ces changements de vie planifiés dans le Simulateur de Budget ajustent dynamiquement les contributions sur votre courbe de patrimoine :
+          </p>
+          <div className="flex flex-wrap gap-2">
+            {simulatedEvents.map(e => (
+              <span
+                key={e.id}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-200 border border-indigo-200 dark:border-indigo-800 shadow-sm"
+              >
+                <span className="font-semibold">{e.date}</span> : <span className="capitalize text-indigo-600 dark:text-indigo-400 font-bold">{e.type}</span> ({e.newValue || 'auto'})
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Results */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

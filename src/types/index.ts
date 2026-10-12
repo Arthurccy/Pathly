@@ -296,8 +296,20 @@ export interface BudgetContextType {
   setCurrentPeriod: (start: Date, end: Date) => void;
   selectedAccountIds: string[];
   setSelectedAccountIds: (accountIds: string[]) => void;
+  
+  // Simulated Events
+  simulatedEvents: SimulatedEvent[];
+  setSimulatedEvents: (events: SimulatedEvent[]) => Promise<void>;
+
   // Utilities
   reloadAll?: () => Promise<void>;
+}
+
+export interface SimulatedEvent {
+  id: string;
+  date: string;
+  type: 'income' | 'fixed' | 'debts' | 'budgets' | 'savings';
+  newValue: string;
 }
 
 // Legacy types for backward compatibility
