@@ -14,7 +14,8 @@ import {
   CalendarEvent,
   ExportOptions,
   SimulatedEvent,
-  HouseholdConfig
+  HouseholdConfig,
+  PhysicalAsset
 } from '../types';
 import { useAuth } from './AuthContext';
 import { supabaseService } from '../services/supabaseService';
@@ -283,6 +284,65 @@ export const BudgetProvider: React.FC<BudgetProviderProps> = ({ children }) => {
     const newIsShared = !tx.isShared;
     await updateTransaction(id, { isShared: newIsShared });
   };
+
+  // Physical Assets / Patrimoine matériel (immobilier, véhicules, montres...)
+  const [assets, setAssets] = useState<PhysicalAsset[]>(() => {
+    try {
+      const saved = localStorage.getItem('pathly_physical_assets');
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
+
+  useEffect(() => {
+    if (user?.user_metadata?.pathly_physical_assets) {
+      const dbAssets = user.user_metadata.pathly_physical_assets;
+      setAssets(dbAssets);
+      try {
+        localStorage.setItem('pathly_physical_assets', JSON.stringify(dbAssets));
+      } catch {}
+    }
+  }, [user?.id, user?.user_metadata?.pathly_physical_assets]);
+
+  const saveAssets = async (newAssets: PhysicalAsset[]) => {
+    setAssets(newAssets);
+    try {
+      localStorage.setItem('pathly_physical_assets', JSON.stringify(newAssets));
+    } catch (e) {
+      console.error('Failed to save assets to localStorage:', e);
+    }
+    if (user) {
+      try {
+        await supabase.auth.updateUser({
+          data: { pathly_physical_assets: newAssets }
+        });
+      } catch (err) {
+        console.error('Failed to save assets to Supabase:', err);
+      }
+    }
+  };
+
+  const addAsset = async (assetData: Omit<PhysicalAsset, 'id'>) => {
+    const newAsset: PhysicalAsset = {
+      ...assetData,
+      id: `asset-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+      userId: user?.id,
+    };
+    await saveAssets([newAsset, ...assets]);
+  };
+
+  const updateAsset = async (id: string, updates: Partial<PhysicalAsset>) => {
+    const updated = assets.map(a => a.id === id ? { ...a, ...updates } : a);
+    await saveAssets(updated);
+  };
+
+  const deleteAsset = async (id: string) => {
+    const filtered = assets.filter(a => a.id !== id);
+    await saveAssets(filtered);
+  };
+
+  const totalAssetsValue = assets.reduce((sum, a) => sum + (Number(a.currentValue) || 0), 0);
 
   // --- ONE TIME CLEANUP ---
   useEffect(() => {
@@ -1490,7 +1550,8 @@ export const BudgetProvider: React.FC<BudgetProviderProps> = ({ children }) => {
 
     const netWorth = accounts
       .filter(a => selectedAccountIds.length === 0 || selectedAccountIds.includes(a.id))
-      .reduce((sum, a) => sum + a.balance, 0) - 
+      .reduce((sum, a) => sum + a.balance, 0) + 
+      totalAssetsValue - 
       debts.reduce((sum, d) => sum + d.remainingAmount, 0);
 
     const cashFlow = getCashFlowProjection(12);
@@ -1990,6 +2051,13 @@ export const BudgetProvider: React.FC<BudgetProviderProps> = ({ children }) => {
       toggleTransactionShared,
       ratioA,
       ratioB,
+
+      // Physical Assets / Patrimoine matériel
+      assets,
+      addAsset,
+      updateAsset,
+      deleteAsset,
+      totalAssetsValue,
 
       reloadAll,
     }}>

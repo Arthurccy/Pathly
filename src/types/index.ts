@@ -310,8 +310,34 @@ export interface BudgetContextType {
   ratioA: number;
   ratioB: number;
 
+  // Physical Assets / Patrimoine matériel
+  assets: PhysicalAsset[];
+  addAsset: (asset: Omit<PhysicalAsset, 'id'>) => Promise<void>;
+  updateAsset: (id: string, updates: Partial<PhysicalAsset>) => Promise<void>;
+  deleteAsset: (id: string) => Promise<void>;
+  totalAssetsValue: number;
+
   // Utilities
   reloadAll?: () => Promise<void>;
+}
+
+export interface PhysicalAsset {
+  id: string;
+  userId?: string;
+  name: string;
+  category: 'real_estate' | 'vehicle' | 'valuable_item' | 'crypto_hardware' | 'other';
+  purchasePrice: number;
+  currentValue: number;
+  purchaseDate: string;
+  debtId?: string; // ID of linked credit/debt in Pathly
+  loanDetails?: {
+    originalLoanAmount?: number;
+    startDate?: string;
+    endDate?: string;
+    monthlyPayment?: number;
+  };
+  notes?: string;
+  location?: string;
 }
 
 export interface SimulatedEvent {

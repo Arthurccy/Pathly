@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import {
   BarChart3,
+  Building2,
   Calendar,
   ChevronDown,
   ChevronRight,
@@ -40,6 +41,7 @@ const groups = [
   {
     title: 'Planifier',
     items: [
+      { id: 'assets', label: 'Biens & Patrimoine', icon: Building2 },
       { id: 'household', label: 'Foyer & Couple', icon: Users },
       { id: 'goals', label: 'Objectifs', icon: Target },
       { id: 'debts', label: 'Dettes', icon: CreditCard },

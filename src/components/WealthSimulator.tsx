@@ -40,7 +40,7 @@ const parseEventValue = (input: string, currentValue: number): number => {
 };
 
 const WealthSimulator: React.FC = () => {
-  const { accounts, savingsGoals, simulatedEvents } = useBudget();
+  const { accounts, savingsGoals, simulatedEvents, totalAssetsValue } = useBudget();
   const { user } = useAuth();
   
   const storageKey = `pathly_wealth_scenarios_${user?.id || 'guest'}`;
@@ -48,7 +48,7 @@ const WealthSimulator: React.FC = () => {
   const defaultScenario: SimulationScenario = {
     id: 'scenario-1',
     name: 'Scénario conservateur',
-    currentWealth: accounts.reduce((sum, acc) => sum + acc.balance, 0),
+    currentWealth: accounts.reduce((sum, acc) => sum + acc.balance, 0) + totalAssetsValue,
     monthlyContribution: 500,
     years: 30,
     returnRate: 4,
@@ -455,6 +455,11 @@ const WealthSimulator: React.FC = () => {
             <p className="text-lg font-semibold text-gray-900 dark:text-white">
               {activeScenario.currentWealth.toLocaleString('fr-FR')} €
             </p>
+            {totalAssetsValue > 0 && (
+              <span className="block text-[11px] text-blue-600 dark:text-blue-400 font-medium">
+                dont {totalAssetsValue.toLocaleString('fr-FR')} € de biens
+              </span>
+            )}
           </div>
           
           <div className="text-center">

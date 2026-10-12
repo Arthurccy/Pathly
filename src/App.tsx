@@ -28,6 +28,7 @@ import ImportCSV from './components/ImportCSV';
 import RulesManager from './components/RulesManager';
 import OnboardingTour from './components/OnboardingTour';
 import HouseholdManager from './components/HouseholdManager';
+import AssetManager from './components/AssetManager';
 import { getCustomMonthPeriod } from './utils/dateUtils';
 
 const AppContent: React.FC = () => {
@@ -98,6 +99,8 @@ const AppContent: React.FC = () => {
         return <DebtManager />;
       case 'household':
         return <HouseholdManager />;
+      case 'assets':
+        return <AssetManager />;
       case 'wealth-simulator':
         return <WealthSimulator />;
       case 'budget-simulator':

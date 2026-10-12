@@ -1,4 +1,4 @@
-﻿import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { endOfYear, format, startOfYear, subYears } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import {
@@ -70,6 +70,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onViewChange }) => {
     selectedAccountIds,
     setSelectedAccountIds,
     getCashFlowProjection,
+    totalAssetsValue,
   } = useBudget();
   const { user } = useAuth();
 
@@ -147,7 +148,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onViewChange }) => {
     .filter(account => account.type === 'checking')
     .reduce((sum, account) => sum + account.balance, 0);
   const totalDebt = debts.reduce((sum, debt) => sum + debt.remainingAmount, 0);
-  const netWorth = selectedAccounts.reduce((sum, account) => sum + account.balance, 0) - totalDebt;
+  const netWorth = selectedAccounts.reduce((sum, account) => sum + account.balance, 0) + totalAssetsValue - totalDebt;
 
   const projection = viewMode === 'monthly'
     ? getCashFlowProjection(1, currentMonthPeriod.start, monthStartDay)[0]
@@ -209,7 +210,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onViewChange }) => {
   const primaryActions = [
     { label: 'Ajouter', detail: 'Opération', icon: Plus, view: 'add-transaction', style: 'primary' },
     { label: 'Importer', detail: 'CSV bancaire', icon: Upload, view: 'import-csv', style: 'secondary' },
-    { label: 'Planifier', detail: 'À venir', icon: CalendarDays, view: 'planning', style: 'secondary' },
+    { label: 'Patrimoine', detail: 'Biens & Actifs', icon: Building2, view: 'assets', style: 'secondary' },
     { label: 'Comptes', detail: 'Soldes', icon: Wallet, view: 'accounts', style: 'secondary' },
   ];
 
@@ -273,7 +274,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onViewChange }) => {
     {
       label: 'Patrimoine net',
       value: money(netWorth),
-      change: null,
+      change: totalAssetsValue > 0 ? `dont ${money(totalAssetsValue)} en biens` : null,
       icon: Wallet,
       tone: netWorth >= 0 ? 'text-sky-700 dark:text-sky-300' : 'text-red-700 dark:text-red-300',
       bg: netWorth >= 0 ? 'bg-sky-50 dark:bg-sky-950/30' : 'bg-red-50 dark:bg-red-950/30',
