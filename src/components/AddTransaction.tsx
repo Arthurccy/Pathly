@@ -4,7 +4,7 @@ import * as LucideIcons from 'lucide-react';
 import { useBudget } from '../contexts/BudgetContext';
 
 const AddTransaction: React.FC = () => {
-  const { accounts, categories, addTransaction } = useBudget();
+  const { accounts, categories, addTransaction, householdConfig, ratioA, ratioB } = useBudget();
   const [formData, setFormData] = useState({
     amount: '',
     description: '',
@@ -18,6 +18,8 @@ const AddTransaction: React.FC = () => {
     nextDate: new Date().toISOString().split('T')[0],
     endDate: '',
     maxOccurrences: '',
+    isShared: false,
+    isHouseholdContribution: false,
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [notice, setNotice] = useState<{
@@ -86,6 +88,8 @@ const AddTransaction: React.FC = () => {
           ? 'scheduled'
           : 'completed',
         isRecurring: formData.isRecurring,
+        isShared: formData.type === 'expense' ? formData.isShared : false,
+        isHouseholdContribution: formData.type === 'income' ? formData.isHouseholdContribution : false,
       };
 
       if (formData.isRecurring) {
@@ -115,6 +119,8 @@ const AddTransaction: React.FC = () => {
         nextDate: new Date().toISOString().split('T')[0],
         endDate: '',
         maxOccurrences: '',
+        isShared: false,
+        isHouseholdContribution: false,
       }));
 
       setNotice({
@@ -318,6 +324,63 @@ const AddTransaction: React.FC = () => {
                     </button>
                   );
                 })}
+              </div>
+            </div>
+          )}
+
+          {householdConfig?.enabled && formData.type === 'expense' && (
+            <div className="p-3.5 mb-4 rounded-xl border border-indigo-200 dark:border-indigo-800/60 bg-indigo-50/50 dark:bg-indigo-950/20">
+              <div className="flex items-start gap-3">
+                <input
+                  id="isShared"
+                  type="checkbox"
+                  checked={formData.isShared}
+                  onChange={(e) => setFormData({
+                    ...formData,
+                    isShared: e.target.checked,
+                  })}
+                  className="mt-0.5 h-4 w-4 rounded border-indigo-300 text-indigo-600 focus:ring-indigo-500"
+                />
+                <div className="flex-1">
+                  <label htmlFor="isShared" className="text-sm font-semibold text-indigo-900 dark:text-indigo-200 cursor-pointer flex items-center gap-1.5">
+                    <LucideIcons.Users className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
+                    Dépense commune (Foyer & Couple)
+                  </label>
+                  <p className="text-xs text-indigo-700 dark:text-indigo-300 mt-0.5">
+                    Répartition dynamique : {householdConfig.userA?.name || 'Arthur'} ({ratioA}%) / {householdConfig.userB?.name || 'Alicia'} ({ratioB}%)
+                    {formData.amount && !isNaN(parseFloat(formData.amount)) && (
+                      <span className="block font-medium mt-1 text-indigo-800 dark:text-indigo-200">
+                        Part de {householdConfig.userB?.name || 'Alicia'} à te rembourser : {(parseFloat(formData.amount) * (ratioB / 100)).toFixed(2)} €
+                      </span>
+                    )}
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {householdConfig?.enabled && formData.type === 'income' && (
+            <div className="p-3.5 mb-4 rounded-xl border border-emerald-200 dark:border-emerald-800/60 bg-emerald-50/50 dark:bg-emerald-950/20">
+              <div className="flex items-start gap-3">
+                <input
+                  id="isHouseholdContribution"
+                  type="checkbox"
+                  checked={formData.isHouseholdContribution}
+                  onChange={(e) => setFormData({
+                    ...formData,
+                    isHouseholdContribution: e.target.checked,
+                  })}
+                  className="mt-0.5 h-4 w-4 rounded border-emerald-300 text-emerald-600 focus:ring-emerald-500"
+                />
+                <div className="flex-1">
+                  <label htmlFor="isHouseholdContribution" className="text-sm font-semibold text-emerald-900 dark:text-emerald-200 cursor-pointer flex items-center gap-1.5">
+                    <LucideIcons.HeartHandshake className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+                    Provision / Virement Foyer (de {householdConfig.userB?.name || 'Alicia'})
+                  </label>
+                  <p className="text-xs text-emerald-700 dark:text-emerald-300 mt-0.5">
+                    Cette rentrée compense les dépenses communes avancées et sera déduite de ce qu'elle te doit.
+                  </p>
+                </div>
               </div>
             </div>
           )}

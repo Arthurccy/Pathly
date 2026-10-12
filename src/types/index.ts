@@ -73,6 +73,8 @@ export interface Transaction {
   tags?: string[];
   transferToAccountId?: string; // For transfers between accounts
   isChecked?: boolean; // Manual verification status
+  isShared?: boolean; // Dépense commune / Foyer partagée
+  isHouseholdContribution?: boolean; // Provision / virement de participation au foyer
   attachments?: string[]; // File URLs
   gocardlessTransactionId?: string;
 }
@@ -301,6 +303,13 @@ export interface BudgetContextType {
   simulatedEvents: SimulatedEvent[];
   setSimulatedEvents: (events: SimulatedEvent[]) => Promise<void>;
 
+  // Household / Couple Management
+  householdConfig: HouseholdConfig;
+  updateHouseholdConfig: (config: Partial<HouseholdConfig>) => Promise<void>;
+  toggleTransactionShared: (id: string) => Promise<void>;
+  ratioA: number;
+  ratioB: number;
+
   // Utilities
   reloadAll?: () => Promise<void>;
 }
@@ -310,6 +319,19 @@ export interface SimulatedEvent {
   date: string;
   type: 'income' | 'fixed' | 'debts' | 'budgets' | 'savings';
   newValue: string;
+}
+
+export interface HouseholdProfile {
+  name: string;
+  income: number;
+}
+
+export interface HouseholdConfig {
+  enabled: boolean;
+  userA: HouseholdProfile;
+  userB: HouseholdProfile;
+  splitMode: 'prorata' | '50_50' | 'custom';
+  customRatioA?: number; // %
 }
 
 // Legacy types for backward compatibility

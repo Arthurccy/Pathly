@@ -13,7 +13,8 @@ import {
   RecurringPattern,
   CalendarEvent,
   ExportOptions,
-  SimulatedEvent
+  SimulatedEvent,
+  HouseholdConfig
 } from '../types';
 import { useAuth } from './AuthContext';
 import { supabaseService } from '../services/supabaseService';
@@ -212,6 +213,75 @@ export const BudgetProvider: React.FC<BudgetProviderProps> = ({ children }) => {
         console.error('❌ Failed to update Supabase user_metadata:', err);
       }
     }
+  };
+
+  // Household / Couple Management (shared expenses, prorata, settlement)
+  const [householdConfig, setHouseholdConfigState] = useState<HouseholdConfig>(() => {
+    try {
+      const saved = localStorage.getItem('pathly_household_config');
+      return saved ? JSON.parse(saved) : {
+        enabled: true,
+        userA: { name: 'Arthur', income: 2173 },
+        userB: { name: 'Alicia', income: 1639 },
+        splitMode: 'prorata',
+        customRatioA: 57,
+      };
+    } catch {
+      return {
+        enabled: true,
+        userA: { name: 'Arthur', income: 2173 },
+        userB: { name: 'Alicia', income: 1639 },
+        splitMode: 'prorata',
+        customRatioA: 57,
+      };
+    }
+  });
+
+  useEffect(() => {
+    if (user?.user_metadata?.pathly_household_config) {
+      const dbCfg = user.user_metadata.pathly_household_config;
+      setHouseholdConfigState(dbCfg);
+      try {
+        localStorage.setItem('pathly_household_config', JSON.stringify(dbCfg));
+      } catch {}
+    }
+  }, [user?.id, user?.user_metadata?.pathly_household_config]);
+
+  const updateHouseholdConfig = async (config: Partial<HouseholdConfig>) => {
+    const updated = { ...householdConfig, ...config };
+    setHouseholdConfigState(updated);
+    try {
+      localStorage.setItem('pathly_household_config', JSON.stringify(updated));
+    } catch (e) {
+      console.error('Failed to save household config to localStorage:', e);
+    }
+
+    if (user) {
+      try {
+        await supabase.auth.updateUser({
+          data: { pathly_household_config: updated }
+        });
+      } catch (err) {
+        console.error('❌ Failed to update household config in Supabase:', err);
+      }
+    }
+  };
+
+  const totalHouseholdIncome = (householdConfig.userA?.income || 0) + (householdConfig.userB?.income || 0);
+  const ratioA = householdConfig.splitMode === '50_50'
+    ? 50
+    : householdConfig.splitMode === 'custom' && householdConfig.customRatioA
+      ? householdConfig.customRatioA
+      : totalHouseholdIncome > 0
+        ? Math.round((householdConfig.userA.income / totalHouseholdIncome) * 100)
+        : 50;
+  const ratioB = 100 - ratioA;
+
+  const toggleTransactionShared = async (id: string) => {
+    const tx = transactions.find(t => t.id === id);
+    if (!tx) return;
+    const newIsShared = !tx.isShared;
+    await updateTransaction(id, { isShared: newIsShared });
   };
 
   // --- ONE TIME CLEANUP ---
@@ -1913,6 +1983,13 @@ export const BudgetProvider: React.FC<BudgetProviderProps> = ({ children }) => {
       // Simulated Events
       simulatedEvents,
       setSimulatedEvents,
+
+      // Household / Couple Management
+      householdConfig,
+      updateHouseholdConfig,
+      toggleTransactionShared,
+      ratioA,
+      ratioB,
 
       reloadAll,
     }}>

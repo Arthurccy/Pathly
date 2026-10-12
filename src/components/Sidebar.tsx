@@ -16,6 +16,7 @@ import {
   SlidersHorizontal,
   Target,
   Upload,
+  Users,
   Wallet,
   X
 } from 'lucide-react';
@@ -39,6 +40,7 @@ const groups = [
   {
     title: 'Planifier',
     items: [
+      { id: 'household', label: 'Foyer & Couple', icon: Users },
       { id: 'goals', label: 'Objectifs', icon: Target },
       { id: 'debts', label: 'Dettes', icon: CreditCard },
       { id: 'recurring-transactions', label: 'Récurrences', icon: Repeat },

@@ -89,7 +89,7 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({
   collapsible = false,
   initialLimit = 3,
 }) => {
-  const { transactions, categories, accounts, debts, addTransaction, updateTransaction, deleteTransaction, getProjectedRecurringTransactions } = useBudget();
+  const { transactions, categories, accounts, debts, addTransaction, updateTransaction, deleteTransaction, getProjectedRecurringTransactions, householdConfig, ratioA, ratioB } = useBudget();
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
   const [showAll, setShowAll] = useState(!collapsible);
   const [formData, setFormData] = useState({
@@ -100,6 +100,8 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({
     type: 'expense' as 'expense' | 'income',
     date: '',
     status: 'completed' as 'pending' | 'completed' | 'scheduled',
+    isShared: false,
+    isHouseholdContribution: false,
   });
   const [isSaving, setIsSaving] = useState(false);
 
@@ -207,6 +209,8 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({
       type: transaction.type === 'income' ? 'income' : 'expense',
       date: toDateInputValue(transaction.date),
       status: transaction.status === 'cancelled' ? 'pending' : transaction.status,
+      isShared: Boolean(transaction.isShared),
+      isHouseholdContribution: Boolean(transaction.isHouseholdContribution),
     });
   };
 
@@ -244,6 +248,8 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({
         status: formData.status,
         isRecurring: editingTransaction.isRecurring,
         recurringPattern: editingTransaction.recurringPattern,
+        isShared: formData.type === 'expense' ? formData.isShared : false,
+        isHouseholdContribution: formData.type === 'income' ? formData.isHouseholdContribution : false,
       });
       closeEditor();
     } catch (error) {
@@ -346,6 +352,24 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({
                   </span>
                 </>
               )}
+              {transaction.isShared && (
+                <>
+                  <span className="text-xs text-gray-400 dark:text-gray-500">-</span>
+                  <span className="inline-flex items-center gap-1 rounded-full bg-indigo-100 px-2 py-0.5 text-xs font-semibold text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300">
+                    <LucideIcons.Users className="h-3 w-3" />
+                    Commune
+                  </span>
+                </>
+              )}
+              {transaction.isHouseholdContribution && (
+                <>
+                  <span className="text-xs text-gray-400 dark:text-gray-500">-</span>
+                  <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-semibold text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300">
+                    <LucideIcons.HeartHandshake className="h-3 w-3" />
+                    Provision Foyer
+                  </span>
+                </>
+              )}
             </div>
           </div>
 
@@ -416,88 +440,7 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({
               ))
             ) : (
               <>
-                {recentTransactions.slice(0, showAll ? undefined : initialLimit).map((transaction) => {
-                  const category = categories.find(c => c.id === transaction.categoryId);
-                  const account = accounts.find(a => a.id === transaction.accountId);
-                  const IconComponent = category ? (LucideIcons as any)[category.icon] : LucideIcons.DollarSign;
-                  const displayImpact = getTransactionDisplayImpact(transaction);
-                  const isProjectedRecurring = transaction.id.includes('-projected-');
-
-                  return (
-                    <div key={transaction.id} className="p-3 transition-colors hover:bg-gray-50 dark:hover:bg-gray-700/50 sm:p-4">
-                      <div className="flex items-start gap-3 sm:items-center sm:gap-4">
-                        <div
-                          className="p-2 rounded-lg"
-                          style={{ backgroundColor: `${category?.color || '#6B7280'}20` }}
-                        >
-                          <IconComponent
-                            className="h-5 w-5"
-                            style={{ color: category?.color || '#6B7280' }}
-                          />
-                        </div>
-
-                        <div className="min-w-0 flex-1">
-                          <p className="truncate text-sm font-medium text-gray-900 dark:text-white">
-                            {transaction.description}
-                          </p>
-                          <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1">
-                            <span className="text-xs text-gray-500 dark:text-gray-400">
-                              {category?.name || 'Sans categorie'}
-                            </span>
-                            {account && (
-                              <>
-                                <span className="text-xs text-gray-400 dark:text-gray-500">-</span>
-                                <span className="text-xs text-gray-500 dark:text-gray-400">{account.name}</span>
-                              </>
-                            )}
-                            <span className="text-xs text-gray-400 dark:text-gray-500">-</span>
-                            <span className="text-xs text-gray-500 dark:text-gray-400">
-                              {format(transaction.date, 'dd MMM yyyy', { locale: fr })}
-                            </span>
-                            {transaction.status !== 'completed' && (
-                              <>
-                                <span className="text-xs text-gray-400 dark:text-gray-500">-</span>
-                                <span className="text-xs font-medium text-blue-600 dark:text-blue-400">
-                                  {transaction.status === 'scheduled' ? 'Planifiée' : 'En attente'}
-                                </span>
-                              </>
-                            )}
-                          </div>
-                        </div>
-
-                        <div className="flex shrink-0 flex-col items-end gap-2 sm:flex-row sm:items-center sm:gap-3">
-                          <p className={`whitespace-nowrap text-sm font-semibold ${
-                            displayImpact >= 0
-                              ? 'text-green-600 dark:text-green-400'
-                              : 'text-red-600 dark:text-red-400'
-                          }`}>
-                            {displayImpact >= 0 ? '+' : '-'}{Math.abs(displayImpact).toFixed(2)} EUR
-                          </p>
-                          {!isProjectedRecurring && (
-                            <button
-                              type="button"
-                              onClick={() => openEditor(transaction)}
-                              className="rounded-full p-2 text-gray-400 transition hover:bg-gray-100 hover:text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:hover:bg-gray-700 dark:hover:text-gray-200 sm:rounded-lg"
-                              aria-label="Modifier la transaction"
-                            >
-                              <LucideIcons.Pencil className="h-4 w-4" />
-                            </button>
-                          )}
-                          {(!isProjectedRecurring || isRentTransaction(transaction, category?.name)) && !transaction.id.startsWith('debt-') && transaction.status !== 'completed' && (
-                            <button
-                              type="button"
-                              onClick={() => handleMarkAsCompleted(transaction)}
-                              className="rounded-full p-2 text-gray-400 transition hover:bg-gray-100 hover:text-gray-700 focus:outline-none focus:ring-2 focus:ring-green-500 dark:hover:bg-gray-700 dark:hover:text-gray-200 sm:rounded-lg"
-                              aria-label="Marquer comme terminé"
-                            >
-                              <LucideIcons.Check className="h-4 w-4" />
-                            </button>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
+                {recentTransactions.slice(0, showAll ? undefined : initialLimit).map(renderTransaction)}
                 {collapsible && recentTransactions.length > initialLimit && (
                   <div className="p-3 text-center sm:p-4">
                     <button
@@ -693,6 +636,48 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({
                   </button>
                 </div>
               </div>
+
+              {householdConfig?.enabled && formData.type === 'expense' && (
+                <div className="flex items-start gap-3 rounded-xl border border-indigo-200 bg-indigo-50/50 p-4 dark:border-indigo-800/60 dark:bg-indigo-950/20">
+                  <input
+                    id="edit-isShared"
+                    type="checkbox"
+                    checked={formData.isShared}
+                    onChange={(e) => setFormData({ ...formData, isShared: e.target.checked })}
+                    className="mt-0.5 h-4 w-4 rounded border-indigo-300 text-indigo-600 focus:ring-indigo-500"
+                  />
+                  <div>
+                    <label htmlFor="edit-isShared" className="text-sm font-semibold text-indigo-900 dark:text-indigo-200 cursor-pointer flex items-center gap-1.5">
+                      <LucideIcons.Users className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
+                      Dépense commune (Foyer & Couple)
+                    </label>
+                    <p className="text-xs text-indigo-700 dark:text-indigo-300 mt-0.5">
+                      Partagé à {ratioA}% ({householdConfig.userA?.name || 'Arthur'}) et {ratioB}% ({householdConfig.userB?.name || 'Alicia'}).
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {householdConfig?.enabled && formData.type === 'income' && (
+                <div className="flex items-start gap-3 rounded-xl border border-emerald-200 bg-emerald-50/50 p-4 dark:border-emerald-800/60 dark:bg-emerald-950/20">
+                  <input
+                    id="edit-isHouseholdContribution"
+                    type="checkbox"
+                    checked={formData.isHouseholdContribution}
+                    onChange={(e) => setFormData({ ...formData, isHouseholdContribution: e.target.checked })}
+                    className="mt-0.5 h-4 w-4 rounded border-emerald-300 text-emerald-600 focus:ring-emerald-500"
+                  />
+                  <div>
+                    <label htmlFor="edit-isHouseholdContribution" className="text-sm font-semibold text-emerald-900 dark:text-emerald-200 cursor-pointer flex items-center gap-1.5">
+                      <LucideIcons.HeartHandshake className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+                      Provision / Remboursement Foyer (d'{householdConfig.userB?.name || 'Alicia'})
+                    </label>
+                    <p className="text-xs text-emerald-700 dark:text-emerald-300 mt-0.5">
+                      Déduit du solde que votre partenaire vous doit ce mois-ci.
+                    </p>
+                  </div>
+                </div>
+              )}
 
               <div className="sticky bottom-0 -mx-5 flex flex-col-reverse gap-3 border-t border-gray-200 bg-white/95 px-5 py-4 backdrop-blur dark:border-gray-800 dark:bg-gray-900/95 sm:-mx-6 sm:flex-row sm:items-center sm:justify-between sm:px-6">
                 <button

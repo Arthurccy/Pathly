@@ -27,6 +27,7 @@ import HelpCenter from './components/HelpCenter';
 import ImportCSV from './components/ImportCSV';
 import RulesManager from './components/RulesManager';
 import OnboardingTour from './components/OnboardingTour';
+import HouseholdManager from './components/HouseholdManager';
 import { getCustomMonthPeriod } from './utils/dateUtils';
 
 const AppContent: React.FC = () => {
@@ -95,6 +96,8 @@ const AppContent: React.FC = () => {
         return <AccountManager />;
       case 'debts':
         return <DebtManager />;
+      case 'household':
+        return <HouseholdManager />;
       case 'wealth-simulator':
         return <WealthSimulator />;
       case 'budget-simulator':
