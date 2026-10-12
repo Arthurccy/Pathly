@@ -61,7 +61,7 @@ const convertDatabaseToApp = {
     tags: row.tags,
     transferToAccountId: row.transfer_to_account_id,
     isChecked: row.is_checked,
-    isShared: Boolean(row.tags?.includes('shared')),
+    isShared: row.tags?.includes('shared') ? true : row.tags?.includes('excluded_shared') ? false : undefined,
     isHouseholdContribution: Boolean(row.tags?.includes('foyer_contribution')),
   }),
 
@@ -174,8 +174,9 @@ const convertAppToDatabase = {
     memo: transaction.memo,
     tags: (transaction.tags !== undefined || transaction.isShared !== undefined || transaction.isHouseholdContribution !== undefined)
       ? Array.from(new Set([
-          ...(transaction.tags || []).filter((t: string) => t !== 'shared' && t !== 'foyer_contribution'),
-          ...(transaction.isShared ? ['shared'] : []),
+          ...(transaction.tags || []).filter((t: string) => t !== 'shared' && t !== 'excluded_shared' && t !== 'foyer_contribution'),
+          ...(transaction.isShared === true ? ['shared'] : []),
+          ...(transaction.isShared === false ? ['excluded_shared'] : []),
           ...(transaction.isHouseholdContribution ? ['foyer_contribution'] : [])
         ]))
       : undefined,

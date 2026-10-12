@@ -14,7 +14,17 @@ import { useBudget } from '../contexts/BudgetContext';
 import { Category } from '../types';
 
 const CategoryManager: React.FC = () => {
-  const { categories, addCategory, updateCategory, deleteCategory, reorderCategories } = useBudget();
+  const { 
+    categories, 
+    addCategory, 
+    updateCategory, 
+    deleteCategory, 
+    reorderCategories, 
+    householdConfig, 
+    toggleCategoryShared, 
+    ratioA, 
+    ratioB 
+  } = useBudget();
   const [showForm, setShowForm] = useState(false);
   const [editingCategory, setEditingCategory] = useState<Category | null>(null);
   const [selectedType, setSelectedType] = useState<'income' | 'expense' | 'savings' | 'debt' | 'bill'>('expense');
@@ -27,6 +37,7 @@ const CategoryManager: React.FC = () => {
     budget: '',
     description: '',
     excludeFromReports: false,
+    isSharedBudget: false,
   });
 
   const iconOptions = [
@@ -45,7 +56,7 @@ const CategoryManager: React.FC = () => {
 
   const categoriesByType = categories.filter(c => c.type === selectedType);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     if (!formData.name.trim()) {
@@ -66,9 +77,13 @@ const CategoryManager: React.FC = () => {
     };
 
     if (editingCategory) {
-      updateCategory(editingCategory.id, categoryData);
+      await updateCategory(editingCategory.id, categoryData);
+      const isCurrentlyShared = householdConfig.sharedCategoryIds?.includes(editingCategory.id) || false;
+      if (formData.isSharedBudget !== isCurrentlyShared) {
+        await toggleCategoryShared(editingCategory.id);
+      }
     } else {
-      addCategory(categoryData);
+      await addCategory(categoryData);
     }
 
     // Reset form
@@ -80,6 +95,7 @@ const CategoryManager: React.FC = () => {
       budget: '',
       description: '',
       excludeFromReports: false,
+      isSharedBudget: false,
     });
     setShowForm(false);
     setEditingCategory(null);
@@ -95,6 +111,7 @@ const CategoryManager: React.FC = () => {
       budget: category.budget?.toString() || '',
       description: category.description || '',
       excludeFromReports: category.excludeFromReports || false,
+      isSharedBudget: householdConfig.sharedCategoryIds?.includes(category.id) || false,
     });
     setShowForm(true);
   };
@@ -262,6 +279,25 @@ const CategoryManager: React.FC = () => {
               </span>
             </label>
 
+            {householdConfig?.enabled && (formData.type === 'expense' || formData.type === 'bill') && (
+              <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-rose-200 bg-rose-50/60 p-4 dark:border-rose-900/60 dark:bg-rose-950/20">
+                <input
+                  type="checkbox"
+                  checked={formData.isSharedBudget}
+                  onChange={(e) => setFormData({ ...formData, isSharedBudget: e.target.checked })}
+                  className="mt-1 rounded border-rose-300 text-rose-600 focus:ring-rose-500"
+                />
+                <span>
+                  <span className="block text-sm font-semibold text-rose-950 dark:text-rose-200">
+                    Budget commun du foyer (Partagé {ratioA}% / {ratioB}%)
+                  </span>
+                  <span className="mt-1 block text-xs text-rose-700 dark:text-rose-300">
+                    Toutes les dépenses dans cette catégorie seront automatiquement réparties entre {householdConfig.userA?.name || 'Arthur'} et {householdConfig.userB?.name || 'Alicia'}.
+                  </span>
+                </span>
+              </label>
+            )}
+
             {/* Icon Selection */}
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
@@ -398,6 +434,11 @@ const CategoryManager: React.FC = () => {
                             {category.excludeFromReports && (
                               <span className="rounded-full bg-slate-100 px-2 py-1 text-xs text-slate-700 dark:bg-slate-800 dark:text-slate-300">
                                 Hors stats
+                              </span>
+                            )}
+                            {householdConfig?.enabled && householdConfig.sharedCategoryIds?.includes(category.id) && (
+                              <span className="rounded-full bg-rose-100 px-2 py-1 text-xs font-semibold text-rose-700 dark:bg-rose-900/40 dark:text-rose-300">
+                                Budget commun ({ratioA}/{ratioB})
                               </span>
                             )}
                           </div>

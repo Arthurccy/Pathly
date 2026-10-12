@@ -300,7 +300,14 @@ const AddTransaction: React.FC = () => {
                     <button
                       key={category.id}
                       type="button"
-                      onClick={() => setFormData({ ...formData, categoryId: category.id })}
+                      onClick={() => {
+                        const isCommon = householdConfig.sharedCategoryIds?.includes(category.id);
+                        setFormData(prev => ({ 
+                          ...prev, 
+                          categoryId: category.id,
+                          isShared: isCommon !== undefined ? isCommon : prev.isShared
+                        }));
+                      }}
                       className={`rounded-xl border-2 p-2.5 transition-all ${
                         formData.categoryId === category.id
                           ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
@@ -342,15 +349,22 @@ const AddTransaction: React.FC = () => {
                   className="mt-0.5 h-4 w-4 rounded border-indigo-300 text-indigo-600 focus:ring-indigo-500"
                 />
                 <div className="flex-1">
-                  <label htmlFor="isShared" className="text-sm font-semibold text-indigo-900 dark:text-indigo-200 cursor-pointer flex items-center gap-1.5">
-                    <LucideIcons.Users className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
-                    Dépense commune (Foyer & Couple)
-                  </label>
-                  <p className="text-xs text-indigo-700 dark:text-indigo-300 mt-0.5">
+                  <div className="flex items-center gap-2">
+                    <label htmlFor="isShared" className="text-sm font-semibold text-indigo-900 dark:text-indigo-200 cursor-pointer flex items-center gap-1.5">
+                      <LucideIcons.Users className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
+                      Dépense commune (Foyer & Couple)
+                    </label>
+                    {formData.categoryId && householdConfig.sharedCategoryIds?.includes(formData.categoryId) && (
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-indigo-200/80 dark:bg-indigo-900/60 text-indigo-800 dark:text-indigo-200">
+                        Inclus via budget commun
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-xs text-indigo-700 dark:text-indigo-300 mt-1">
                     Répartition dynamique : {householdConfig.userA?.name || 'Arthur'} ({ratioA}%) / {householdConfig.userB?.name || 'Alicia'} ({ratioB}%)
                     {formData.amount && !isNaN(parseFloat(formData.amount)) && (
                       <span className="block font-medium mt-1 text-indigo-800 dark:text-indigo-200">
-                        Part de {householdConfig.userB?.name || 'Alicia'} à te rembourser : {(parseFloat(formData.amount) * (ratioB / 100)).toFixed(2)} €
+                        Part de {householdConfig.userB?.name || 'Alicia'} : {(parseFloat(formData.amount) * (ratioB / 100)).toFixed(2)} €
                       </span>
                     )}
                   </p>

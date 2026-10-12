@@ -307,6 +307,8 @@ export interface BudgetContextType {
   householdConfig: HouseholdConfig;
   updateHouseholdConfig: (config: Partial<HouseholdConfig>) => Promise<void>;
   toggleTransactionShared: (id: string) => Promise<void>;
+  toggleCategoryShared: (categoryId: string) => Promise<void>;
+  isTransactionShared: (transaction: Transaction) => boolean;
   ratioA: number;
   ratioB: number;
 
@@ -358,6 +360,7 @@ export interface HouseholdConfig {
   userB: HouseholdProfile;
   splitMode: 'prorata' | '50_50' | 'custom';
   customRatioA?: number; // %
+  sharedCategoryIds?: string[]; // IDs des budgets / catégories partagés par défaut au sein du foyer
 }
 
 // Legacy types for backward compatibility

@@ -3,29 +3,31 @@ import {
   Users, 
   HeartHandshake, 
   Percent, 
-  Calculator, 
   CheckCircle2, 
-  AlertCircle, 
   ArrowRightLeft, 
   Plus, 
-  Calendar, 
   ChevronLeft, 
   ChevronRight, 
-  TrendingUp, 
   Sparkles, 
   SlidersHorizontal,
-  DollarSign,
   Receipt,
   Check,
   X,
   CreditCard,
-  Scale
+  Scale,
+  Target,
+  CheckSquare,
+  Square,
+  Layers,
+  ArrowRight,
+  Info,
+  DollarSign
 } from 'lucide-react';
 import * as LucideIcons from 'lucide-react';
 import { format, startOfMonth, endOfMonth, subMonths, addMonths } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { useBudget } from '../contexts/BudgetContext';
-import { Transaction } from '../types';
+import { Transaction, Category } from '../types';
 
 const HouseholdManager: React.FC = () => {
   const { 
@@ -33,14 +35,24 @@ const HouseholdManager: React.FC = () => {
     updateHouseholdConfig, 
     transactions, 
     categories, 
+    updateCategory,
     toggleTransactionShared, 
+    toggleCategoryShared,
+    isTransactionShared,
     updateTransaction,
     ratioA, 
     ratioB 
   } = useBudget();
 
   const [selectedMonth, setSelectedMonth] = useState<Date>(new Date());
-  const [activeTab, setActiveTab] = useState<'balance' | 'expenses' | 'settings'>('balance');
+  const [activeTab, setActiveTab] = useState<'balance' | 'budgets' | 'expenses' | 'settings'>('budgets');
+  const [expenseFilter, setExpenseFilter] = useState<'all' | 'shared' | 'personal'>('all');
+  const [categoryFilterId, setCategoryFilterId] = useState<string | null>(null);
+
+  // Shared category IDs set by user
+  const sharedCategoryIds = useMemo(() => {
+    return householdConfig.sharedCategoryIds || [];
+  }, [householdConfig.sharedCategoryIds]);
 
   // Month interval
   const monthStart = startOfMonth(selectedMonth);
@@ -54,12 +66,15 @@ const HouseholdManager: React.FC = () => {
     });
   }, [transactions, monthStart, monthEnd]);
 
-  // Shared expenses paid by user A (Arthur)
-  const sharedExpenses = useMemo(() => {
-    return monthTransactions.filter(t => 
-      t.isShared && (t.type === 'expense' || t.type === 'bill')
-    );
+  // All month expenses & bills
+  const monthExpenses = useMemo(() => {
+    return monthTransactions.filter(t => t.type === 'expense' || t.type === 'bill');
   }, [monthTransactions]);
+
+  // Shared expenses: computed via isTransactionShared (auto via common budgets + manual exceptions)
+  const sharedExpenses = useMemo(() => {
+    return monthExpenses.filter(t => isTransactionShared(t));
+  }, [monthExpenses, isTransactionShared]);
 
   // Total amount of shared expenses
   const totalSharedAmount = useMemo(() => {
@@ -86,16 +101,82 @@ const HouseholdManager: React.FC = () => {
   }, [partnerContributions]);
 
   // Balance: what Alicia has contributed minus what she is expected to pay
-  // Positive: Arthur has advance or Alicia has overpaid
-  // Negative: Alicia still owes money to Arthur
   const balance = totalContributionsReceived - userBShare;
   const isSettled = Math.abs(balance) < 1;
+
+  // Filterable categories of expense/bill type
+  const expenseCategories = useMemo(() => {
+    return categories
+      .filter(c => c.type === 'expense' || c.type === 'bill')
+      .sort((a, b) => {
+        const aShared = sharedCategoryIds.includes(a.id) ? 1 : 0;
+        const bShared = sharedCategoryIds.includes(b.id) ? 1 : 0;
+        if (bShared !== aShared) return bShared - aShared;
+        return a.name.localeCompare(b.name);
+      });
+  }, [categories, sharedCategoryIds]);
+
+  // Spending per category for the current month
+  const categoryStats = useMemo(() => {
+    const stats: Record<string, { spent: number; count: number }> = {};
+    monthExpenses.forEach(t => {
+      if (!stats[t.categoryId]) {
+        stats[t.categoryId] = { spent: 0, count: 0 };
+      }
+      stats[t.categoryId].spent += t.amount;
+      stats[t.categoryId].count += 1;
+    });
+    return stats;
+  }, [monthExpenses]);
+
+  // Total planned common budget (sum of category budgets for shared categories)
+  const totalPlannedSharedBudget = useMemo(() => {
+    return expenseCategories
+      .filter(c => sharedCategoryIds.includes(c.id))
+      .reduce((sum, c) => sum + (c.budget || 0), 0);
+  }, [expenseCategories, sharedCategoryIds]);
+
+  // Quick actions for category selection
+  const selectAllCategories = async () => {
+    const allIds = expenseCategories.map(c => c.id);
+    await updateHouseholdConfig({ sharedCategoryIds: allIds });
+  };
+
+  const deselectAllCategories = async () => {
+    await updateHouseholdConfig({ sharedCategoryIds: [] });
+  };
+
+  const selectRecommendedCategories = async () => {
+    const recommendedIds = expenseCategories
+      .filter(c => {
+        const n = c.name.toLowerCase();
+        return (
+          c.type === 'bill' ||
+          n.includes('logement') ||
+          n.includes('aliment') ||
+          n.includes('course') ||
+          n.includes('electr') ||
+          n.includes('internet') ||
+          n.includes('loyer') ||
+          n.includes('assurance')
+        );
+      })
+      .map(c => c.id);
+    await updateHouseholdConfig({ sharedCategoryIds: recommendedIds });
+  };
 
   // Quick toggle a contribution
   const toggleContribution = async (t: Transaction) => {
     await updateTransaction(t.id, {
       isHouseholdContribution: !t.isHouseholdContribution,
     });
+  };
+
+  // Switch to expense view for a specific category
+  const viewExpensesForCategory = (catId: string) => {
+    setCategoryFilterId(catId);
+    setExpenseFilter('all');
+    setActiveTab('expenses');
   };
 
   return (
@@ -114,7 +195,7 @@ const HouseholdManager: React.FC = () => {
               </span>
             </h1>
             <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400">
-              Répartition équitable des dépenses communes et balance d'équilibrage mensuelle.
+              Budgets communs du couple, répartition dynamique et balance d'équilibrage mensuelle.
             </p>
           </div>
         </div>
@@ -142,10 +223,29 @@ const HouseholdManager: React.FC = () => {
       </div>
 
       {/* Tabs */}
-      <div className="flex border-b border-gray-200 dark:border-gray-700 gap-6 text-sm font-medium">
+      <div className="flex border-b border-gray-200 dark:border-gray-700 gap-2 sm:gap-6 text-sm font-medium overflow-x-auto pb-px">
+        <button
+          onClick={() => setActiveTab('budgets')}
+          className={`pb-3 transition border-b-2 flex items-center gap-2 whitespace-nowrap ${
+            activeTab === 'budgets'
+              ? 'border-rose-600 text-rose-600 dark:border-rose-400 dark:text-rose-400 font-semibold'
+              : 'border-transparent text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200'
+          }`}
+        >
+          <Target className="h-4 w-4" />
+          <span>Budgets communs du foyer</span>
+          <span className={`text-xs px-2 py-0.5 rounded-full ${
+            activeTab === 'budgets' 
+              ? 'bg-rose-100 text-rose-700 dark:bg-rose-900/50 dark:text-rose-300' 
+              : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400'
+          }`}>
+            {sharedCategoryIds.length}
+          </span>
+        </button>
+
         <button
           onClick={() => setActiveTab('balance')}
-          className={`pb-3 transition border-b-2 flex items-center gap-2 ${
+          className={`pb-3 transition border-b-2 flex items-center gap-2 whitespace-nowrap ${
             activeTab === 'balance'
               ? 'border-rose-600 text-rose-600 dark:border-rose-400 dark:text-rose-400 font-semibold'
               : 'border-transparent text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200'
@@ -154,23 +254,25 @@ const HouseholdManager: React.FC = () => {
           <Scale className="h-4 w-4" />
           <span>Solde & Équilibre du foyer</span>
         </button>
+
         <button
           onClick={() => setActiveTab('expenses')}
-          className={`pb-3 transition border-b-2 flex items-center gap-2 ${
+          className={`pb-3 transition border-b-2 flex items-center gap-2 whitespace-nowrap ${
             activeTab === 'expenses'
               ? 'border-rose-600 text-rose-600 dark:border-rose-400 dark:text-rose-400 font-semibold'
               : 'border-transparent text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200'
           }`}
         >
           <Receipt className="h-4 w-4" />
-          <span>Dépenses communes du mois</span>
+          <span>Dépenses du mois (Ajustements)</span>
           <span className="text-xs px-2 py-0.5 rounded-full bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400">
             {sharedExpenses.length}
           </span>
         </button>
+
         <button
           onClick={() => setActiveTab('settings')}
-          className={`pb-3 transition border-b-2 flex items-center gap-2 ${
+          className={`pb-3 transition border-b-2 flex items-center gap-2 whitespace-nowrap ${
             activeTab === 'settings'
               ? 'border-rose-600 text-rose-600 dark:border-rose-400 dark:text-rose-400 font-semibold'
               : 'border-transparent text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200'
@@ -181,7 +283,194 @@ const HouseholdManager: React.FC = () => {
         </button>
       </div>
 
-      {/* TAB 1: BALANCE D'EQUILIBRAGE */}
+      {/* TAB 1: SELECTION DES BUDGETS COMMUNS */}
+      {activeTab === 'budgets' && (
+        <div className="space-y-6">
+          {/* Explanation Banner */}
+          <div className="rounded-2xl border border-rose-200/80 bg-gradient-to-r from-rose-50/80 via-pink-50/40 to-indigo-50/40 p-5 dark:border-rose-900/40 dark:from-rose-950/20 dark:via-pink-950/10 dark:to-indigo-950/10 shadow-sm">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div className="space-y-1">
+                <h2 className="text-base sm:text-lg font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                  <Target className="h-5 w-5 text-rose-600 dark:text-rose-400" />
+                  Sélectionnez les Budgets Communs du Foyer
+                </h2>
+                <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-300 max-w-2xl leading-relaxed">
+                  Cochez les catégories qui concernent votre couple (Courses, Logement, Électricité, Sorties communes...). Toutes les dépenses passées dans ces budgets sont automatiquement partagées selon votre prorata ({ratioA}% / {ratioB}%), sans devoir cocher chaque dépense individuellement.
+                </p>
+              </div>
+
+              {/* Summary pill */}
+              <div className="shrink-0 flex items-center gap-3 bg-white/80 dark:bg-gray-900/80 backdrop-blur p-3.5 rounded-xl border border-rose-100 dark:border-gray-800 shadow-sm">
+                <div>
+                  <span className="text-[11px] uppercase font-bold tracking-wider text-gray-500 dark:text-gray-400 block">
+                    Budget Commun Prévisionnel
+                  </span>
+                  <span className="text-xl font-black text-rose-600 dark:text-rose-400">
+                    {totalPlannedSharedBudget.toFixed(0)} € / mois
+                  </span>
+                  <span className="text-[11px] text-gray-500 dark:text-gray-400 block mt-0.5">
+                    Toi : {((totalPlannedSharedBudget * ratioA) / 100).toFixed(0)} € • {householdConfig.userB.name} : {((totalPlannedSharedBudget * ratioB) / 100).toFixed(0)} €
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Quick Actions */}
+            <div className="mt-4 pt-3 border-t border-rose-200/50 dark:border-rose-900/30 flex flex-wrap items-center justify-between gap-2">
+              <div className="flex items-center gap-2 text-xs">
+                <span className="text-gray-500 dark:text-gray-400 font-medium">Actions rapides :</span>
+                <button
+                  type="button"
+                  onClick={selectRecommendedCategories}
+                  className="px-3 py-1 rounded-lg bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-rose-700 dark:text-rose-300 font-semibold hover:bg-rose-50 dark:hover:bg-rose-950/40 transition shadow-xs"
+                >
+                  Sélection recommandée (Essentiels)
+                </button>
+                <button
+                  type="button"
+                  onClick={selectAllCategories}
+                  className="px-2.5 py-1 rounded-lg bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-50 transition shadow-xs"
+                >
+                  Tout cocher
+                </button>
+                <button
+                  type="button"
+                  onClick={deselectAllCategories}
+                  className="px-2.5 py-1 rounded-lg bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-50 transition shadow-xs"
+                >
+                  Tout décocher
+                </button>
+              </div>
+
+              <span className="text-xs font-semibold text-gray-600 dark:text-gray-400">
+                {sharedCategoryIds.length} budget{sharedCategoryIds.length > 1 ? 's' : ''} commun{sharedCategoryIds.length > 1 ? 's' : ''} sur {expenseCategories.length}
+              </span>
+            </div>
+          </div>
+
+          {/* Grid of Categories / Budgets */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {expenseCategories.map(cat => {
+              const IconComponent = (LucideIcons as any)[cat.icon] || LucideIcons.DollarSign;
+              const isShared = sharedCategoryIds.includes(cat.id);
+              const stats = categoryStats[cat.id] || { spent: 0, count: 0 };
+              const userAPart = (stats.spent * ratioA) / 100;
+              const userBPart = (stats.spent * ratioB) / 100;
+
+              return (
+                <div
+                  key={cat.id}
+                  className={`rounded-2xl border p-4.5 transition-all flex flex-col justify-between ${
+                    isShared
+                      ? 'bg-white dark:bg-gray-800 border-rose-200 dark:border-rose-900/60 shadow-sm ring-1 ring-rose-500/10'
+                      : 'bg-gray-50/60 dark:bg-gray-850/40 border-gray-200/80 dark:border-gray-750 opacity-80 hover:opacity-100'
+                  }`}
+                >
+                  <div>
+                    {/* Header: Icon, Name, and Toggle */}
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div 
+                          className="p-2.5 rounded-xl shrink-0"
+                          style={{ backgroundColor: `${cat.color || '#3B82F6'}20` }}
+                        >
+                          <IconComponent className="h-5 w-5" style={{ color: cat.color || '#3B82F6' }} />
+                        </div>
+                        <div className="min-w-0">
+                          <h3 className="text-sm font-bold text-gray-900 dark:text-white truncate">
+                            {cat.name}
+                          </h3>
+                          <span className={`inline-block text-[10px] font-semibold px-2 py-0.5 rounded-full mt-0.5 ${
+                            isShared
+                              ? 'bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300'
+                              : 'bg-gray-200/70 text-gray-600 dark:bg-gray-700 dark:text-gray-400'
+                          }`}>
+                            {isShared ? `Partagé (${ratioA}/${ratioB})` : '100% Personnel'}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Interactive Toggle Switch */}
+                      <button
+                        type="button"
+                        onClick={() => toggleCategoryShared(cat.id)}
+                        className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                          isShared ? 'bg-rose-600' : 'bg-gray-300 dark:bg-gray-600'
+                        }`}
+                        title={isShared ? "Désactiver du pot commun" : "Activer comme budget commun"}
+                      >
+                        <span
+                          className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-sm ring-0 transition duration-200 ease-in-out ${
+                            isShared ? 'translate-x-5' : 'translate-x-0'
+                          }`}
+                        />
+                      </button>
+                    </div>
+
+                    {/* Spendings this month */}
+                    <div className="mt-4 p-3 rounded-xl bg-gray-50 dark:bg-gray-900/50 border border-gray-100 dark:border-gray-800 space-y-2">
+                      <div className="flex items-baseline justify-between text-xs">
+                        <span className="text-gray-500 dark:text-gray-400">Dépensé ce mois-ci :</span>
+                        <span className="text-sm font-bold text-gray-900 dark:text-white">
+                          {stats.spent.toFixed(2)} €
+                        </span>
+                      </div>
+
+                      {/* Budget envelope if defined */}
+                      {cat.budget ? (
+                        <div className="space-y-1">
+                          <div className="flex justify-between text-[11px] text-gray-500 dark:text-gray-400">
+                            <span>Budget mensuel :</span>
+                            <span className="font-semibold text-gray-700 dark:text-gray-300">{cat.budget.toFixed(0)} €</span>
+                          </div>
+                          <div className="h-1.5 w-full bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+                            <div 
+                              className={`h-full rounded-full transition-all duration-300 ${
+                                stats.spent > cat.budget ? 'bg-rose-500' : 'bg-emerald-500'
+                              }`}
+                              style={{ width: `${Math.min(100, (stats.spent / cat.budget) * 100)}%` }}
+                            />
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="flex justify-between text-[11px] text-gray-400 italic">
+                          <span>Aucun plafond défini</span>
+                          <span>{stats.count} dépense{stats.count > 1 ? 's' : ''}</span>
+                        </div>
+                      )}
+
+                      {/* Shared split if common */}
+                      {isShared && stats.spent > 0 && (
+                        <div className="pt-1.5 border-t border-gray-200/60 dark:border-gray-700/60 flex items-center justify-between text-[11px]">
+                          <span className="text-blue-600 dark:text-blue-400 font-medium">Toi ({ratioA}%) : {userAPart.toFixed(2)} €</span>
+                          <span className="text-purple-600 dark:text-purple-400 font-medium">{householdConfig.userB.name} ({ratioB}%) : {userBPart.toFixed(2)} €</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Card Footer: Link to view expenses */}
+                  <div className="mt-3 pt-2.5 border-t border-gray-100 dark:border-gray-800/80 flex items-center justify-between text-xs">
+                    <span className="text-gray-400 text-[11px]">
+                      {stats.count} transaction{stats.count > 1 ? 's' : ''}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => viewExpensesForCategory(cat.id)}
+                      className="text-rose-600 dark:text-rose-400 font-semibold hover:underline flex items-center gap-1 text-xs"
+                    >
+                      <span>Voir les dépenses</span>
+                      <ArrowRight className="h-3 w-3" />
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* TAB 2: BALANCE D'EQUILIBRAGE */}
       {activeTab === 'balance' && (
         <div className="space-y-6">
           {/* Main Hero Card: Settlement Status */}
@@ -226,7 +515,7 @@ const HouseholdManager: React.FC = () => {
                 </h2>
 
                 <p className="text-sm text-gray-600 dark:text-gray-300 max-w-2xl leading-relaxed">
-                  Sur <strong>{totalSharedAmount.toFixed(2)} €</strong> de dépenses communes enregistrées ce mois-ci, la quote-part de {householdConfig.userB.name} ({ratioB}%) s'élève à <strong>{userBShare.toFixed(2)} €</strong>. Provisions versées : <strong>{totalContributionsReceived.toFixed(2)} €</strong>.
+                  Sur <strong>{totalSharedAmount.toFixed(2)} €</strong> de dépenses communes enregistrées ce mois-ci (via vos {sharedCategoryIds.length} budgets communs et exceptions éventuelles), la quote-part de {householdConfig.userB.name} ({ratioB}%) s'élève à <strong>{userBShare.toFixed(2)} €</strong>. Provisions versées : <strong>{totalContributionsReceived.toFixed(2)} €</strong>.
                 </p>
               </div>
 
@@ -264,7 +553,7 @@ const HouseholdManager: React.FC = () => {
                 {totalSharedAmount.toFixed(2)} €
               </p>
               <div className="mt-3 flex items-center justify-between text-xs text-gray-500 dark:text-gray-400 pt-2 border-t border-gray-100 dark:border-gray-700">
-                <span>{sharedExpenses.length} dépense{sharedExpenses.length > 1 ? 's' : ''} cochée{sharedExpenses.length > 1 ? 's' : ''}</span>
+                <span>{sharedExpenses.length} dépense{sharedExpenses.length > 1 ? 's' : ''} partagée{sharedExpenses.length > 1 ? 's' : ''}</span>
                 <button 
                   onClick={() => setActiveTab('expenses')}
                   className="text-rose-600 dark:text-rose-400 font-semibold hover:underline"
@@ -323,6 +612,71 @@ const HouseholdManager: React.FC = () => {
             </div>
           </div>
 
+          {/* Synthesis of Shared Budgets this month */}
+          <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-5 shadow-sm space-y-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-base font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+                  <Target className="h-5 w-5 text-rose-500" />
+                  Budgets Communs Actifs ce mois-ci
+                </h3>
+                <p className="text-xs text-gray-500 dark:text-gray-400">
+                  Suivi des enveloppes de dépenses partagées au sein du couple
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setActiveTab('budgets')}
+                className="text-xs font-semibold text-rose-600 dark:text-rose-400 hover:underline flex items-center gap-1"
+              >
+                <span>Modifier les budgets communs</span>
+                <ArrowRight className="h-3.5 w-3.5" />
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+              {expenseCategories
+                .filter(c => sharedCategoryIds.includes(c.id))
+                .map(cat => {
+                  const IconComponent = (LucideIcons as any)[cat.icon] || LucideIcons.DollarSign;
+                  const stats = categoryStats[cat.id] || { spent: 0, count: 0 };
+                  const userBPart = (stats.spent * ratioB) / 100;
+
+                  return (
+                    <div 
+                      key={cat.id} 
+                      onClick={() => viewExpensesForCategory(cat.id)}
+                      className="p-3.5 rounded-xl border border-gray-100 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-850/50 hover:bg-white dark:hover:bg-gray-800 hover:shadow-xs transition cursor-pointer"
+                    >
+                      <div className="flex items-center justify-between mb-1.5">
+                        <div className="flex items-center gap-2">
+                          <div 
+                            className="p-1.5 rounded-lg"
+                            style={{ backgroundColor: `${cat.color || '#3B82F6'}20` }}
+                          >
+                            <IconComponent className="h-4 w-4" style={{ color: cat.color || '#3B82F6' }} />
+                          </div>
+                          <span className="text-xs font-bold text-gray-900 dark:text-white truncate">
+                            {cat.name}
+                          </span>
+                        </div>
+                        <span className="text-xs font-extrabold text-gray-900 dark:text-white">
+                          {stats.spent.toFixed(2)} €
+                        </span>
+                      </div>
+
+                      <div className="flex justify-between text-[11px] text-gray-500 dark:text-gray-400">
+                        <span>{stats.count} dépense{stats.count > 1 ? 's' : ''}</span>
+                        <span className="text-purple-600 dark:text-purple-400 font-semibold">
+                          Part {householdConfig.userB.name} : {userBPart.toFixed(2)} €
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })}
+            </div>
+          </div>
+
           {/* Quick Section: Provisions reçues ce mois-ci */}
           <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-5 shadow-sm">
             <div className="flex items-center justify-between mb-3">
@@ -371,16 +725,17 @@ const HouseholdManager: React.FC = () => {
         </div>
       )}
 
-      {/* TAB 2: DEPENSES COMMUNES */}
+      {/* TAB 3: DEPENSES DU MOIS & AJUSTEMENTS */}
       {activeTab === 'expenses' && (
         <div className="space-y-4">
+          {/* Header & filters */}
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white dark:bg-gray-800 p-4 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm">
             <div>
               <h3 className="text-base font-semibold text-gray-900 dark:text-white">
-                Dépenses communes de {format(selectedMonth, 'MMMM yyyy', { locale: fr })}
+                Dépenses de {format(selectedMonth, 'MMMM yyyy', { locale: fr })}
               </h3>
               <p className="text-xs text-gray-500 dark:text-gray-400">
-                Cochez ou décochez n'importe quelle dépense pour l'inclure dans le pot commun du foyer.
+                Les dépenses de vos budgets communs sont déjà incluses. Cochez ou décochez pour ajuster manuellement une exception.
               </p>
             </div>
             <div className="text-right">
@@ -391,21 +746,90 @@ const HouseholdManager: React.FC = () => {
             </div>
           </div>
 
+          {/* Filter pills */}
+          <div className="flex items-center gap-2 overflow-x-auto pb-1 text-xs">
+            <button
+              onClick={() => { setExpenseFilter('all'); setCategoryFilterId(null); }}
+              className={`px-3 py-1.5 rounded-lg font-medium transition ${
+                expenseFilter === 'all' && !categoryFilterId
+                  ? 'bg-rose-600 text-white'
+                  : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-gray-700 hover:bg-gray-50'
+              }`}
+            >
+              Toutes les dépenses ({monthExpenses.length})
+            </button>
+            <button
+              onClick={() => { setExpenseFilter('shared'); setCategoryFilterId(null); }}
+              className={`px-3 py-1.5 rounded-lg font-medium transition ${
+                expenseFilter === 'shared' && !categoryFilterId
+                  ? 'bg-rose-600 text-white'
+                  : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-gray-700 hover:bg-gray-50'
+              }`}
+            >
+              Communes ({sharedExpenses.length})
+            </button>
+            <button
+              onClick={() => { setExpenseFilter('personal'); setCategoryFilterId(null); }}
+              className={`px-3 py-1.5 rounded-lg font-medium transition ${
+                expenseFilter === 'personal' && !categoryFilterId
+                  ? 'bg-rose-600 text-white'
+                  : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-gray-700 hover:bg-gray-50'
+              }`}
+            >
+              Personnelles ({monthExpenses.length - sharedExpenses.length})
+            </button>
+
+            {categoryFilterId && (
+              <span className="ml-2 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300 border border-rose-200 dark:border-rose-800 font-semibold">
+                Filtre : {categories.find(c => c.id === categoryFilterId)?.name}
+                <button 
+                  onClick={() => setCategoryFilterId(null)}
+                  className="hover:text-rose-900"
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              </span>
+            )}
+          </div>
+
+          {/* Transactions List */}
           <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 divide-y divide-gray-100 dark:divide-gray-700 shadow-sm overflow-hidden">
-            {monthTransactions
-              .filter(t => t.type === 'expense' || t.type === 'bill')
+            {monthExpenses
+              .filter(t => {
+                const isShared = isTransactionShared(t);
+                if (categoryFilterId && t.categoryId !== categoryFilterId) return false;
+                if (expenseFilter === 'shared') return isShared;
+                if (expenseFilter === 'personal') return !isShared;
+                return true;
+              })
               .map(t => {
                 const category = categories.find(c => c.id === t.categoryId);
                 const IconComponent = category ? (LucideIcons as any)[category.icon] || LucideIcons.DollarSign : LucideIcons.DollarSign;
+                const isShared = isTransactionShared(t);
+                const isCategoryCommon = sharedCategoryIds.includes(t.categoryId);
                 const userAPart = (t.amount * ratioA) / 100;
                 const userBPart = (t.amount * ratioB) / 100;
+
+                // Status classification
+                let statusLabel = '100% perso';
+                let statusBadgeClass = 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300';
+                if (isCategoryCommon && isShared) {
+                  statusLabel = `Budget commun : ${category?.name || 'Foyer'}`;
+                  statusBadgeClass = 'bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300';
+                } else if (!isCategoryCommon && isShared) {
+                  statusLabel = 'Exception : Ajouté au foyer';
+                  statusBadgeClass = 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300';
+                } else if (isCategoryCommon && !isShared) {
+                  statusLabel = 'Exception : Exclu du foyer';
+                  statusBadgeClass = 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300';
+                }
 
                 return (
                   <div 
                     key={t.id} 
                     className={`p-3 sm:p-4 flex items-center justify-between transition-colors ${
-                      t.isShared 
-                        ? 'bg-rose-50/40 dark:bg-rose-950/20' 
+                      isShared 
+                        ? 'bg-rose-50/30 dark:bg-rose-950/20' 
                         : 'hover:bg-gray-50 dark:hover:bg-gray-750'
                     }`}
                   >
@@ -415,13 +839,13 @@ const HouseholdManager: React.FC = () => {
                         type="button"
                         onClick={() => toggleTransactionShared(t.id)}
                         className={`h-6 w-6 rounded-lg border-2 flex items-center justify-center shrink-0 transition-all ${
-                          t.isShared
+                          isShared
                             ? 'bg-rose-600 border-rose-600 text-white shadow-sm'
                             : 'border-gray-300 dark:border-gray-600 hover:border-rose-400'
                         }`}
-                        title={t.isShared ? "Retirer des dépenses communes" : "Marquer comme dépense commune"}
+                        title={isShared ? "Exclure cette dépense du foyer" : "Ajouter cette dépense au foyer"}
                       >
-                        {t.isShared && <Check className="h-4 w-4 stroke-[3]" />}
+                        {isShared && <Check className="h-4 w-4 stroke-[3]" />}
                       </button>
 
                       {/* Category Icon */}
@@ -434,15 +858,13 @@ const HouseholdManager: React.FC = () => {
 
                       {/* Info */}
                       <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2 flex-wrap">
                           <p className="text-sm font-semibold text-gray-900 dark:text-white truncate">
                             {t.description}
                           </p>
-                          {t.isShared && (
-                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300 shrink-0">
-                              Foyer ({ratioA}/{ratioB})
-                            </span>
-                          )}
+                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0 ${statusBadgeClass}`}>
+                            {statusLabel}
+                          </span>
                         </div>
                         <p className="text-xs text-gray-500 dark:text-gray-400">
                           {format(new Date(t.date), 'dd MMM', { locale: fr })} • {category?.name || 'Dépense'}
@@ -455,7 +877,7 @@ const HouseholdManager: React.FC = () => {
                       <p className="text-sm sm:text-base font-bold text-gray-900 dark:text-white">
                         {t.amount.toFixed(2)} €
                       </p>
-                      {t.isShared ? (
+                      {isShared ? (
                         <p className="text-[11px] text-gray-500 dark:text-gray-400">
                           Toi: <strong className="text-blue-600 dark:text-blue-400">{userAPart.toFixed(2)}€</strong> | {householdConfig.userB.name}: <strong className="text-purple-600 dark:text-purple-400">{userBPart.toFixed(2)}€</strong>
                         </p>
@@ -467,7 +889,7 @@ const HouseholdManager: React.FC = () => {
                 );
               })}
 
-            {monthTransactions.filter(t => t.type === 'expense' || t.type === 'bill').length === 0 && (
+            {monthExpenses.length === 0 && (
               <div className="p-8 text-center text-sm text-gray-500">
                 Aucune dépense enregistrée sur ce mois.
               </div>
@@ -476,7 +898,7 @@ const HouseholdManager: React.FC = () => {
         </div>
       )}
 
-      {/* TAB 3: PROFILS & REPARTITION */}
+      {/* TAB 4: PROFILS & REPARTITION */}
       {activeTab === 'settings' && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {/* Form profiles */}

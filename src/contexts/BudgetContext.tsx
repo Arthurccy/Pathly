@@ -278,11 +278,60 @@ export const BudgetProvider: React.FC<BudgetProviderProps> = ({ children }) => {
         : 50;
   const ratioB = 100 - ratioA;
 
+  // Auto-initialize sharedCategoryIds if not set yet
+  useEffect(() => {
+    if (categories.length > 0 && householdConfig.sharedCategoryIds === undefined) {
+      const defaultShared = categories
+        .filter(c => {
+          if (c.type !== 'expense' && c.type !== 'bill') return false;
+          const n = c.name.toLowerCase();
+          return (
+            c.type === 'bill' ||
+            n.includes('logement') ||
+            n.includes('aliment') ||
+            n.includes('course') ||
+            n.includes('electr') ||
+            n.includes('internet') ||
+            n.includes('loyer')
+          );
+        })
+        .map(c => c.id);
+
+      updateHouseholdConfig({ sharedCategoryIds: defaultShared });
+    }
+  }, [categories, householdConfig.sharedCategoryIds]);
+
+  const isTransactionShared = (transaction: Transaction): boolean => {
+    if (transaction.type !== 'expense' && transaction.type !== 'bill') return false;
+    // Explicit overrides
+    if (transaction.isShared === true || transaction.tags?.includes('shared')) return true;
+    if (transaction.isShared === false || transaction.tags?.includes('excluded_shared')) return false;
+    // Common budgets / categories
+    const sharedIds = householdConfig.sharedCategoryIds || [];
+    return sharedIds.includes(transaction.categoryId);
+  };
+
+  const toggleCategoryShared = async (categoryId: string) => {
+    const current = householdConfig.sharedCategoryIds || [];
+    const exists = current.includes(categoryId);
+    const updated = exists 
+      ? current.filter(id => id !== categoryId) 
+      : [...current, categoryId];
+    await updateHouseholdConfig({ sharedCategoryIds: updated });
+  };
+
   const toggleTransactionShared = async (id: string) => {
     const tx = transactions.find(t => t.id === id);
     if (!tx) return;
-    const newIsShared = !tx.isShared;
-    await updateTransaction(id, { isShared: newIsShared });
+    const currentlyShared = isTransactionShared(tx);
+    const newShared = !currentlyShared;
+    await updateTransaction(id, {
+      isShared: newShared,
+      tags: Array.from(new Set([
+        ...(tx.tags || []).filter(t => t !== 'shared' && t !== 'excluded_shared'),
+        ...(newShared ? ['shared'] : ['excluded_shared'])
+      ]))
+    });
   };
 
   // Physical Assets / Patrimoine matériel (immobilier, véhicules, montres...)
@@ -2049,6 +2098,8 @@ export const BudgetProvider: React.FC<BudgetProviderProps> = ({ children }) => {
       householdConfig,
       updateHouseholdConfig,
       toggleTransactionShared,
+      toggleCategoryShared,
+      isTransactionShared,
       ratioA,
       ratioB,
 
