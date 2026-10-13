@@ -28,6 +28,7 @@ import RecentTransactions from './RecentTransactions';
 import BudgetProgress from './BudgetProgress';
 import CashFlowChart from './CashFlowChart';
 import AccountsOverview from './AccountsOverview';
+import BalanceHistory from './BalanceHistory';
 import SavingsGoalsProgress from './SavingsGoalsProgress';
 import { BankSyncModal } from './BankSyncModal';
 import OnboardingChecklist from './OnboardingChecklist';
@@ -511,6 +512,8 @@ const Dashboard: React.FC<DashboardProps> = ({ onViewChange }) => {
       </section>
 
       <AccountsOverview />
+
+      <BalanceHistory />
 
       <section className="grid grid-cols-1 items-start gap-5 xl:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]">
         <div className="flex flex-col gap-5">
