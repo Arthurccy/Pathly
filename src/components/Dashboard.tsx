@@ -519,7 +519,6 @@ const Dashboard: React.FC<DashboardProps> = ({ onViewChange }) => {
         </div>
         <div className="flex flex-col gap-5">
           <BudgetProgress viewMode={viewMode} />
-          <CashFlowChart />
         </div>
       </section>
 
@@ -540,6 +539,8 @@ const Dashboard: React.FC<DashboardProps> = ({ onViewChange }) => {
           initialLimit={5}
         />
       </section>
+
+      <CashFlowChart />
 
       <BankSyncModal
         isOpen={isBankSyncOpen}

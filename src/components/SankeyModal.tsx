@@ -361,7 +361,7 @@ const SankeyModal: React.FC<SankeyModalProps> = ({ isOpen, onClose, cashFlow, ca
         )}
 
         {/* Content */}
-        <div className="flex-1 min-h-0 p-2 overflow-x-auto sm:p-4" style={{ height: '60vh', minHeight: '420px' }}>
+        <div className="p-2 overflow-x-auto sm:p-4" style={{ height: 'min(62vh, 580px)', minHeight: '380px' }}>
           {data ? (
             <ResponsiveContainer width="100%" height="100%" minWidth={isNarrow ? 520 : undefined}>
               <Sankey
