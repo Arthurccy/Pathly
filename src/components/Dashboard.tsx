@@ -513,8 +513,6 @@ const Dashboard: React.FC<DashboardProps> = ({ onViewChange }) => {
 
       <AccountsOverview />
 
-      <BalanceHistory />
-
       <section className="grid grid-cols-1 items-start gap-5 xl:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]">
         <div className="flex flex-col gap-5">
           <ExpenseChart viewMode={viewMode} />
@@ -544,6 +542,8 @@ const Dashboard: React.FC<DashboardProps> = ({ onViewChange }) => {
       </section>
 
       <CashFlowChart />
+
+      <BalanceHistory />
 
       <BankSyncModal
         isOpen={isBankSyncOpen}

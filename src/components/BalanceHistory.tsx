@@ -1,9 +1,11 @@
 import React, { useMemo, useState } from 'react';
-import { AreaChart, Area, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import { AreaChart, Area, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ReferenceLine, ResponsiveContainer } from 'recharts';
 import { addDays, differenceInCalendarDays, endOfDay, format, startOfDay, subDays } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { TrendingUp, TrendingDown } from 'lucide-react';
 import { useBudget } from '../contexts/BudgetContext';
+import { useAuth } from '../contexts/AuthContext';
+import { getCustomMonthEnd, getCustomMonthPeriod } from '../utils/dateUtils';
 import { Transaction } from '../types';
 
 type PeriodKey = '7d' | '30d' | '90d' | '180d' | '365d' | 'all';
@@ -32,10 +34,14 @@ const balanceImpact = (t: Transaction) => {
 const FALLBACK_COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ef4444', '#14b8a6', '#ec4899'];
 
 const BalanceHistory: React.FC = () => {
-  const { accounts, transactions, selectedAccountIds, balanceSnapshots } = useBudget();
+  const { accounts, transactions, selectedAccountIds, balanceSnapshots, getCashFlowProjection } = useBudget();
+  const { user } = useAuth();
+  const monthStartDay = user?.settings?.monthStartDay || 1;
   const [period, setPeriod] = useState<PeriodKey>('90d');
   const [mode, setMode] = useState<'total' | 'accounts'>('total');
   const [compare, setCompare] = useState(false);
+  const [forecast, setForecast] = useState(false);
+  const [horizon, setHorizon] = useState(3);
 
   const visibleAccounts = useMemo(
     () =>
@@ -99,6 +105,23 @@ const BalanceHistory: React.FC = () => {
     return { dailyByDate: rows, earliest, today, exactSince: exactSince as Date | null };
   }, [visibleAccounts, transactions, balanceSnapshots]);
 
+  // Future balance at the end of each budget month. Reuses the cash flow projection, so it already
+  // deducts remaining budgets, recurring operations, scheduled transactions, debts and savings.
+  const forecastPoints = useMemo(() => {
+    if (!forecast || mode !== 'total') return [];
+    const periodStart = getCustomMonthPeriod(new Date(), monthStartDay).start;
+    const projection = getCashFlowProjection(horizon, periodStart, monthStartDay);
+    // Accounts the projection does not model (investments, meal vouchers, crypto) stay at their current value
+    const unmodelled = visibleAccounts
+      .filter(a => a.type === 'investment' || a.type === 'meal_voucher' || a.type === 'crypto')
+      .reduce((sum, a) => sum + a.balance, 0);
+
+    return projection.map(item => ({
+      date: getCustomMonthEnd(item.date, monthStartDay),
+      value: (item.projectedTotalBalance ?? item.projectedBalance) + unmodelled,
+    }));
+  }, [forecast, mode, horizon, monthStartDay, getCashFlowProjection, visibleAccounts]);
+
   const view = useMemo(() => {
     const cfg = PERIODS.find(p => p.key === period)!;
     const available = dailyByDate.length; // days since earliest, inclusive
@@ -133,6 +156,19 @@ const BalanceHistory: React.FC = () => {
         return point;
       });
 
+    if (forecastPoints.length > 0 && points.length > 0) {
+      const last = points[points.length - 1];
+      last.forecast = last.total; // join the real curve to the forecast curve
+      forecastPoints.forEach(fp => {
+        points.push({
+          label: format(fp.date, 'd MMM', { locale: fr }),
+          full: format(fp.date, 'd MMMM yyyy', { locale: fr }),
+          forecast: fp.value,
+        });
+      });
+    }
+    const todayLabel = points.find(p => p.total !== undefined && p.forecast !== undefined)?.label as string | undefined;
+
     const totals = current.map(totalOf);
     const start = totals[0] ?? 0;
     const end = totals[totals.length - 1] ?? 0;
@@ -141,6 +177,7 @@ const BalanceHistory: React.FC = () => {
 
     return {
       points,
+      todayLabel,
       canCompare,
       start,
       end,
@@ -151,7 +188,7 @@ const BalanceHistory: React.FC = () => {
       prevDelta: prevStart !== null && prevEnd !== null ? prevEnd - prevStart : null,
       firstDate: current[0]?.date ?? today,
     };
-  }, [dailyByDate, period, visibleAccounts, today]);
+  }, [dailyByDate, period, visibleAccounts, today, forecastPoints]);
 
   const accountColor = (a: { color?: string }, index: number) => a.color || FALLBACK_COLORS[index % FALLBACK_COLORS.length];
   const positive = view.delta >= 0;
@@ -165,7 +202,14 @@ const BalanceHistory: React.FC = () => {
         <p className="font-semibold text-slate-900 dark:text-white">{p.full}</p>
         {mode === 'total' ? (
           <>
-            <p className="mt-0.5 font-bold tabular-nums text-blue-600 dark:text-blue-400">{eur2.format(p.total)}</p>
+            {p.total !== undefined && (
+              <p className="mt-0.5 font-bold tabular-nums text-blue-600 dark:text-blue-400">{eur2.format(p.total)}</p>
+            )}
+            {p.total === undefined && p.forecast !== undefined && (
+              <p className="mt-0.5 font-bold tabular-nums text-violet-600 dark:text-violet-400">
+                {eur2.format(p.forecast)} <span className="text-xs font-medium opacity-80">(prévision)</span>
+              </p>
+            )}
             {compare && p.previous !== undefined && (
               <p className="text-xs tabular-nums text-slate-500 dark:text-slate-400">
                 {p.previousFull} : {eur2.format(p.previous)}
@@ -255,6 +299,33 @@ const BalanceHistory: React.FC = () => {
               Comparer à la période précédente
             </label>
           )}
+          {mode === 'total' && (
+            <div className="flex items-center gap-1.5 text-xs">
+              <label className="flex cursor-pointer items-center gap-1.5 text-slate-600 dark:text-slate-300">
+                <input
+                  type="checkbox"
+                  checked={forecast}
+                  onChange={e => setForecast(e.target.checked)}
+                  className="h-3.5 w-3.5 rounded border-slate-300 text-violet-600"
+                />
+                Prévision
+              </label>
+              {forecast && (
+                <select
+                  value={horizon}
+                  onChange={e => setHorizon(Number(e.target.value))}
+                  className="rounded-md border border-slate-200 bg-white px-1.5 py-1 text-xs text-slate-700 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
+                  aria-label="Horizon de prévision"
+                >
+                  {[1, 3, 6, 12].map(m => (
+                    <option key={m} value={m}>
+                      {m} mois
+                    </option>
+                  ))}
+                </select>
+              )}
+            </div>
+          )}
         </div>
       </div>
 
@@ -262,6 +333,12 @@ const BalanceHistory: React.FC = () => {
         <div className="rounded-xl border border-slate-100 px-3 py-2 dark:border-slate-800">
           <p className="text-[11px] font-medium uppercase tracking-wider text-slate-400">Solde actuel</p>
           <p className="text-base font-bold tabular-nums text-slate-900 dark:text-white">{eur0.format(view.end)}</p>
+          {forecastPoints.length > 0 && (
+            <p className="text-[11px] tabular-nums text-violet-600 dark:text-violet-400">
+              Prévu le {format(forecastPoints[forecastPoints.length - 1].date, 'd MMM yyyy', { locale: fr })} :{' '}
+              {eur0.format(forecastPoints[forecastPoints.length - 1].value)}
+            </p>
+          )}
         </div>
         <div className="rounded-xl border border-slate-100 px-3 py-2 dark:border-slate-800">
           <p className="text-[11px] font-medium uppercase tracking-wider text-slate-400">Variation</p>
@@ -310,6 +387,10 @@ const BalanceHistory: React.FC = () => {
                   <stop offset="0%" stopColor="#3b82f6" stopOpacity={0.28} />
                   <stop offset="100%" stopColor="#3b82f6" stopOpacity={0} />
                 </linearGradient>
+                <linearGradient id="forecastFill" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="#8b5cf6" stopOpacity={0.18} />
+                  <stop offset="100%" stopColor="#8b5cf6" stopOpacity={0} />
+                </linearGradient>
               </defs>
               <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" strokeOpacity={0.6} />
               <XAxis dataKey="label" {...axisProps} minTickGap={32} />
@@ -318,7 +399,26 @@ const BalanceHistory: React.FC = () => {
               {compare && view.canCompare && (
                 <Line type="monotone" dataKey="previous" stroke="#94a3b8" strokeWidth={2} strokeDasharray="5 5" dot={false} />
               )}
+              {forecast && view.todayLabel && (
+                <ReferenceLine
+                  x={view.todayLabel}
+                  stroke="#94a3b8"
+                  strokeDasharray="3 3"
+                  label={{ value: "Aujourd'hui", position: 'insideTopLeft', fontSize: 10, fill: '#94a3b8' }}
+                />
+              )}
               <Area type="monotone" dataKey="total" stroke="#3b82f6" strokeWidth={2.5} fill="url(#balanceFill)" dot={false} />
+              {forecast && (
+                <Area
+                  type="monotone"
+                  dataKey="forecast"
+                  stroke="#8b5cf6"
+                  strokeWidth={2.5}
+                  strokeDasharray="6 4"
+                  fill="url(#forecastFill)"
+                  dot={{ r: 3, fill: '#8b5cf6', strokeWidth: 0 }}
+                />
+              )}
             </AreaChart>
           </ResponsiveContainer>
         ) : (
@@ -347,6 +447,11 @@ const BalanceHistory: React.FC = () => {
         </div>
       )}
 
+      {forecast && mode === 'total' && (
+        <p className="px-5 pb-2 text-[11px] text-violet-600/80 dark:text-violet-400/80">
+          Prévision : solde de fin de chaque mois budgétaire, en déduisant les budgets restants, opérations récurrentes et planifiées, dettes et épargne.
+        </p>
+      )}
       <p className="border-t border-slate-100 px-5 py-2.5 text-[11px] text-slate-400 dark:border-slate-800">
         {exactSince
           ? `Soldes enregistrés quotidiennement depuis le ${format(exactSince, 'd MMMM yyyy', { locale: fr })}. Avant cette date, historique reconstitué à partir de vos transactions terminées (approximatif).`
