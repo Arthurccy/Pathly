@@ -84,6 +84,16 @@ const ImportCSV: React.FC = () => {
     };
   };
 
+  // Rows left without a category go to the built-in "Autres dépenses" / "Autres revenus"
+  const fallbackCategoryFor = (type?: string) => {
+    const wantedName = type === 'income' ? 'autres revenus' : 'autres depenses';
+    const wantedType = type === 'income' ? 'income' : 'expense';
+    return (
+      categories.find(c => c.type === wantedType && strip(c.name).toLowerCase().trim() === wantedName) ||
+      categories.find(c => c.type === wantedType && strip(c.name).toLowerCase().startsWith('autre'))
+    );
+  };
+
   // A row can be ticked unless it has parsing errors or is a skipped duplicate
   const isSelectable = (t: ParsedTransaction) =>
     t.errors.length === 0 && (!settings.skipDuplicates || !t.isDuplicate);
@@ -272,7 +282,7 @@ const ImportCSV: React.FC = () => {
       const prepared = parsedTransactions.map(t => ({
         ...t,
         accountId: t.accountId || defaultAccountId || t.accountId,
-        categoryId: t.categoryId || defaultCategoryId || t.categoryId,
+        categoryId: t.categoryId || defaultCategoryId || fallbackCategoryFor(t.type)?.id || t.categoryId,
       }));
       const transactionsToImport = prepared.map((t, index) => ({
         ...t,
@@ -285,7 +295,7 @@ const ImportCSV: React.FC = () => {
       setImportTotal(totalValid);
 
       const incomplete = transactionsToImport.filter(t => t.isSelected && t.errors.length === 0 && (!t.categoryId || !t.accountId)).length;
-      if (incomplete > 0 && !window.confirm(`${incomplete} ligne(s) cochée(s) n'ont pas de catégorie ou de compte et ne seront pas importées. Continuer ?`)) {
+      if (incomplete > 0 && !window.confirm(`${incomplete} ligne(s) cochée(s) n'ont pas de compte (ou de catégorie par défaut) et ne seront pas importées. Continuer ?`)) {
         setStep('preview');
         setIsProcessing(false);
         return;
@@ -300,8 +310,9 @@ const ImportCSV: React.FC = () => {
       );
 
       try {
+        // Rows sent to the default "Autres ..." category were not classified by the user: do not learn from them
         await importService.submitCommunityLearning(
-          transactionsToImport,
+          transactionsToImport.filter((_, i) => parsedTransactions[i].categoryId || defaultCategoryId),
           user.id,
           categories
         );
@@ -818,9 +829,16 @@ const ImportCSV: React.FC = () => {
                                   />
                                 </div>
                               )}
-                              <span className="text-sm text-gray-900 dark:text-white">
-                                {category?.name || 'Catégorie inconnue'}
-                              </span>
+                              <select
+                                value={transaction.categoryId}
+                                onChange={(e) => e.target.value && applySuggestion(index, e.target.value)}
+                                className="max-w-[11rem] rounded border border-gray-300 bg-white px-2 py-1 text-sm text-gray-900 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
+                              >
+                                {!category && <option value={transaction.categoryId}>Catégorie inconnue</option>}
+                                {categories.map(cat => (
+                                  <option key={cat.id} value={cat.id}>{cat.name}</option>
+                                ))}
+                              </select>
                               {transaction.suggestions.length > 0 && (
                                 <span className="inline-flex items-center px-2 py-1 rounded-full text-xs bg-purple-100 text-purple-800 dark:bg-purple-900/20 dark:text-purple-400">
                                   <Brain className="h-3 w-3 mr-1" />
@@ -850,7 +868,7 @@ const ImportCSV: React.FC = () => {
                               onChange={(e) => e.target.value && applySuggestion(index, e.target.value)}
                               className="max-w-[10rem] rounded border border-gray-300 bg-white px-2 py-1 text-xs text-gray-600 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-300"
                             >
-                              <option value="">À classer…</option>
+                              <option value="">{fallbackCategoryFor(transaction.type)?.name || 'À classer'} (par défaut)</option>
                               {categories.map(cat => (
                                 <option key={cat.id} value={cat.id}>{cat.name}</option>
                               ))}
@@ -868,10 +886,10 @@ const ImportCSV: React.FC = () => {
                               <AlertCircle className="h-4 w-4" />
                               <span className="text-xs">Doublon</span>
                             </div>
-                          ) : !(transaction.categoryId || defaultCategoryId) || !(transaction.accountId || defaultAccountId) ? (
+                          ) : !(transaction.accountId || defaultAccountId) ? (
                             <div className="flex items-center space-x-1 text-amber-600 dark:text-amber-400">
                               <AlertCircle className="h-4 w-4" />
-                              <span className="text-xs">{transaction.categoryId || defaultCategoryId ? 'Compte requis' : 'Catégorie requise'}</span>
+                              <span className="text-xs">Compte requis</span>
                             </div>
                           ) : (
                             <div className="flex items-center space-x-1 text-green-600 dark:text-green-400">
