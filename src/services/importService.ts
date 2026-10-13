@@ -39,34 +39,177 @@ class ImportService {
       .slice(0, 80);
   }
 
+  private stripAccents(text: string): string {
+    return text.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+  }
+
+  // "1 234,56" / "-12,50" / "12.5" -> number (NaN when empty / not numeric)
+  private toNumber(value: string | undefined): number {
+    if (!value) return NaN;
+    const cleaned = value.replace(/\s/g, '').replace(',', '.').replace(/[^\d.-]/g, '');
+    return cleaned === '' ? NaN : parseFloat(cleaned);
+  }
+
+  // Guesses column names from the content when there is no header line (e.g. pasted rows)
+  private inferHeader(table: string[][]): string[] {
+    const width = Math.max(...table.map(row => row.length));
+    const sample = table.slice(0, 50);
+    const dateRe = /^(?:\d{4}-\d{2}-\d{2}|\d{2}[/-]\d{2}[/-]\d{2,4})$/;
+    const numRe = /^[-+]?\d[\d\s]*(?:[,.]\d+)?\s*(?:€|eur)?$/i;
+
+    const kind = (col: number): 'date' | 'number' | 'text' | 'empty' => {
+      const values = sample.map(row => row[col] || '').filter(Boolean);
+      if (values.length === 0) return 'empty';
+      const ratio = (re: RegExp) => values.filter(v => re.test(v)).length / values.length;
+      if (ratio(dateRe) >= 0.7) return 'date';
+      if (ratio(numRe) >= 0.7) return 'number';
+      return 'text';
+    };
+
+    const kinds = Array.from({ length: width }, (_, i) => kind(i));
+    const names: string[] = kinds.map((_, i) => `Colonne ${i + 1}`);
+
+    const dateCols = kinds.map((k, i) => (k === 'date' ? i : -1)).filter(i => i >= 0);
+    dateCols.forEach((col, n) => (names[col] = n === 0 ? 'Date' : 'Date de valeur'));
+
+    const textCols = kinds.map((k, i) => (k === 'text' ? i : -1)).filter(i => i >= 0);
+    if (textCols.length > 0) {
+      const avg = (col: number) => sample.reduce((sum, row) => sum + (row[col] || '').length, 0) / sample.length;
+      const best = textCols.reduce((a, b) => (avg(b) > avg(a) ? b : a));
+      names[best] = 'Libellé';
+    }
+
+    const numCols = kinds.map((k, i) => (k === 'number' ? i : -1)).filter(i => i >= 0);
+    const bothFilled = (a: number, b: number) => sample.some(row => row[a] && row[b]);
+    if (numCols.length >= 3) {
+      names[numCols[0]] = 'Débit';
+      names[numCols[1]] = 'Crédit';
+      names[numCols[numCols.length - 1]] = 'Solde';
+    } else if (numCols.length === 2) {
+      if (!bothFilled(numCols[0], numCols[1])) {
+        names[numCols[0]] = 'Débit';
+        names[numCols[1]] = 'Crédit';
+      } else {
+        names[numCols[0]] = 'Montant';
+        names[numCols[1]] = 'Solde';
+      }
+    } else if (numCols.length === 1) {
+      names[numCols[0]] = 'Montant';
+    }
+    return names;
+  }
+
+  /**
+   * Turns delimited bank text (CSV file or pasted lines) into rows keyed by header.
+   * Tolerant by design: auto-detects the separator, skips preamble lines before the header,
+   * merges extra fields (a label containing the separator) into the description column,
+   * and builds a signed "Montant" column when the bank splits Débit / Crédit.
+   */
+  parseDelimitedText(text: string, hasHeader: boolean, separator?: string): CSVRow[] {
+    const result = Papa.parse<string[]>(text.replace(/^\uFEFF/, ''), {
+      header: false,
+      delimiter: separator || '',
+      delimitersToGuess: [';', '\t', ',', '|'],
+      skipEmptyLines: 'greedy',
+    });
+
+    // Field count mismatches are expected with real bank exports: only give up if nothing was read
+    const table = (result.data as string[][]).map(row => row.map(cell => (cell ?? '').trim()));
+    if (table.length === 0) {
+      throw new Error('Aucune ligne lisible dans ce fichier');
+    }
+
+    let headerIndex = 0;
+    if (hasHeader) {
+      const found = table.findIndex(
+        row => row.filter(Boolean).length >= 3 && row.some(cell => /date/.test(this.stripAccents(cell)))
+      );
+      headerIndex = found >= 0 ? found : 0;
+    }
+
+    const rawHeader = hasHeader ? table[headerIndex] : this.inferHeader(table);
+    const seen = new Map<string, number>();
+    const header = rawHeader.map((name, i) => {
+      const base = name || `Colonne ${i + 1}`;
+      const count = (seen.get(base) || 0) + 1;
+      seen.set(base, count);
+      return count > 1 ? `${base} (${count})` : base;
+    });
+
+    const notDate = (h: string) => !/date/.test(this.stripAccents(h));
+    let descIdx = header.findIndex(h => /libelle|label|description|motif|intitule/.test(this.stripAccents(h)));
+    if (descIdx < 0) descIdx = header.findIndex(h => notDate(h) && /detail|operation/.test(this.stripAccents(h)));
+    const body = hasHeader ? table.slice(headerIndex + 1) : table;
+
+    const rows: CSVRow[] = body
+      .filter(cells => cells.filter(Boolean).length >= 2)
+      .map(cells => {
+        let fields = cells;
+        const extra = fields.length - header.length;
+        if (extra > 0 && descIdx >= 0) {
+          // The label itself contained the separator: glue the pieces back together
+          const label = fields.slice(descIdx, descIdx + extra + 1).join(' ');
+          fields = [...fields.slice(0, descIdx), label, ...fields.slice(descIdx + extra + 1)];
+        }
+        const row: CSVRow = {};
+        header.forEach((name, i) => {
+          row[name] = fields[i] ?? '';
+        });
+        return row;
+      });
+
+    // Débit / Crédit columns -> one signed "Montant" column
+    const debitCol = header.find(h => /^debit/.test(this.stripAccents(h)));
+    const creditCol = header.find(h => /^credit/.test(this.stripAccents(h)));
+    const hasAmountCol = header.some(h => /montant|amount/.test(this.stripAccents(h)));
+    if (debitCol && creditCol && !hasAmountCol) {
+      rows.forEach(row => {
+        const debit = this.toNumber(row[debitCol]);
+        const credit = this.toNumber(row[creditCol]);
+        let amount = 0;
+        if (!isNaN(credit)) amount += Math.abs(credit);
+        if (!isNaN(debit)) amount -= Math.abs(debit);
+        row['Montant'] = amount === 0 && isNaN(debit) && isNaN(credit) ? '' : amount.toFixed(2).replace('.', ',');
+      });
+    }
+
+    return rows;
+  }
+
   parseRawText(rawText: string): CSVRow[] {
+    const lines = rawText.split(/\r?\n/).map(line => line.trim()).filter(Boolean);
+
+    // Pasted straight from a bank export (separated by ; or tabs): reuse the CSV parser
+    const delimited = lines.filter(line => (line.match(/[;\t]/g) || []).length >= 2).length;
+    if (lines.length > 0 && delimited / lines.length >= 0.7) {
+      const hasHeader = /date/.test(this.stripAccents(lines[0])) && !/\d{2}[/-]\d{2}[/-]\d{2,4}|\d{4}-\d{2}-\d{2}/.test(lines[0]);
+      const rows = this.parseDelimitedText(lines.join('\n'), hasHeader);
+      if (rows.length > 0) return rows;
+    }
+
     const dateRegex = /\b(?:\d{4}-\d{2}-\d{2}|\d{2}[/-]\d{2}[/-]\d{2,4})\b/;
     const amountRegex = /[-+]?\d[\d\s]*(?:[,.]\d{2})\s*(?:€|eur)?/i;
 
-    return rawText
-      .split(/\r?\n/)
-      .map(line => line.trim())
-      .filter(Boolean)
-      .map(line => {
-        const date = line.match(dateRegex)?.[0] || '';
-        const amountMatches = [...line.matchAll(new RegExp(amountRegex, 'gi'))];
-        const amount = amountMatches[amountMatches.length - 1]?.[0] || '';
-        let description = line;
+    return lines.map(line => {
+      const date = line.match(dateRegex)?.[0] || '';
+      const amountMatches = [...line.matchAll(new RegExp(amountRegex, 'gi'))];
+      const amount = amountMatches[amountMatches.length - 1]?.[0] || '';
+      let description = line;
 
-        if (date) description = description.replace(date, ' ');
-        if (amount) description = description.replace(amount, ' ');
-        description = description
-          .replace(/\b(carte|cb|visa|mastercard|sepa|prelevement|virement|paiement)\b/gi, ' ')
-          .replace(/\s+/g, ' ')
-          .trim();
+      if (date) description = description.replace(date, ' ');
+      if (amount) description = description.replace(amount, ' ');
+      description = description
+        .replace(/\b(carte|cb|visa|mastercard|sepa|prelevement|virement|paiement)\b/gi, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
 
-        return {
-          Date: date,
-          Description: description || line,
-          Montant: amount,
-          Original: line,
-        };
-      });
+      return {
+        Date: date,
+        Description: description || line,
+        Montant: amount,
+        Original: line,
+      };
+    });
   }
 
   // Generate duplicate hash
@@ -78,24 +221,20 @@ class ImportService {
     return CryptoJS.SHA1(hashInput).toString();
   }
 
-  // Parse CSV file
+  // Parse CSV file (auto-detects UTF-8 vs Windows-1252, which French banks use)
   async parseCSV(file: File, settings: ImportSettings): Promise<CSVRow[]> {
-    return new Promise((resolve, reject) => {
-      Papa.parse(file, {
-        header: settings.hasHeader,
-        delimiter: settings.separator,
-        encoding: settings.encoding,
-        skipEmptyLines: true,
-        complete: (results) => {
-          if (results.errors.length > 0) {
-            reject(new Error(`CSV parsing errors: ${results.errors.map(e => e.message).join(', ')}`));
-          } else {
-            resolve(results.data as CSVRow[]);
-          }
-        },
-        error: (error) => reject(error)
-      });
-    });
+    const buffer = await file.arrayBuffer();
+    let text: string;
+    if (settings.encoding && settings.encoding !== 'auto') {
+      text = new TextDecoder(settings.encoding).decode(buffer);
+    } else {
+      try {
+        text = new TextDecoder('utf-8', { fatal: true }).decode(buffer);
+      } catch {
+        text = new TextDecoder('windows-1252').decode(buffer);
+      }
+    }
+    return this.parseDelimitedText(text, settings.hasHeader, settings.separator || undefined);
   }
 
   // Validate and parse transaction data

@@ -29,8 +29,8 @@ const ImportCSV: React.FC = () => {
   
   const [settings, setSettings] = useState<ImportSettings>({
     hasHeader: true,
-    separator: ',',
-    encoding: 'UTF-8',
+    separator: '',
+    encoding: 'auto',
     skipDuplicates: true,
     autoApplyRules: true,
     confidenceThreshold: 0.8
@@ -70,6 +70,24 @@ const ImportCSV: React.FC = () => {
     }
   };
 
+  const strip = (text: string) => text.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+
+  const autoMapColumns = (data: CSVRow[]): ColumnMapping => {
+    const headers = Object.keys(data[0] || {});
+    const find = (re: RegExp) => headers.find(h => re.test(strip(h))) || '';
+    return {
+      date: find(/date|datum/i) || headers[0] || '',
+      description: find(/desc|libelle|label|motif|intitule/i) || headers[1] || '',
+      amount: find(/^montant|amount/i) || find(/montant|amount|debit|credit/i) || headers[2] || '',
+      account: find(/compte|account/i),
+      category: find(/categorie|category/i),
+    };
+  };
+
+  // A row can be ticked unless it has parsing errors or is a skipped duplicate
+  const isSelectable = (t: ParsedTransaction) =>
+    t.errors.length === 0 && (!settings.skipDuplicates || !t.isDuplicate);
+
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -93,17 +111,9 @@ const ImportCSV: React.FC = () => {
       
       // Auto-detect column mapping
       if (data.length > 0) {
-        const headers = Object.keys(data[0]);
-        const autoMapping: ColumnMapping = {
-          date: headers.find(h => /date|datum/i.test(h)) || headers[0] || '',
-          description: headers.find(h => /desc|libelle|label|motif/i.test(h)) || headers[1] || '',
-          amount: headers.find(h => /montant|amount|debit|credit/i.test(h)) || headers[2] || '',
-          account: headers.find(h => /compte|account/i.test(h)) || '',
-          category: headers.find(h => /categorie|category/i.test(h)) || ''
-        };
-        setMapping(autoMapping);
+        setMapping(autoMapColumns(data));
       }
-      
+
       setStep('mapping');
     } catch (error: any) {
       alert(`Erreur lors de la lecture du fichier: ${error.message}`);
@@ -113,7 +123,13 @@ const ImportCSV: React.FC = () => {
   };
 
   const handleRawTextImport = () => {
-    const data = importService.parseRawText(rawText);
+    let data: CSVRow[];
+    try {
+      data = importService.parseRawText(rawText);
+    } catch (error: any) {
+      alert(`Erreur lors de la lecture du texte: ${error.message}`);
+      return;
+    }
     if (data.length === 0) {
       alert('Collez au moins une ligne de relevé bancaire');
       return;
@@ -121,13 +137,7 @@ const ImportCSV: React.FC = () => {
 
     setCsvData(data);
     setFileName('Copier-coller');
-    setMapping({
-      date: 'Date',
-      description: 'Description',
-      amount: 'Montant',
-      account: '',
-      category: '',
-    });
+    setMapping(autoMapColumns(data));
     setStep('mapping');
   };
 
@@ -143,8 +153,12 @@ const ImportCSV: React.FC = () => {
       console.log('[ImportCSV] Mapping -> start processing');
       // Parse transactions
       const transactions: ParsedTransaction[] = [];
+      // Rows without an account column fall back to the chosen default (or the only account)
+      const fallbackAccountId = defaultAccountId || (accounts.length === 1 ? accounts[0].id : '');
+      if (fallbackAccountId && !defaultAccountId) setDefaultAccountId(fallbackAccountId);
       for (const row of csvData) {
         const { transaction } = importService.parseTransaction(row, mapping, accounts);
+        if (!transaction.accountId && fallbackAccountId) transaction.accountId = fallbackAccountId;
         transactions.push(transaction);
       }
 
@@ -196,19 +210,14 @@ const ImportCSV: React.FC = () => {
       console.log('[ImportCSV] Processed transactions:', processedTransactions.length);
       setParsedTransactions(processedTransactions);
       
-      // Select all valid, non-duplicate transactions by default (and that satisfy DB NOT NULL requirements)
+      // Tick every row that can be imported; category / account can still be set from the preview
       const validIndices = new Set(
         processedTransactions
-          .map((t, index) => ({ transaction: t, index }))
-          .filter(({ transaction }) => 
-            transaction.errors.length === 0 &&
-            transaction.categoryId && transaction.accountId &&
-            (!settings.skipDuplicates || !transaction.isDuplicate)
-          )
+          .map((t, index) => ({ t, index }))
+          .filter(({ t }) => isSelectable(t))
           .map(({ index }) => index)
       );
       setSelectedTransactions(validIndices);
-      
       setStep('preview');
       console.log('[ImportCSV] Step -> preview');
     } catch (error: any) {
@@ -219,30 +228,20 @@ const ImportCSV: React.FC = () => {
     }
   };
 
-  const applyDefaultsToMissing = () => {
+  // Applies the chosen account / category to the ticked rows only (never to the others)
+  const applyToSelected = () => {
     if (!defaultAccountId && !defaultCategoryId) return;
-    const updated = parsedTransactions.map(t => ({
-      ...t,
-      accountId: t.accountId || defaultAccountId || t.accountId,
-      categoryId: t.categoryId || defaultCategoryId || t.categoryId,
-    }));
-    setParsedTransactions(updated);
-
-    const validIndices = new Set(
-      updated
-        .map((t, index) => ({ transaction: t, index }))
-        .filter(({ transaction }) => 
-          transaction.errors.length === 0 &&
-          transaction.categoryId && transaction.accountId &&
-          (!settings.skipDuplicates || !transaction.isDuplicate)
-        )
-        .map(({ index }) => index)
+    setParsedTransactions(prev =>
+      prev.map((t, index) =>
+        selectedTransactions.has(index)
+          ? {
+              ...t,
+              accountId: defaultAccountId || t.accountId,
+              categoryId: defaultCategoryId || t.categoryId,
+            }
+          : t
+      )
     );
-    setSelectedTransactions(validIndices);
-    const totalValid = updated.filter(t =>
-      t.errors.length === 0 && t.categoryId && t.accountId && (!settings.skipDuplicates || !t.isDuplicate) && t.isSelected !== false
-    ).length;
-    setImportTotal(totalValid);
   };
 
   const handleImport = async () => {
@@ -284,6 +283,13 @@ const ImportCSV: React.FC = () => {
         t.errors.length === 0 && t.categoryId && t.accountId && (!settings.skipDuplicates || !t.isDuplicate) && t.isSelected !== false
       ).length;
       setImportTotal(totalValid);
+
+      const incomplete = transactionsToImport.filter(t => t.isSelected && t.errors.length === 0 && (!t.categoryId || !t.accountId)).length;
+      if (incomplete > 0 && !window.confirm(`${incomplete} ligne(s) cochée(s) n'ont pas de catégorie ou de compte et ne seront pas importées. Continuer ?`)) {
+        setStep('preview');
+        setIsProcessing(false);
+        return;
+      }
 
       // Import transactions
       const result = await importService.importTransactions(
@@ -344,12 +350,8 @@ const ImportCSV: React.FC = () => {
 
   const toggleAllTransactions = () => {
     const validIndices = parsedTransactions
-      .map((t, index) => ({ transaction: t, index }))
-      .filter(({ transaction }) => 
-        transaction.errors.length === 0 &&
-        transaction.categoryId && transaction.accountId &&
-        (!settings.skipDuplicates || !transaction.isDuplicate)
-      )
+      .map((t, index) => ({ t, index }))
+      .filter(({ t }) => isSelectable(t))
       .map(({ index }) => index);
 
     if (selectedTransactions.size === validIndices.length) {
@@ -496,9 +498,10 @@ const ImportCSV: React.FC = () => {
                   onChange={(e) => setSettings({ ...settings, separator: e.target.value })}
                   className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
                 >
+                  <option value="">Automatique</option>
                   <option value=",">Virgule (,)</option>
                   <option value=";">Point-virgule (;)</option>
-                  <option value="\t">Tabulation</option>
+                  <option value={'\t'}>Tabulation</option>
                 </select>
               </div>
 
@@ -511,8 +514,9 @@ const ImportCSV: React.FC = () => {
                   onChange={(e) => setSettings({ ...settings, encoding: e.target.value })}
                   className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
                 >
+                  <option value="auto">Automatique</option>
                   <option value="UTF-8">UTF-8</option>
-                  <option value="ISO-8859-1">ISO-8859-1</option>
+                  <option value="windows-1252">Windows-1252 / ISO-8859-1</option>
                 </select>
               </div>
 
@@ -667,13 +671,13 @@ const ImportCSV: React.FC = () => {
                 onClick={toggleAllTransactions}
                 className="flex items-center space-x-2 text-sm text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300"
               >
-                {selectedTransactions.size === parsedTransactions.filter(t => t.errors.length === 0 && t.categoryId && t.accountId && (!settings.skipDuplicates || !t.isDuplicate)).length ? (
+                {selectedTransactions.size === parsedTransactions.filter(isSelectable).length ? (
                   <EyeOff className="h-4 w-4" />
                 ) : (
                   <Eye className="h-4 w-4" />
                 )}
                 <span>
-                  {selectedTransactions.size === parsedTransactions.filter(t => t.errors.length === 0 && t.categoryId && t.accountId && (!settings.skipDuplicates || !t.isDuplicate)).length 
+                  {selectedTransactions.size === parsedTransactions.filter(isSelectable).length 
                     ? 'Désélectionner tout' 
                     : 'Sélectionner tout'
                   }
@@ -702,7 +706,7 @@ const ImportCSV: React.FC = () => {
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-4">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Compte par défaut (si manquant)</label>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Compte des lignes cochées</label>
                 <select
                   value={defaultAccountId}
                   onChange={(e) => setDefaultAccountId(e.target.value)}
@@ -715,7 +719,7 @@ const ImportCSV: React.FC = () => {
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Catégorie par défaut (si manquante)</label>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Catégorie des lignes cochées</label>
                 <select
                   value={defaultCategoryId}
                   onChange={(e) => setDefaultCategoryId(e.target.value)}
@@ -729,10 +733,11 @@ const ImportCSV: React.FC = () => {
               </div>
               <div className="flex items-end">
                 <button
-                  onClick={applyDefaultsToMissing}
-                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
+                  onClick={applyToSelected}
+                  disabled={selectedTransactions.size === 0 || (!defaultAccountId && !defaultCategoryId)}
+                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white rounded-lg transition-colors"
                 >
-                  Appliquer aux lignes manquantes
+                  Appliquer aux {selectedTransactions.size} ligne(s) cochée(s)
                 </button>
               </div>
             </div>
@@ -840,7 +845,16 @@ const ImportCSV: React.FC = () => {
                               ))}
                             </div>
                           ) : (
-                            <span className="text-xs text-gray-500 dark:text-gray-400">À classer</span>
+                            <select
+                              value=""
+                              onChange={(e) => e.target.value && applySuggestion(index, e.target.value)}
+                              className="max-w-[10rem] rounded border border-gray-300 bg-white px-2 py-1 text-xs text-gray-600 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-300"
+                            >
+                              <option value="">À classer…</option>
+                              {categories.map(cat => (
+                                <option key={cat.id} value={cat.id}>{cat.name}</option>
+                              ))}
+                            </select>
                           )}
                         </td>
                         <td className="px-4 py-3">
@@ -853,6 +867,11 @@ const ImportCSV: React.FC = () => {
                             <div className="flex items-center space-x-1 text-orange-600 dark:text-orange-400">
                               <AlertCircle className="h-4 w-4" />
                               <span className="text-xs">Doublon</span>
+                            </div>
+                          ) : !(transaction.categoryId || defaultCategoryId) || !(transaction.accountId || defaultAccountId) ? (
+                            <div className="flex items-center space-x-1 text-amber-600 dark:text-amber-400">
+                              <AlertCircle className="h-4 w-4" />
+                              <span className="text-xs">{transaction.categoryId || defaultCategoryId ? 'Compte requis' : 'Catégorie requise'}</span>
                             </div>
                           ) : (
                             <div className="flex items-center space-x-1 text-green-600 dark:text-green-400">
