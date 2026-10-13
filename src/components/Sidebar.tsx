@@ -84,7 +84,7 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView = 'dashboard', onViewChan
         className="fixed left-3 top-2.5 z-50 flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-white shadow-sm transition-colors hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:hover:bg-slate-800 sm:top-3 sm:h-10 sm:w-10 lg:hidden"
         aria-label={isOpen ? 'Fermer le menu' : 'Ouvrir le menu'}
       >
-        {isOpen ? <X className="h-4.5 w-4.5 text-slate-600 dark:text-slate-400" /> : <Menu className="h-4.5 w-4.5 text-slate-600 dark:text-slate-400" />}
+        {isOpen ? <X className="h-[18px] w-[18px] text-slate-600 dark:text-slate-400" /> : <Menu className="h-[18px] w-[18px] text-slate-600 dark:text-slate-400" />}
       </button>
 
       {/* Mobile overlay */}

@@ -83,7 +83,7 @@ const Header: React.FC<HeaderProps> = ({ onViewChange }) => {
               aria-label={isDark ? 'Activer le thème clair' : 'Activer le thème sombre'}
               title={isDark ? 'Thème clair' : 'Thème sombre'}
             >
-              {isDark ? <Sun className="h-4.5 w-4.5" /> : <Moon className="h-[18px] w-[18px]" />}
+              {isDark ? <Sun className="h-[18px] w-[18px]" /> : <Moon className="h-[18px] w-[18px]" />}
             </button>
 
             {/* User profile */}

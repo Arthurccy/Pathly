@@ -417,10 +417,10 @@ const HouseholdManager: React.FC = () => {
               return (
                 <div
                   key={cat.id}
-                  className={`rounded-2xl border p-4.5 transition-all flex flex-col justify-between ${
+                  className={`rounded-xl border p-5 transition-all flex flex-col justify-between ${
                     isShared
-                      ? 'bg-white dark:bg-gray-800 border-rose-200 dark:border-rose-900/60 shadow-sm ring-1 ring-rose-500/10'
-                      : 'bg-gray-50/60 dark:bg-gray-850/40 border-gray-200/80 dark:border-gray-750 opacity-80 hover:opacity-100'
+                      ? 'bg-white dark:bg-gray-800 border-rose-200 dark:border-rose-900/60 shadow-card ring-1 ring-rose-500/10'
+                      : 'bg-gray-50/60 dark:bg-slate-900/40 border-gray-200/80 dark:border-gray-700 opacity-80 hover:opacity-100'
                   }`}
                 >
                   <div>
@@ -703,7 +703,7 @@ const HouseholdManager: React.FC = () => {
                     <div 
                       key={cat.id} 
                       onClick={() => viewExpensesForCategory(cat.id)}
-                      className="p-3.5 rounded-xl border border-gray-100 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-850/50 hover:bg-white dark:hover:bg-gray-800 hover:shadow-xs transition cursor-pointer"
+                      className="p-3.5 rounded-xl border border-gray-100 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-900/50 hover:bg-white dark:hover:bg-gray-800 hover:shadow-xs transition cursor-pointer"
                     >
                       <div className="flex items-center justify-between mb-1.5">
                         <div className="flex items-center gap-2">
@@ -887,7 +887,7 @@ const HouseholdManager: React.FC = () => {
                     className={`p-3 sm:p-4 flex items-center justify-between transition-colors ${
                       isShared 
                         ? 'bg-rose-50/30 dark:bg-rose-950/20' 
-                        : 'hover:bg-gray-50 dark:hover:bg-gray-750'
+                        : 'hover:bg-gray-50 dark:hover:bg-gray-700'
                     }`}
                   >
                     <div className="flex items-center gap-3 min-w-0 flex-1">
@@ -1049,7 +1049,7 @@ const HouseholdManager: React.FC = () => {
                   className={`p-2.5 rounded-xl border text-xs font-semibold text-center transition ${
                     householdConfig.splitMode === 'prorata'
                       ? 'border-rose-600 bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300 dark:border-rose-500 shadow-sm'
-                      : 'border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-750 text-gray-600 dark:text-gray-300'
+                      : 'border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300'
                   }`}
                 >
                   Prorata (Auto)
@@ -1060,7 +1060,7 @@ const HouseholdManager: React.FC = () => {
                   className={`p-2.5 rounded-xl border text-xs font-semibold text-center transition ${
                     householdConfig.splitMode === '50_50'
                       ? 'border-rose-600 bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300 dark:border-rose-500 shadow-sm'
-                      : 'border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-750 text-gray-600 dark:text-gray-300'
+                      : 'border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300'
                   }`}
                 >
                   50 / 50 (Égal)
@@ -1071,7 +1071,7 @@ const HouseholdManager: React.FC = () => {
                   className={`p-2.5 rounded-xl border text-xs font-semibold text-center transition ${
                     householdConfig.splitMode === 'custom'
                       ? 'border-rose-600 bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300 dark:border-rose-500 shadow-sm'
-                      : 'border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-750 text-gray-600 dark:text-gray-300'
+                      : 'border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300'
                   }`}
                 >
                   Personnalisé

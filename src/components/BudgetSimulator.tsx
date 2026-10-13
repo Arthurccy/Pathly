@@ -436,7 +436,7 @@ const BudgetSimulator: React.FC = () => {
                   </thead>
                   <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
                     {yearlyProjections.map((proj: any) => (
-                      <tr key={proj.yearOffset} className="hover:bg-gray-50 dark:hover:bg-gray-750 transition-colors">
+                      <tr key={proj.yearOffset} className="hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
                         <td className="px-4 py-3 font-medium text-gray-900 dark:text-gray-100">
                           {proj.date.getFullYear()} <span className="text-xs text-gray-400 font-normal ml-1">(+{proj.yearOffset} an{proj.yearOffset > 1 ? 's' : ''})</span>
                         </td>
