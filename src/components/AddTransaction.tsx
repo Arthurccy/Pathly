@@ -150,15 +150,15 @@ const AddTransaction: React.FC = () => {
         <div className="p-2 bg-blue-100 dark:bg-blue-900/20 rounded-lg">
           <Plus className="h-6 w-6 text-blue-600 dark:text-blue-400" />
         </div>
-        <h1 className="text-xl font-bold text-gray-900 dark:text-white sm:text-2xl">
+        <h1 className="text-xl font-bold text-slate-900 dark:text-white sm:text-2xl">
           Ajouter une transaction
         </h1>
       </div>
 
-      <div className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-800 sm:p-6">
+      <div className="rounded-xl border border-slate-200/80 bg-white p-4 shadow-card dark:border-slate-800/80 dark:bg-slate-900 sm:p-6">
         <form onSubmit={handleSubmit} className="space-y-6">
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
+            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-3">
               Type de transaction *
             </label>
             <div className="grid grid-cols-3 gap-2 sm:gap-3">
@@ -168,7 +168,7 @@ const AddTransaction: React.FC = () => {
                   className={`rounded-xl border-2 p-3 transition-all sm:p-4 ${
                   formData.type === 'expense'
                     ? 'border-red-500 bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300'
-                    : 'border-gray-200 dark:border-gray-600 hover:border-gray-300 dark:hover:border-gray-500'
+                    : 'border-slate-200 dark:border-slate-600 hover:border-slate-300 dark:hover:border-slate-500'
                 }`}
               >
                 <div className="text-center">
@@ -182,7 +182,7 @@ const AddTransaction: React.FC = () => {
                   className={`rounded-xl border-2 p-3 transition-all sm:p-4 ${
                   formData.type === 'income'
                     ? 'border-green-500 bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-300'
-                    : 'border-gray-200 dark:border-gray-600 hover:border-gray-300 dark:hover:border-gray-500'
+                    : 'border-slate-200 dark:border-slate-600 hover:border-slate-300 dark:hover:border-slate-500'
                 }`}
               >
                 <div className="text-center">
@@ -196,7 +196,7 @@ const AddTransaction: React.FC = () => {
                   className={`rounded-xl border-2 p-3 transition-all sm:p-4 ${
                   formData.type === 'transfer'
                     ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300'
-                    : 'border-gray-200 dark:border-gray-600 hover:border-gray-300 dark:hover:border-gray-500'
+                    : 'border-slate-200 dark:border-slate-600 hover:border-slate-300 dark:hover:border-slate-500'
                 }`}
               >
                 <div className="text-center">
@@ -207,7 +207,7 @@ const AddTransaction: React.FC = () => {
           </div>
 
           <div>
-            <label htmlFor="amount" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            <label htmlFor="amount" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
               Montant * (€)
             </label>
             <input
@@ -217,14 +217,14 @@ const AddTransaction: React.FC = () => {
               min="0"
               value={formData.amount}
               onChange={(e) => setFormData({ ...formData, amount: e.target.value })}
-              className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white text-lg"
+              className="w-full px-4 py-3 border border-slate-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-slate-700 dark:text-white text-lg"
               placeholder="0,00"
               required
             />
           </div>
 
           <div>
-            <label htmlFor="description" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            <label htmlFor="description" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
               Description *
             </label>
             <input
@@ -232,14 +232,14 @@ const AddTransaction: React.FC = () => {
               id="description"
               value={formData.description}
               onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-              className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
+              className="w-full px-4 py-3 border border-slate-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-slate-700 dark:text-white"
               placeholder="Ex: Courses au supermarché"
               required
             />
           </div>
 
           <div>
-            <label htmlFor="account" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            <label htmlFor="account" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
               Compte *
             </label>
             {activeAccounts.length > 0 ? (
@@ -247,7 +247,7 @@ const AddTransaction: React.FC = () => {
                 id="account"
                 value={formData.accountId}
                 onChange={(e) => setFormData({ ...formData, accountId: e.target.value })}
-                className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
+                className="w-full px-4 py-3 border border-slate-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-slate-700 dark:text-white"
                 required
               >
                 {activeAccounts.map(account => (
@@ -267,14 +267,14 @@ const AddTransaction: React.FC = () => {
             
             {formData.type === 'transfer' && (
               <div>
-                <label htmlFor="transferToAccount" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 mt-4">
+                <label htmlFor="transferToAccount" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2 mt-4">
                   Compte de destination *
                 </label>
                 <select
                   id="transferToAccount"
                   value={formData.transferToAccountId}
                   onChange={(e) => setFormData({ ...formData, transferToAccountId: e.target.value })}
-                  className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
+                  className="w-full px-4 py-3 border border-slate-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-slate-700 dark:text-white"
                   required={formData.type === 'transfer'}
                 >
                   <option value="">Sélectionnez un compte...</option>
@@ -290,7 +290,7 @@ const AddTransaction: React.FC = () => {
           {formData.type !== 'transfer' && (
   
             <div>
-              <label htmlFor="category" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              <label htmlFor="category" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
                 Catégorie *
               </label>
               <div className="grid grid-cols-3 gap-2 sm:grid-cols-4 lg:grid-cols-5 max-h-56 overflow-y-auto pr-1">
@@ -311,7 +311,7 @@ const AddTransaction: React.FC = () => {
                       className={`rounded-xl border-2 p-2.5 transition-all ${
                         formData.categoryId === category.id
                           ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
-                          : 'border-gray-200 dark:border-gray-600 hover:border-gray-300 dark:hover:border-gray-500'
+                          : 'border-slate-200 dark:border-slate-600 hover:border-slate-300 dark:hover:border-slate-500'
                       }`}
                     >
                       <div className="text-center">
@@ -324,7 +324,7 @@ const AddTransaction: React.FC = () => {
                             style={{ color: category.color }}
                           />
                         </div>
-                        <div className="text-xs font-medium text-gray-700 dark:text-gray-300 leading-tight">
+                        <div className="text-xs font-medium text-slate-700 dark:text-slate-300 leading-tight">
                           {category.name}
                         </div>
                       </div>
@@ -409,16 +409,16 @@ const AddTransaction: React.FC = () => {
                 isRecurring: e.target.checked,
                 nextDate: e.target.checked ? formData.date : formData.nextDate,
               })}
-              className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+              className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
             />
-            <label htmlFor="isRecurring" className="text-sm font-medium text-gray-700 dark:text-gray-300">
+            <label htmlFor="isRecurring" className="text-sm font-medium text-slate-700 dark:text-slate-300">
               Transaction récurrente
             </label>
           </div>
 
           {!formData.isRecurring ? (
             <div>
-              <label htmlFor="date" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              <label htmlFor="date" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
                 Date *
               </label>
               <input
@@ -426,7 +426,7 @@ const AddTransaction: React.FC = () => {
                 id="date"
                 value={formData.date}
                 onChange={(e) => setFormData({ ...formData, date: e.target.value })}
-                className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
+                className="w-full px-4 py-3 border border-slate-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-slate-700 dark:text-white"
                 required
               />
             </div>
@@ -434,14 +434,14 @@ const AddTransaction: React.FC = () => {
             <div className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label htmlFor="frequency" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  <label htmlFor="frequency" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
                     Fréquence *
                   </label>
                   <select
                     id="frequency"
                     value={formData.frequency}
                     onChange={(e) => setFormData({ ...formData, frequency: e.target.value as any })}
-                    className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
+                    className="w-full px-4 py-3 border border-slate-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-slate-700 dark:text-white"
                     required
                   >
                     <option value="weekly">Hebdomadaire</option>
@@ -452,7 +452,7 @@ const AddTransaction: React.FC = () => {
                 </div>
 
                 <div>
-                  <label htmlFor="interval" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  <label htmlFor="interval" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
                     Intervalle
                   </label>
                   <input
@@ -461,13 +461,13 @@ const AddTransaction: React.FC = () => {
                     min="1"
                     value={formData.interval}
                     onChange={(e) => setFormData({ ...formData, interval: parseInt(e.target.value) || 1 })}
-                    className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
+                    className="w-full px-4 py-3 border border-slate-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-slate-700 dark:text-white"
                   />
                 </div>
               </div>
 
               <div>
-                <label htmlFor="nextDate" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                <label htmlFor="nextDate" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
                   Date de la prochaine occurrence *
                 </label>
                 <input
@@ -475,14 +475,14 @@ const AddTransaction: React.FC = () => {
                   id="nextDate"
                   value={formData.nextDate}
                   onChange={(e) => setFormData({ ...formData, nextDate: e.target.value })}
-                  className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
+                  className="w-full px-4 py-3 border border-slate-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-slate-700 dark:text-white"
                   required
                 />
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label htmlFor="endDate" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  <label htmlFor="endDate" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
                     Date de fin (optionnel)
                   </label>
                   <input
@@ -490,11 +490,11 @@ const AddTransaction: React.FC = () => {
                     id="endDate"
                     value={formData.endDate}
                     onChange={(e) => setFormData({ ...formData, endDate: e.target.value })}
-                    className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
+                    className="w-full px-4 py-3 border border-slate-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-slate-700 dark:text-white"
                   />
                 </div>
                 <div>
-                  <label htmlFor="maxOccurrences" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  <label htmlFor="maxOccurrences" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
                     Nombre max d'occurrences
                   </label>
                   <input
@@ -503,7 +503,7 @@ const AddTransaction: React.FC = () => {
                     min="1"
                     value={formData.maxOccurrences}
                     onChange={(e) => setFormData({ ...formData, maxOccurrences: e.target.value })}
-                    className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
+                    className="w-full px-4 py-3 border border-slate-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-slate-700 dark:text-white"
                     placeholder="Illimité"
                   />
                 </div>
@@ -524,7 +524,7 @@ const AddTransaction: React.FC = () => {
 
       {notice && (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/40 p-0 backdrop-blur-sm sm:items-center sm:p-4">
-          <div className="w-full max-w-md rounded-t-3xl bg-white p-6 shadow-2xl dark:bg-gray-900 sm:rounded-3xl">
+          <div className="w-full max-w-md rounded-t-3xl bg-white p-6 shadow-2xl dark:bg-slate-900 sm:rounded-3xl">
             <div className="flex items-start justify-between gap-4">
               <div className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-full ${
                 notice.type === 'success'
@@ -536,7 +536,7 @@ const AddTransaction: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setNotice(null)}
-                className="rounded-full p-2 text-gray-400 transition hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-gray-800 dark:hover:text-gray-200"
+                className="rounded-full p-2 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-slate-800 dark:hover:text-slate-200"
                 aria-label="Fermer"
               >
                 <X className="h-5 w-5" />
@@ -544,8 +544,8 @@ const AddTransaction: React.FC = () => {
             </div>
 
             <div className="mt-5">
-              <h2 className="text-xl font-semibold text-gray-950 dark:text-white">{notice.title}</h2>
-              <p className="mt-2 text-sm leading-6 text-gray-600 dark:text-gray-300">{notice.message}</p>
+              <h2 className="text-xl font-semibold text-slate-950 dark:text-white">{notice.title}</h2>
+              <p className="mt-2 text-sm leading-6 text-slate-600 dark:text-slate-300">{notice.message}</p>
             </div>
 
             <div className="mt-6 flex justify-end">

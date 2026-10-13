@@ -358,7 +358,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onViewChange }) => {
               {insightCards.map(card => {
                 const Icon = card.icon;
                 return (
-                  <div key={card.label} className={`rounded-lg border p-4 ${card.border} ${card.bg}`}>
+                  <div key={card.label} className={`rounded-xl border p-4 ${card.border} ${card.bg} transition-all duration-200 hover:shadow-card-hover hover:-translate-y-px`}>
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
                         <p className={`text-xs font-semibold uppercase tracking-wide ${card.tone}`}>{card.label}</p>
@@ -423,7 +423,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onViewChange }) => {
         </div>
       </section>
 
-      <section className="flex flex-col gap-3 rounded-lg border border-slate-200 bg-white p-3 shadow-sm dark:border-slate-800 dark:bg-slate-950 md:flex-row md:items-center md:justify-between">
+      <section className="flex flex-col gap-3 rounded-lg border border-slate-200 bg-white p-3 shadow-card dark:border-slate-800/80 dark:bg-slate-950 md:flex-row md:items-center md:justify-between">
         <div className="flex flex-wrap items-center gap-2">
           <div className="grid grid-cols-2 rounded-md bg-slate-100 p-1 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
             <button

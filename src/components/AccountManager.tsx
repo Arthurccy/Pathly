@@ -339,7 +339,7 @@ const AccountManager: React.FC = () => {
           <div className="p-2 bg-blue-100 dark:bg-blue-900/20 rounded-lg">
             <CreditCard className="h-6 w-6 text-blue-600 dark:text-blue-400" />
           </div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
+          <h1 className="text-2xl font-bold text-slate-900 dark:text-white">
             Gestion des comptes
           </h1>
         </div>
@@ -374,48 +374,48 @@ const AccountManager: React.FC = () => {
 
       {/* Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+        <div className="bg-white dark:bg-slate-900 rounded-xl shadow-card border border-slate-200/80 dark:border-slate-800/80 p-6">
           <div className="flex items-center">
             <div className="p-2 bg-green-100 dark:bg-green-900/20 rounded-lg">
               <TrendingUp className="h-6 w-6 text-green-600 dark:text-green-400" />
             </div>
             <div className="ml-4">
-              <p className="text-sm font-medium text-gray-500 dark:text-gray-400">
+              <p className="text-sm font-medium text-slate-500 dark:text-slate-400">
                 Patrimoine total
               </p>
-              <p className="text-2xl font-semibold text-gray-900 dark:text-white">
+              <p className="text-2xl font-semibold text-slate-900 dark:text-white">
                 {totalBalance.toFixed(2)} €
               </p>
             </div>
           </div>
         </div>
 
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+        <div className="bg-white dark:bg-slate-900 rounded-xl shadow-card border border-slate-200/80 dark:border-slate-800/80 p-6">
           <div className="flex items-center">
             <div className="p-2 bg-red-100 dark:bg-red-900/20 rounded-lg">
               <Building className="h-6 w-6 text-red-600 dark:text-red-400" />
             </div>
             <div className="ml-4">
-              <p className="text-sm font-medium text-gray-500 dark:text-gray-400">
+              <p className="text-sm font-medium text-slate-500 dark:text-slate-400">
                 Dettes totales
               </p>
-              <p className="text-2xl font-semibold text-gray-900 dark:text-white">
+              <p className="text-2xl font-semibold text-slate-900 dark:text-white">
                 {totalDebt.toFixed(2)} €
               </p>
             </div>
           </div>
         </div>
 
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+        <div className="bg-white dark:bg-slate-900 rounded-xl shadow-card border border-slate-200/80 dark:border-slate-800/80 p-6">
           <div className="flex items-center">
             <div className="p-2 bg-blue-100 dark:bg-blue-900/20 rounded-lg">
               <DollarSign className="h-6 w-6 text-blue-600 dark:text-blue-400" />
             </div>
             <div className="ml-4">
-              <p className="text-sm font-medium text-gray-500 dark:text-gray-400">
+              <p className="text-sm font-medium text-slate-500 dark:text-slate-400">
                 Patrimoine net
               </p>
-              <p className="text-2xl font-semibold text-gray-900 dark:text-white">
+              <p className="text-2xl font-semibold text-slate-900 dark:text-white">
                 {(totalBalance - totalDebt).toFixed(2)} €
               </p>
             </div>
@@ -425,15 +425,15 @@ const AccountManager: React.FC = () => {
 
       {/* Form */}
       {showForm && (
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6">
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
+        <div className="bg-white dark:bg-slate-900 rounded-xl shadow-card border border-slate-200/80 dark:border-slate-800/80 p-6">
+          <h3 className="text-lg font-semibold text-slate-900 dark:text-white mb-4">
             {editingAccount ? 'Modifier' : 'Créer'} un compte
           </h3>
           
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label htmlFor="name" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                <label htmlFor="name" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
                   Nom du compte *
                 </label>
                 <input
@@ -441,21 +441,21 @@ const AccountManager: React.FC = () => {
                   id="name"
                   value={formData.name}
                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
+                  className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-slate-700 dark:text-white"
                   placeholder="Ex: Compte Courant BNP, PEA Boursorama, Wallet Bitcoin"
                   required
                 />
               </div>
 
               <div>
-                <label htmlFor="type" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                <label htmlFor="type" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
                   Type de compte *
                 </label>
                 <select
                   id="type"
                   value={formData.type}
                   onChange={(e) => setFormData({ ...formData, type: e.target.value as BankAccount['type'] })}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
+                  className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-slate-700 dark:text-white"
                   required
                 >
                   {accountTypes.map(type => (
@@ -467,7 +467,7 @@ const AccountManager: React.FC = () => {
               </div>
 
               <div>
-                <label htmlFor="balance" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                <label htmlFor="balance" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
                   Solde initial *
                 </label>
                 <input
@@ -476,21 +476,21 @@ const AccountManager: React.FC = () => {
                   step="0.01"
                   value={formData.balance}
                   onChange={(e) => setFormData({ ...formData, balance: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
+                  className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-slate-700 dark:text-white"
                   placeholder="0.00"
                   required
                 />
               </div>
 
               <div>
-                <label htmlFor="currency" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                <label htmlFor="currency" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
                   Devise
                 </label>
                 <select
                   id="currency"
                   value={formData.currency}
                   onChange={(e) => setFormData({ ...formData, currency: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
+                  className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-slate-700 dark:text-white"
                 >
                   {currencies.map(currency => (
                     <option key={currency.value} value={currency.value}>
@@ -501,7 +501,7 @@ const AccountManager: React.FC = () => {
               </div>
 
               <div>
-                <label htmlFor="bankName" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                <label htmlFor="bankName" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
                   Banque / Institution
                 </label>
                 <input
@@ -509,13 +509,13 @@ const AccountManager: React.FC = () => {
                   id="bankName"
                   value={formData.bankName}
                   onChange={(e) => setFormData({ ...formData, bankName: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
+                  className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-slate-700 dark:text-white"
                   placeholder="Ex: BNP Paribas, Binance, Boursorama"
                 />
               </div>
 
               <div>
-                <label htmlFor="description" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                <label htmlFor="description" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
                   Description
                 </label>
                 <input
@@ -523,7 +523,7 @@ const AccountManager: React.FC = () => {
                   id="description"
                   value={formData.description}
                   onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
+                  className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-slate-700 dark:text-white"
                   placeholder="Description optionnelle"
                 />
               </div>
@@ -531,7 +531,7 @@ const AccountManager: React.FC = () => {
 
             {/* Color Selection */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
                 Couleur
               </label>
               <div className="flex flex-wrap gap-2">
@@ -542,8 +542,8 @@ const AccountManager: React.FC = () => {
                     onClick={() => setFormData({ ...formData, color })}
                     className={`w-8 h-8 rounded-lg border-2 transition-all ${
                       formData.color === color
-                        ? 'border-gray-400 scale-110'
-                        : 'border-gray-200 dark:border-gray-600 hover:scale-105'
+                        ? 'border-slate-400 scale-110'
+                        : 'border-slate-200 dark:border-slate-600 hover:scale-105'
                     }`}
                     style={{ backgroundColor: color }}
                   />
@@ -555,7 +555,7 @@ const AccountManager: React.FC = () => {
               <button
                 type="button"
                 onClick={resetForm}
-                className="px-4 py-2 text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-lg transition-colors"
+                className="px-4 py-2 text-slate-700 dark:text-slate-300 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 rounded-lg transition-colors"
               >
                 Annuler
               </button>
@@ -571,15 +571,15 @@ const AccountManager: React.FC = () => {
       )}
 
       {/* Accounts List */}
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700">
-        <div className="p-6 border-b border-gray-200 dark:border-gray-700">
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+      <div className="bg-white dark:bg-slate-900 rounded-xl shadow-card border border-slate-200/80 dark:border-slate-800/80">
+        <div className="p-6 border-b border-slate-200 dark:border-slate-700">
+          <h3 className="text-lg font-semibold text-slate-900 dark:text-white">
             Mes comptes ({accounts.length}/20)
           </h3>
         </div>
 
         {accounts.length > 0 ? (
-          <div className="divide-y divide-gray-200 dark:divide-gray-700">
+          <div className="divide-y divide-slate-200 dark:divide-slate-700">
             {accounts
               .sort((a, b) => a.order - b.order)
               .map((account) => {
@@ -587,7 +587,7 @@ const AccountManager: React.FC = () => {
                 const currency = currencies.find(c => c.value === account.currency);
                 
                 return (
-                  <div key={account.id} className="p-4 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
+                  <div key={account.id} className="p-4 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center space-x-4">
                         <div
@@ -602,10 +602,10 @@ const AccountManager: React.FC = () => {
                         
                         <div className="flex-1">
                           <div className="flex items-center space-x-2">
-                            <h4 className="text-sm font-medium text-gray-900 dark:text-white">
+                            <h4 className="text-sm font-medium text-slate-900 dark:text-white">
                               {account.name}
                             </h4>
-                            <span className="text-xs px-2 py-1 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400">
+                            <span className="text-xs px-2 py-1 rounded-full bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-400">
                               {getAccountTypeLabel(account.type)}
                             </span>
                             {!account.isActive && (
@@ -615,7 +615,7 @@ const AccountManager: React.FC = () => {
                             )}
                           </div>
                           
-                          <div className="flex items-center space-x-4 mt-1 text-xs text-gray-500 dark:text-gray-400">
+                          <div className="flex items-center space-x-4 mt-1 text-xs text-slate-500 dark:text-slate-400">
                             {account.bankName && <span>{account.bankName}</span>}
                             <span>{currency?.label || account.currency}</span>
                             {account.description && <span>{account.description}</span>}
@@ -649,7 +649,7 @@ const AccountManager: React.FC = () => {
                           <button
                             onClick={() => openTransferModal(account.id)}
                             disabled={accounts.filter(item => item.isActive).length < 2 || !account.isActive}
-                            className="p-1 text-emerald-600 hover:text-emerald-700 disabled:text-gray-300 disabled:cursor-not-allowed dark:text-emerald-400"
+                            className="p-1 text-emerald-600 hover:text-emerald-700 disabled:text-slate-300 disabled:cursor-not-allowed dark:text-emerald-400"
                             title="Transférer depuis ce compte"
                           >
                             <ArrowRightLeft className="h-4 w-4" />
@@ -668,7 +668,7 @@ const AccountManager: React.FC = () => {
                             className={`p-1 rounded ${
                               account.isActive
                                 ? 'text-green-600 hover:text-green-700 dark:text-green-400'
-                                : 'text-gray-400 hover:text-gray-600 dark:text-gray-500'
+                                : 'text-slate-400 hover:text-slate-600 dark:text-slate-500'
                             }`}
                             title={account.isActive ? 'Désactiver' : 'Activer'}
                           >
@@ -702,8 +702,8 @@ const AccountManager: React.FC = () => {
               })}
           </div>
         ) : (
-          <div className="p-8 text-center text-gray-500 dark:text-gray-400">
-            <CreditCard className="h-12 w-12 mx-auto mb-4 text-gray-300 dark:text-gray-600" />
+          <div className="p-8 text-center text-slate-500 dark:text-slate-400">
+            <CreditCard className="h-12 w-12 mx-auto mb-4 text-slate-300 dark:text-slate-600" />
             <p className="text-lg mb-2">Aucun compte enregistré</p>
             <p className="text-sm">Créez votre premier compte pour commencer</p>
           </div>
@@ -713,22 +713,22 @@ const AccountManager: React.FC = () => {
       {/* Account History Modal */}
       {selectedHistoryAccount && (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/50 p-0 backdrop-blur-sm sm:items-center sm:p-4">
-          <div className="max-h-[92dvh] w-full overflow-hidden rounded-t-3xl bg-white shadow-2xl dark:bg-gray-900 sm:max-w-4xl sm:rounded-3xl">
-            <div className="border-b border-gray-200 bg-white px-5 py-4 dark:border-gray-800 dark:bg-gray-900 sm:px-6">
+          <div className="max-h-[92dvh] w-full overflow-hidden rounded-t-3xl bg-white shadow-2xl dark:bg-slate-900 sm:max-w-4xl sm:rounded-3xl">
+            <div className="border-b border-slate-200 bg-white px-5 py-4 dark:border-slate-800 dark:bg-slate-900 sm:px-6">
               <div className="flex items-start justify-between gap-4">
                 <div className="min-w-0">
-                  <p className="text-sm text-gray-500 dark:text-gray-400">Historique du compte</p>
-                  <h3 className="truncate text-xl font-semibold text-gray-950 dark:text-white">
+                  <p className="text-sm text-slate-500 dark:text-slate-400">Historique du compte</p>
+                  <h3 className="truncate text-xl font-semibold text-slate-950 dark:text-white">
                     {selectedHistoryAccount.name}
                   </h3>
-                  <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                  <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
                     {selectedHistoryAccount.bankName || getAccountTypeLabel(selectedHistoryAccount.type)}
                   </p>
                 </div>
                 <button
                   type="button"
                   onClick={() => setHistoryAccountId(null)}
-                  className="rounded-full p-2 text-gray-400 transition hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-gray-800 dark:hover:text-gray-200"
+                  className="rounded-full p-2 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-slate-800 dark:hover:text-slate-200"
                   aria-label="Fermer"
                 >
                   ×
@@ -738,21 +738,21 @@ const AccountManager: React.FC = () => {
 
             <div className="max-h-[calc(92dvh-5rem)] overflow-y-auto p-5 sm:p-6">
               <div className="grid gap-3 sm:grid-cols-3">
-                <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4 dark:border-gray-800 dark:bg-gray-950">
-                  <p className="text-sm text-gray-500 dark:text-gray-400">Solde Pathly</p>
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-950">
+                  <p className="text-sm text-slate-500 dark:text-slate-400">Solde Pathly</p>
                   <p className={`mt-1 text-2xl font-semibold ${selectedHistoryAccount.balance >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}>
                     {selectedHistoryAccount.balance.toFixed(2)} {selectedHistoryAccount.currency}
                   </p>
                 </div>
-                <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4 dark:border-gray-800 dark:bg-gray-950">
-                  <p className="text-sm text-gray-500 dark:text-gray-400">Mouvements terminés</p>
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-950">
+                  <p className="text-sm text-slate-500 dark:text-slate-400">Mouvements terminés</p>
                   <p className={`mt-1 text-2xl font-semibold ${completedHistoryImpact >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}>
                     {completedHistoryImpact >= 0 ? '+' : ''}{completedHistoryImpact.toFixed(2)} {selectedHistoryAccount.currency}
                   </p>
                 </div>
-                <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4 dark:border-gray-800 dark:bg-gray-950">
-                  <p className="text-sm text-gray-500 dark:text-gray-400">Solde avant historique</p>
-                  <p className="mt-1 text-2xl font-semibold text-gray-950 dark:text-white">
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-950">
+                  <p className="text-sm text-slate-500 dark:text-slate-400">Solde avant historique</p>
+                  <p className="mt-1 text-2xl font-semibold text-slate-950 dark:text-white">
                     {reconstructedOpeningBalance.toFixed(2)} {selectedHistoryAccount.currency}
                   </p>
                 </div>
@@ -769,22 +769,22 @@ const AccountManager: React.FC = () => {
                       step="0.01"
                       value={bankBalanceInput}
                       onChange={(event) => setBankBalanceInput(event.target.value)}
-                      className="mt-2 w-full rounded-xl border border-blue-200 bg-white px-3 py-2.5 text-gray-950 focus:border-transparent focus:ring-2 focus:ring-blue-500 dark:border-blue-900 dark:bg-gray-900 dark:text-white"
+                      className="mt-2 w-full rounded-xl border border-blue-200 bg-white px-3 py-2.5 text-slate-950 focus:border-transparent focus:ring-2 focus:ring-blue-500 dark:border-blue-900 dark:bg-slate-900 dark:text-white"
                       placeholder={`Ex: ${selectedHistoryAccount.balance.toFixed(2)}`}
                     />
                   </div>
                   {bankGap !== null && (
-                    <div className="grid gap-2 rounded-xl bg-white px-4 py-3 text-sm shadow-sm dark:bg-gray-900">
+                    <div className="grid gap-2 rounded-xl bg-white px-4 py-3 text-sm shadow-sm dark:bg-slate-900">
                       <div>
-                        <p className="text-gray-500 dark:text-gray-400">Écart à retrouver</p>
+                        <p className="text-slate-500 dark:text-slate-400">Écart à retrouver</p>
                         <p className={`text-lg font-semibold ${bankGap >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}>
                           {bankGap >= 0 ? '+' : ''}{bankGap.toFixed(2)} {selectedHistoryAccount.currency}
                         </p>
                       </div>
                       {expectedOpeningBalance !== null && (
-                        <div className="border-t border-gray-100 pt-2 dark:border-gray-800">
-                          <p className="text-gray-500 dark:text-gray-400">Solde avant historique attendu</p>
-                          <p className="font-semibold text-gray-950 dark:text-white">
+                        <div className="border-t border-slate-100 pt-2 dark:border-slate-800">
+                          <p className="text-slate-500 dark:text-slate-400">Solde avant historique attendu</p>
+                          <p className="font-semibold text-slate-950 dark:text-white">
                             {expectedOpeningBalance.toFixed(2)} {selectedHistoryAccount.currency}
                           </p>
                         </div>
@@ -799,7 +799,7 @@ const AccountManager: React.FC = () => {
 
               <div className="mt-6">
                 <div className="mb-3 flex items-center justify-between gap-3">
-                  <h4 className="font-semibold text-gray-950 dark:text-white">
+                  <h4 className="font-semibold text-slate-950 dark:text-white">
                     Mouvements ({selectedHistoryTransactions.length})
                   </h4>
                   <button
@@ -817,13 +817,13 @@ const AccountManager: React.FC = () => {
                       const category = categories.find(item => item.id === transaction.categoryId);
                       const impact = getTransactionImpact(transaction);
                       return (
-                        <div key={transaction.id} className="rounded-2xl border border-gray-200 p-4 dark:border-gray-800">
+                        <div key={transaction.id} className="rounded-2xl border border-slate-200 p-4 dark:border-slate-800">
                           <div className="flex items-start justify-between gap-3">
                             <div className="min-w-0">
-                              <p className="truncate font-medium text-gray-950 dark:text-white">
+                              <p className="truncate font-medium text-slate-950 dark:text-white">
                                 {transaction.description}
                               </p>
-                              <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
+                              <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
                                 <span className="inline-flex items-center gap-1">
                                   <Calendar className="h-3.5 w-3.5" />
                                   {format(transaction.date, 'dd MMM yyyy', { locale: fr })}
@@ -834,7 +834,7 @@ const AccountManager: React.FC = () => {
                                     ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300'
                                     : transaction.status === 'scheduled'
                                       ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300'
-                                      : 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300'
+                                      : 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300'
                                 }`}>
                                   {transaction.status === 'completed' ? 'Terminé' : transaction.status === 'scheduled' ? 'À venir' : transaction.status}
                                 </span>
@@ -851,7 +851,7 @@ const AccountManager: React.FC = () => {
                     })}
                   </div>
                 ) : (
-                  <div className="rounded-2xl border border-dashed border-gray-300 p-8 text-center text-gray-500 dark:border-gray-700 dark:text-gray-400">
+                  <div className="rounded-2xl border border-dashed border-slate-300 p-8 text-center text-slate-500 dark:border-slate-700 dark:text-slate-400">
                     Aucun mouvement lié à ce compte.
                   </div>
                 )}
@@ -864,16 +864,16 @@ const AccountManager: React.FC = () => {
       {/* Balance Update Modal */}
       {showBalanceModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full mx-4">
-            <div className="p-6 border-b border-gray-200 dark:border-gray-700">
+          <div className="bg-white dark:bg-slate-800 rounded-lg shadow-xl max-w-md w-full mx-4">
+            <div className="p-6 border-b border-slate-200 dark:border-slate-700">
               <div className="flex items-center justify-between">
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center">
+                <h3 className="text-lg font-semibold text-slate-900 dark:text-white flex items-center">
                   <RefreshCw className="h-5 w-5 mr-2" />
                   Modifier le solde
                 </h3>
                 <button
                   onClick={() => setShowBalanceModal(null)}
-                  className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                  className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"
                 >
                   ×
                 </button>
@@ -882,7 +882,7 @@ const AccountManager: React.FC = () => {
             
             <div className="p-6 space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
                   Nouveau solde *
                 </label>
                 <input
@@ -890,38 +890,38 @@ const AccountManager: React.FC = () => {
                   step="0.01"
                   value={balanceUpdateData.newBalance}
                   onChange={(e) => setBalanceUpdateData({ ...balanceUpdateData, newBalance: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
+                  className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent dark:bg-slate-700 dark:text-white"
                   placeholder="0.00"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
                   Date d'effet
                 </label>
                 <input
                   type="date"
                   value={balanceUpdateData.date}
                   onChange={(e) => setBalanceUpdateData({ ...balanceUpdateData, date: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
+                  className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent dark:bg-slate-700 dark:text-white"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
                   Commentaire
                 </label>
                 <input
                   type="text"
                   value={balanceUpdateData.comment}
                   onChange={(e) => setBalanceUpdateData({ ...balanceUpdateData, comment: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
+                  className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent dark:bg-slate-700 dark:text-white"
                   placeholder="Ex: Versement initial PEA, Achat crypto, Correction solde"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
                   Type de mise à jour
                 </label>
                 <div className="space-y-2">
@@ -935,10 +935,10 @@ const AccountManager: React.FC = () => {
                       className="text-purple-600 focus:ring-purple-500"
                     />
                     <div>
-                      <p className="text-sm font-medium text-gray-900 dark:text-white">
+                      <p className="text-sm font-medium text-slate-900 dark:text-white">
                         Créer une transaction
                       </p>
-                      <p className="text-xs text-gray-500 dark:text-gray-400">
+                      <p className="text-xs text-slate-500 dark:text-slate-400">
                         Recommandé - Garde un historique de la modification
                       </p>
                     </div>
@@ -954,10 +954,10 @@ const AccountManager: React.FC = () => {
                       className="text-purple-600 focus:ring-purple-500"
                     />
                     <div>
-                      <p className="text-sm font-medium text-gray-900 dark:text-white">
+                      <p className="text-sm font-medium text-slate-900 dark:text-white">
                         Modification directe
                       </p>
-                      <p className="text-xs text-gray-500 dark:text-gray-400">
+                      <p className="text-xs text-slate-500 dark:text-slate-400">
                         Change le solde sans créer de transaction
                       </p>
                     </div>
@@ -966,10 +966,10 @@ const AccountManager: React.FC = () => {
               </div>
             </div>
 
-            <div className="p-6 border-t border-gray-200 dark:border-gray-700 flex justify-end space-x-3">
+            <div className="p-6 border-t border-slate-200 dark:border-slate-700 flex justify-end space-x-3">
               <button
                 onClick={() => setShowBalanceModal(null)}
-                className="px-4 py-2 text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-lg transition-colors"
+                className="px-4 py-2 text-slate-700 dark:text-slate-300 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 rounded-lg transition-colors"
               >
                 Annuler
               </button>
@@ -987,18 +987,18 @@ const AccountManager: React.FC = () => {
       {/* Transfer Modal */}
       {showTransferModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-lg w-full mx-4">
+          <div className="bg-white dark:bg-slate-800 rounded-lg shadow-xl max-w-lg w-full mx-4">
             <form onSubmit={handleTransfer}>
-              <div className="p-6 border-b border-gray-200 dark:border-gray-700">
+              <div className="p-6 border-b border-slate-200 dark:border-slate-700">
                 <div className="flex items-center justify-between">
-                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center">
+                  <h3 className="text-lg font-semibold text-slate-900 dark:text-white flex items-center">
                     <ArrowRightLeft className="h-5 w-5 mr-2" />
                     Transférer entre comptes
                   </h3>
                   <button
                     type="button"
                     onClick={() => setShowTransferModal(false)}
-                    className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                    className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"
                   >
                     ×
                   </button>
@@ -1007,7 +1007,7 @@ const AccountManager: React.FC = () => {
 
               <div className="p-6 space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
                     Compte de départ *
                   </label>
                   <select
@@ -1020,7 +1020,7 @@ const AccountManager: React.FC = () => {
 
                       setTransferData({ ...transferData, fromAccountId: nextFromId, toAccountId: nextToId });
                     }}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
+                    className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent dark:bg-slate-700 dark:text-white"
                     required
                   >
                     {accounts.filter(account => account.isActive).map(account => (
@@ -1032,13 +1032,13 @@ const AccountManager: React.FC = () => {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
                     Compte de destination *
                   </label>
                   <select
                     value={transferData.toAccountId}
                     onChange={(e) => setTransferData({ ...transferData, toAccountId: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
+                    className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent dark:bg-slate-700 dark:text-white"
                     required
                   >
                     {accounts
@@ -1052,7 +1052,7 @@ const AccountManager: React.FC = () => {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
                     Montant *
                   </label>
                   <input
@@ -1061,44 +1061,44 @@ const AccountManager: React.FC = () => {
                     step="0.01"
                     value={transferData.amount}
                     onChange={(e) => setTransferData({ ...transferData, amount: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
+                    className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent dark:bg-slate-700 dark:text-white"
                     placeholder="0.00"
                     required
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
                     Description
                   </label>
                   <input
                     type="text"
                     value={transferData.description}
                     onChange={(e) => setTransferData({ ...transferData, description: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
+                    className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent dark:bg-slate-700 dark:text-white"
                     placeholder="Ex: Mise de côté, remboursement, virement interne"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
                     Date du transfert
                   </label>
                   <input
                     type="date"
                     value={transferData.date}
                     onChange={(e) => setTransferData({ ...transferData, date: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
+                    className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent dark:bg-slate-700 dark:text-white"
                     required
                   />
                 </div>
               </div>
 
-              <div className="p-6 border-t border-gray-200 dark:border-gray-700 flex justify-end space-x-3">
+              <div className="p-6 border-t border-slate-200 dark:border-slate-700 flex justify-end space-x-3">
                 <button
                   type="button"
                   onClick={() => setShowTransferModal(false)}
-                  className="px-4 py-2 text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-lg transition-colors"
+                  className="px-4 py-2 text-slate-700 dark:text-slate-300 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 rounded-lg transition-colors"
                 >
                   Annuler
                 </button>

@@ -222,14 +222,14 @@ const ExpenseChart: React.FC<ExpenseChartProps> = ({ viewMode = 'monthly' }) => 
   return (
     <div className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-800 sm:p-6">
       <div className="mb-4 flex items-center justify-between gap-4">
-        <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+        <h3 className="text-lg font-semibold text-slate-900 dark:text-white">
           Répartition des dépenses
         </h3>
         <div className="text-right">
-          <p className="text-sm text-gray-500 dark:text-gray-400">
+          <p className="text-sm text-slate-500 dark:text-slate-400">
             {viewMode === 'monthly' ? 'Période' : 'Cette année'}
           </p>
-          <p className="text-xl font-bold text-gray-900 dark:text-white">
+          <p className="text-xl font-bold text-slate-900 dark:text-white">
             {totalExpenses.toFixed(2)} €
           </p>
         </div>
@@ -252,7 +252,7 @@ const ExpenseChart: React.FC<ExpenseChartProps> = ({ viewMode = 'monthly' }) => 
                   <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: category.color }} />
                   <span className="truncate text-gray-700 dark:text-gray-300">{category.name}</span>
                 </span>
-                <span className="ml-3 whitespace-nowrap font-medium text-gray-900 dark:text-white">
+                <span className="ml-3 whitespace-nowrap font-medium text-slate-900 dark:text-white">
                   {category.amount.toFixed(2)} €
                 </span>
               </button>
@@ -260,7 +260,7 @@ const ExpenseChart: React.FC<ExpenseChartProps> = ({ viewMode = 'monthly' }) => 
           </div>
         </div>
       ) : (
-        <div className="h-64 flex items-center justify-center text-gray-500 dark:text-gray-400">
+        <div className="h-64 flex items-center justify-center text-slate-500 dark:text-slate-400">
           <div className="text-center">
             <p className="text-lg mb-2">
               Aucune dépense {viewMode === 'monthly' ? 'ce mois-ci' : 'cette année'}
@@ -278,7 +278,7 @@ const ExpenseChart: React.FC<ExpenseChartProps> = ({ viewMode = 'monthly' }) => 
             <div className="flex items-center justify-between border-b border-gray-200 px-6 py-4 dark:border-gray-800">
               <div>
                 <h2 className="text-lg font-semibold text-gray-950 dark:text-white">{selectedCategory.name}</h2>
-                <p className="text-sm text-gray-500 dark:text-gray-400">
+                <p className="text-sm text-slate-500 dark:text-slate-400">
                   {selectedTransactions.length} dépense{selectedTransactions.length > 1 ? 's' : ''} sur la période
                 </p>
               </div>
@@ -299,8 +299,8 @@ const ExpenseChart: React.FC<ExpenseChartProps> = ({ viewMode = 'monthly' }) => 
                   return (
                     <div key={transaction.id} className="flex items-center justify-between rounded-lg border border-gray-200 p-3 dark:border-gray-800">
                       <div className="min-w-0">
-                        <p className="truncate text-sm font-medium text-gray-900 dark:text-white">{transaction.description}</p>
-                        <p className="text-xs text-gray-500 dark:text-gray-400">
+                        <p className="truncate text-sm font-medium text-slate-900 dark:text-white">{transaction.description}</p>
+                        <p className="text-xs text-slate-500 dark:text-slate-400">
                           {format(transaction.date, 'dd MMM yyyy', { locale: fr })}
                           {account ? ` - ${account.name}` : ''}
                         </p>

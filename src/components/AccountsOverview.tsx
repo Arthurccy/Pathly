@@ -7,110 +7,94 @@ const AccountsOverview: React.FC = () => {
 
   const getAccountIcon = (type: string) => {
     switch (type) {
-      case 'checking':
-        return CreditCard;
-      case 'savings':
-        return PiggyBank;
-      case 'investment':
-        return TrendingUp;
-      case 'meal_voucher':
-        return Utensils;
-      case 'cash':
-        return Wallet;
-      default:
-        return CreditCard;
+      case 'checking': return CreditCard;
+      case 'savings': return PiggyBank;
+      case 'investment': return TrendingUp;
+      case 'meal_voucher': return Utensils;
+      case 'cash': return Wallet;
+      default: return CreditCard;
     }
   };
 
   const getAccountTypeLabel = (type: string) => {
     switch (type) {
-      case 'checking':
-        return 'Compte courant';
-      case 'savings':
-        return 'Épargne';
-      case 'investment':
-        return 'Investissement';
-      case 'meal_voucher':
-        return 'Tickets restaurant';
-      case 'cash':
-        return 'Espèces';
-      case 'credit':
-        return 'Crédit';
-      default:
-        return 'Autre';
+      case 'checking': return 'Compte courant';
+      case 'savings': return 'Épargne';
+      case 'investment': return 'Investissement';
+      case 'meal_voucher': return 'Tickets restaurant';
+      case 'cash': return 'Espèces';
+      case 'credit': return 'Crédit';
+      default: return 'Autre';
     }
   };
 
-  const filteredAccounts = accounts.filter(a => 
+  const filteredAccounts = accounts.filter(a =>
     selectedAccountIds.length === 0 || selectedAccountIds.includes(a.id)
   );
 
   const totalBalance = filteredAccounts.reduce((sum, account) => sum + account.balance, 0);
 
+  const fmt = (v: number) => new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR', minimumFractionDigits: 2 }).format(v);
+
   return (
-    <div className="rounded-2xl border border-gray-200 bg-white shadow-sm dark:border-gray-700 dark:bg-gray-800">
-      <div className="border-b border-gray-200 p-4 dark:border-gray-700 sm:p-6">
-        <div className="flex items-start justify-between gap-4">
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-            Aperçu des comptes
-          </h3>
-          <div className="text-right">
-            <p className="text-sm text-gray-500 dark:text-gray-400">Solde total</p>
-            <p className="break-words text-xl font-bold text-gray-900 dark:text-white sm:text-2xl">
-              {totalBalance.toFixed(2)} €
-            </p>
-          </div>
+    <div className="rounded-xl border border-slate-200/80 bg-white shadow-card dark:border-slate-800/80 dark:bg-slate-950">
+      <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4 dark:border-slate-800">
+        <h3 className="text-sm font-semibold tracking-tight text-slate-900 dark:text-white">
+          Aperçu des comptes
+        </h3>
+        <div className="text-right">
+          <p className="text-[11px] font-medium uppercase tracking-wider text-slate-400 dark:text-slate-500">Solde total</p>
+          <p className="mt-0.5 text-base font-semibold tracking-tight text-slate-900 dark:text-white">
+            {fmt(totalBalance)}
+          </p>
         </div>
       </div>
 
-      <div className="p-4 sm:p-6">
+      <div className="p-4">
         {filteredAccounts.length > 0 ? (
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-3 lg:gap-4">
+          <div className="grid grid-cols-1 gap-2.5 md:grid-cols-2 lg:grid-cols-3">
             {filteredAccounts.map((account) => {
               const Icon = getAccountIcon(account.type);
-              const percentage = totalBalance > 0 ? (account.balance / totalBalance) * 100 : 0;
-              
+              const percentage = totalBalance > 0 ? Math.max(0, (account.balance / totalBalance) * 100) : 0;
+
               return (
                 <div
                   key={account.id}
-                  className="rounded-xl border border-gray-200 p-4 transition-colors hover:border-gray-300 dark:border-gray-600 dark:hover:border-gray-500"
+                  className="group rounded-xl border border-slate-100 p-4 transition-all duration-200 hover:border-slate-200 hover:shadow-card-hover dark:border-slate-800 dark:hover:border-slate-700"
                 >
-                  <div className="flex items-center space-x-3 mb-3">
+                  <div className="mb-3 flex items-center gap-3">
                     <div
-                      className="p-2 rounded-lg"
-                      style={{ backgroundColor: `${account.color}20` }}
+                      className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg"
+                      style={{ backgroundColor: `${account.color}18` }}
                     >
-                      <Icon 
-                        className="h-5 w-5" 
-                        style={{ color: account.color }}
-                      />
+                      <Icon className="h-4 w-4" style={{ color: account.color }} />
                     </div>
-                    <div className="flex-1 min-w-0">
-                      <h4 className="text-sm font-medium text-gray-900 dark:text-white truncate">
+                    <div className="min-w-0 flex-1">
+                      <h4 className="truncate text-sm font-semibold text-slate-900 dark:text-white">
                         {account.name}
                       </h4>
-                      <p className="text-xs text-gray-500 dark:text-gray-400">
+                      <p className="text-[11px] text-slate-400 dark:text-slate-500">
                         {getAccountTypeLabel(account.type)}
                       </p>
                     </div>
                   </div>
-                  
+
                   <div className="space-y-2">
-                    <div className="flex justify-between items-center">
-                      <span className="break-words text-base font-semibold text-gray-900 dark:text-white sm:text-lg">
-                        {account.balance.toFixed(2)} €
+                    <div className="flex items-baseline justify-between gap-2">
+                      <span className="text-base font-semibold tracking-tight text-slate-900 dark:text-white">
+                        {fmt(account.balance)}
                       </span>
-                      <span className="text-sm text-gray-500 dark:text-gray-400">
+                      <span className="text-xs font-medium text-slate-400 dark:text-slate-500">
                         {percentage.toFixed(1)}%
                       </span>
                     </div>
-                    
-                    <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
+
+                    <div className="h-1.5 w-full overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
                       <div
-                        className="h-2 rounded-full transition-all duration-300"
-                        style={{ 
+                        className="h-full rounded-full transition-all duration-500"
+                        style={{
                           width: `${percentage}%`,
-                          backgroundColor: account.color
+                          backgroundColor: account.color,
                         }}
                       />
                     </div>
@@ -120,14 +104,14 @@ const AccountsOverview: React.FC = () => {
             })}
           </div>
         ) : (
-          <div className="text-center py-8">
-            <div className="mx-auto h-12 w-12 bg-gray-100 dark:bg-gray-700 rounded-lg flex items-center justify-center mb-4">
-              <Plus className="h-6 w-6 text-gray-400" />
+          <div className="py-10 text-center">
+            <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-xl bg-slate-100 dark:bg-slate-800">
+              <Plus className="h-5 w-5 text-slate-400" />
             </div>
-            <p className="text-lg font-medium text-gray-900 dark:text-white mb-2">
+            <p className="text-sm font-medium text-slate-700 dark:text-slate-300">
               Aucun compte sélectionné
             </p>
-            <p className="text-sm text-gray-500 dark:text-gray-400">
+            <p className="mt-1 text-xs text-slate-400 dark:text-slate-500">
               Utilisez le filtre des comptes pour afficher les données
             </p>
           </div>

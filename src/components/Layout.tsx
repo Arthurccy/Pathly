@@ -25,16 +25,19 @@ const Layout: React.FC<LayoutProps> = ({ children, currentView, onViewChange }) 
   }
 
   return (
-    <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,#eff6ff_0,#f8fafc_34%,#f6f7fb_100%)] dark:bg-[radial-gradient(circle_at_top_left,#172033_0,#111827_38%,#030712_100%)]">
+    <div className="min-h-screen bg-[radial-gradient(ellipse_at_top,#f0f7ff_0%,#f8fafc_45%,#f1f5f9_100%)] dark:bg-[radial-gradient(ellipse_at_top,#0f1e3a_0%,#0f172a_40%,#020617_100%)]">
       <Header onViewChange={onViewChange} />
       <div className="flex">
         <Sidebar currentView={currentView} onViewChange={onViewChange} />
-        <main className="w-full min-w-0 flex-1 px-3 pb-28 pt-4 sm:p-6 lg:ml-72 lg:p-8">
+        <main className="w-full min-w-0 flex-1 px-3 pb-28 pt-4 sm:p-6 lg:ml-72 lg:px-8 lg:py-7">
           {children}
         </main>
       </div>
-      <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-gray-200 bg-white/95 px-2 pb-[max(env(safe-area-inset-bottom),0.5rem)] pt-2 shadow-[0_-10px_30px_rgba(15,23,42,0.08)] backdrop-blur dark:border-gray-800 dark:bg-gray-950/95 lg:hidden">
-        <div className="grid grid-cols-5 gap-1">
+
+      {/* Mobile bottom navigation */}
+      <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-slate-200/80 bg-white/96 px-2 pb-[max(env(safe-area-inset-bottom),0.5rem)] pt-1.5 backdrop-blur-xl dark:border-slate-800/80 dark:bg-slate-950/96 lg:hidden"
+        style={{ boxShadow: '0 -1px 0 0 rgba(0,0,0,0.05), 0 -4px 16px 0 rgba(0,0,0,0.06)' }}>
+        <div className="grid grid-cols-5 gap-0.5">
           {mobileNavItems.map(item => {
             const Icon = item.icon;
             const isActive = currentView === item.id;
@@ -43,16 +46,16 @@ const Layout: React.FC<LayoutProps> = ({ children, currentView, onViewChange }) 
                 key={item.id}
                 type="button"
                 onClick={() => onViewChange?.(item.id)}
-                className={`flex min-w-0 flex-col items-center justify-center gap-1 rounded-2xl px-1 py-2 text-[11px] font-medium transition ${
+                className={`flex min-w-0 flex-col items-center justify-center gap-1 rounded-xl px-1 py-2 text-[10px] font-medium transition-all duration-150 ${
                   item.primary
-                    ? 'bg-blue-600 text-white shadow-sm'
+                    ? 'bg-blue-600 text-white shadow-md shadow-blue-600/30 scale-105'
                     : isActive
-                      ? 'bg-blue-50 text-blue-700 dark:bg-blue-950/60 dark:text-blue-200'
-                      : 'text-gray-500 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-900'
+                      ? 'bg-blue-50 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300'
+                      : 'text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-900'
                 }`}
               >
-                <Icon className="h-5 w-5" />
-                <span className="truncate">{item.label}</span>
+                <Icon className={`${item.primary ? 'h-5 w-5' : 'h-[18px] w-[18px]'}`} />
+                <span className="truncate leading-tight">{item.label}</span>
               </button>
             );
           })}

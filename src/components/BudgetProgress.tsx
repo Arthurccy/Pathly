@@ -443,25 +443,25 @@ const BudgetProgress: React.FC<BudgetProgressProps> = ({ viewMode = 'monthly' })
     : [];
 
   return (
-    <div className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-800 sm:p-6">
+    <div className="rounded-xl border border-slate-200/80 bg-white p-4 shadow-card dark:border-slate-800/80 dark:bg-slate-900 sm:p-6">
       <div className="mb-4 flex items-start justify-between gap-4">
-        <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+        <h3 className="text-lg font-semibold text-slate-900 dark:text-white">
           Suivi des budgets
         </h3>
         <div className="text-right">
-          <p className="text-sm text-gray-500 dark:text-gray-400">
+          <p className="text-sm text-slate-500 dark:text-slate-400">
             {viewMode === 'monthly' ? 'Période' : 'Cette année'}
           </p>
           {viewMode === 'monthly' && (
-            <p className="text-xs text-gray-500 dark:text-gray-400">
+            <p className="text-xs text-slate-500 dark:text-slate-400">
               {format(periodStart, 'dd MMM', { locale: fr })} - {format(periodEnd, 'dd MMM', { locale: fr })}
             </p>
           )}
-          <p className="text-xl font-bold text-gray-900 dark:text-white">
+          <p className="text-xl font-bold text-slate-900 dark:text-white">
             {totalCommitted.toFixed(2)} € / {totalBudgeted.toFixed(2)} €
           </p>
           {totalPlanned > 0 && (
-            <p className="text-xs text-gray-500 dark:text-gray-400">
+            <p className="text-xs text-slate-500 dark:text-slate-400">
               dont {totalPlanned.toFixed(2)} € à venir
             </p>
           )}
@@ -469,30 +469,30 @@ const BudgetProgress: React.FC<BudgetProgressProps> = ({ viewMode = 'monthly' })
       </div>
 
       <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
-        <div className="rounded-md border border-gray-200 bg-gray-50 p-3 dark:border-gray-700 dark:bg-gray-900/50">
-          <p className="text-xs text-gray-500 dark:text-gray-400">Reste estimé fin du mois</p>
+        <div className="rounded-md border border-slate-200 bg-slate-50 p-3 dark:border-slate-700 dark:bg-slate-900/50">
+          <p className="text-xs text-slate-500 dark:text-slate-400">Reste estimé fin du mois</p>
           <p className={`mt-0.5 text-lg font-semibold ${projectedCurrentBalance >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}>
             {projectedCurrentBalance.toFixed(2)} €
           </p>
-          <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400 leading-tight">Même référence que la carte du haut.</p>
+          <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400 leading-tight">Même référence que la carte du haut.</p>
         </div>
 
-        <div className="rounded-md border border-gray-200 bg-gray-50 p-3 dark:border-gray-700 dark:bg-gray-900/50">
-          <p className="text-xs text-gray-500 dark:text-gray-400">Écart au plan</p>
+        <div className="rounded-md border border-slate-200 bg-slate-50 p-3 dark:border-slate-700 dark:bg-slate-900/50">
+          <p className="text-xs text-slate-500 dark:text-slate-400">Écart au plan</p>
           <p className={`mt-0.5 text-lg font-semibold ${budgetPlanIsOver ? 'text-red-600 dark:text-red-400' : 'text-emerald-600 dark:text-emerald-400'}`}>
             {budgetPlanIsOver ? '-' : '+'}{Math.abs(totalBudgetGap).toFixed(2)} €
           </p>
-          <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400 leading-tight">
+          <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400 leading-tight">
             {budgetPlanIsOver ? 'Dépassements et hors budget inclus.' : 'Marge restante sur tes budgets.'}
           </p>
         </div>
 
-        <div className="rounded-md border border-gray-200 bg-gray-50 p-3 dark:border-gray-700 dark:bg-gray-900/50">
-          <p className="text-xs text-gray-500 dark:text-gray-400">Réallocation possible</p>
+        <div className="rounded-md border border-slate-200 bg-slate-50 p-3 dark:border-slate-700 dark:bg-slate-900/50">
+          <p className="text-xs text-slate-500 dark:text-slate-400">Réallocation possible</p>
           <p className="mt-0.5 text-lg font-semibold text-blue-600 dark:text-blue-400">
             {remainingBudgets.toFixed(2)} €
           </p>
-          <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400 leading-tight">Budgets encore libres ailleurs.</p>
+          <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400 leading-tight">Budgets encore libres ailleurs.</p>
         </div>
       </div>
 
@@ -505,7 +505,7 @@ const BudgetProgress: React.FC<BudgetProgressProps> = ({ viewMode = 'monthly' })
               key={index}
               type="button"
               onClick={() => setSelectedCategoryId(item.categoryId)}
-              className="block w-full space-y-1.5 rounded-lg px-2.5 py-2 text-left transition hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:hover:bg-gray-700/50"
+              className="block w-full space-y-1.5 rounded-lg px-2.5 py-2 text-left transition hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:hover:bg-slate-700/50"
             >
               <div className="flex justify-between items-center">
                 <div className="flex items-center space-x-2">
@@ -513,7 +513,7 @@ const BudgetProgress: React.FC<BudgetProgressProps> = ({ viewMode = 'monthly' })
                     className="w-3 h-3 rounded-full"
                     style={{ backgroundColor: item.color }}
                   />
-                  <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                  <span className="text-sm font-medium text-slate-700 dark:text-slate-300">
                     {item.category}
                   </span>
                   {item.isUnplanned && (
@@ -523,7 +523,7 @@ const BudgetProgress: React.FC<BudgetProgressProps> = ({ viewMode = 'monthly' })
                   )}
                 </div>
                 <span className={`text-sm font-medium ${
-                  item.isOverBudget ? 'text-red-600 dark:text-red-400' : 'text-gray-600 dark:text-gray-400'
+                  item.isOverBudget ? 'text-red-600 dark:text-red-400' : 'text-slate-600 dark:text-slate-400'
                 }`}>
                   {item.isUnplanned
                     ? `${item.committed.toFixed(2)} €`
@@ -532,7 +532,7 @@ const BudgetProgress: React.FC<BudgetProgressProps> = ({ viewMode = 'monthly' })
                 </span>
               </div>
               
-              <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-1.5">
+              <div className="w-full bg-slate-200 dark:bg-slate-700 rounded-full h-1.5">
                 <div
                   className={`h-1.5 rounded-full transition-all duration-300 ${
                     item.isOverBudget 
@@ -545,7 +545,7 @@ const BudgetProgress: React.FC<BudgetProgressProps> = ({ viewMode = 'monthly' })
                 />
               </div>
               
-              <div className="flex justify-between text-xs text-gray-500 dark:text-gray-400">
+              <div className="flex justify-between text-xs text-slate-500 dark:text-slate-400">
                 <span>
                   {item.percentage.toFixed(1)}% engagé
                   {item.planned > 0 ? ` · ${item.planned.toFixed(2)} € à venir` : ''}
@@ -568,7 +568,7 @@ const BudgetProgress: React.FC<BudgetProgressProps> = ({ viewMode = 'monthly' })
           ))}
         </div>
       ) : (
-        <div className="text-center text-gray-500 dark:text-gray-400 py-8">
+        <div className="text-center text-slate-500 dark:text-slate-400 py-8">
           <p className="text-lg mb-2">Aucun budget défini</p>
           <p className="text-sm">Définissez des budgets dans les paramètres pour suivre vos dépenses</p>
         </div>
@@ -576,18 +576,18 @@ const BudgetProgress: React.FC<BudgetProgressProps> = ({ viewMode = 'monthly' })
 
       {selectedBudgetCategory && (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/60 p-0 backdrop-blur-sm sm:items-center sm:p-4">
-          <div className="max-h-[92dvh] w-full overflow-hidden rounded-t-3xl bg-white shadow-2xl dark:bg-gray-900 sm:max-w-2xl sm:rounded-2xl">
-            <div className="flex items-center justify-between border-b border-gray-200 px-6 py-4 dark:border-gray-800">
+          <div className="max-h-[92dvh] w-full overflow-hidden rounded-t-3xl bg-white shadow-2xl dark:bg-slate-900 sm:max-w-2xl sm:rounded-2xl">
+            <div className="flex items-center justify-between border-b border-slate-200 px-6 py-4 dark:border-slate-800">
               <div>
-                <h2 className="text-lg font-semibold text-gray-950 dark:text-white">{selectedBudgetCategory.name}</h2>
-                <p className="text-sm text-gray-500 dark:text-gray-400">
+                <h2 className="text-lg font-semibold text-slate-950 dark:text-white">{selectedBudgetCategory.name}</h2>
+                <p className="text-sm text-slate-500 dark:text-slate-400">
                   {selectedTransactions.length} dépense{selectedTransactions.length > 1 ? 's' : ''} sur la période
                 </p>
               </div>
               <button
                 type="button"
                 onClick={() => setSelectedCategoryId(null)}
-                className="rounded-lg p-2 text-gray-400 transition hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-gray-800 dark:hover:text-gray-200"
+                className="rounded-lg p-2 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-slate-800 dark:hover:text-slate-200"
                 aria-label="Fermer"
               >
                 ×
@@ -600,10 +600,10 @@ const BudgetProgress: React.FC<BudgetProgressProps> = ({ viewMode = 'monthly' })
                   {selectedTransactions.map(transaction => {
                     const account = accounts.find(item => item.id === transaction.accountId);
                     return (
-                      <div key={transaction.id} className="flex items-center justify-between rounded-lg border border-gray-200 p-3 dark:border-gray-800">
+                      <div key={transaction.id} className="flex items-center justify-between rounded-lg border border-slate-200 p-3 dark:border-slate-800">
                         <div className="min-w-0">
-                          <p className="truncate text-sm font-medium text-gray-900 dark:text-white">{transaction.description}</p>
-                          <p className="text-xs text-gray-500 dark:text-gray-400">
+                          <p className="truncate text-sm font-medium text-slate-900 dark:text-white">{transaction.description}</p>
+                          <p className="text-xs text-slate-500 dark:text-slate-400">
                             {format(transaction.date, 'dd MMM yyyy', { locale: fr })}
                             {account ? ` - ${account.name}` : ''}
                             {transaction.status === 'scheduled' ? ' - à venir' : ''}
@@ -618,7 +618,7 @@ const BudgetProgress: React.FC<BudgetProgressProps> = ({ viewMode = 'monthly' })
                   })}
                 </div>
               ) : (
-                <div className="py-8 text-center text-gray-500 dark:text-gray-400">
+                <div className="py-8 text-center text-slate-500 dark:text-slate-400">
                   Aucune dépense sur cette période
                 </div>
               )}

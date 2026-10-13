@@ -78,38 +78,43 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView = 'dashboard', onViewChan
 
   return (
     <>
+      {/* Hamburger button */}
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="fixed left-3 top-2.5 z-50 flex h-9 w-9 items-center justify-center rounded-full border border-gray-200 bg-white shadow-lg dark:border-gray-700 dark:bg-gray-800 sm:top-3 sm:h-10 sm:w-10 lg:hidden"
+        className="fixed left-3 top-2.5 z-50 flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-white shadow-sm transition-colors hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:hover:bg-slate-800 sm:top-3 sm:h-10 sm:w-10 lg:hidden"
         aria-label={isOpen ? 'Fermer le menu' : 'Ouvrir le menu'}
       >
-        {isOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+        {isOpen ? <X className="h-4.5 w-4.5 text-slate-600 dark:text-slate-400" /> : <Menu className="h-4.5 w-4.5 text-slate-600 dark:text-slate-400" />}
       </button>
 
+      {/* Mobile overlay */}
       {isOpen && (
         <div
-          className="lg:hidden fixed inset-0 bg-black/40 z-40"
+          className="fixed inset-0 z-40 bg-slate-950/30 backdrop-blur-sm lg:hidden"
           onClick={() => setIsOpen(false)}
         />
       )}
 
+      {/* Sidebar panel */}
       <aside className={`
-        fixed left-0 top-14 h-[calc(100dvh-3.5rem)] w-[min(18rem,86vw)] bg-white/95 dark:bg-gray-900/95
-        border-r border-gray-200 dark:border-gray-800 z-40 backdrop-blur
-        transform transition-transform duration-300 ease-in-out
-        ${isOpen ? 'translate-x-0' : '-translate-x-full'}
-        overflow-y-auto pb-24 lg:top-16 lg:h-[calc(100vh-4rem)] lg:w-72 lg:translate-x-0 lg:pb-0
+        fixed left-0 top-14 z-40 h-[calc(100dvh-3.5rem)] w-[min(17rem,86vw)]
+        border-r border-slate-200/80 bg-white/97 dark:border-slate-800/80 dark:bg-slate-950/97
+        backdrop-blur-xl overflow-y-auto
+        transform transition-transform duration-300 ease-[cubic-bezier(0.4,0,0.2,1)]
+        ${isOpen ? 'translate-x-0 shadow-2xl' : '-translate-x-full'}
+        pb-24 lg:top-16 lg:h-[calc(100dvh-4rem)] lg:w-72 lg:translate-x-0 lg:pb-6 lg:shadow-none
       `}>
-        <div className="p-4">
+        <div className="p-3 lg:p-4">
+          {/* CTA button */}
           <button
             onClick={() => handleItemClick('add-transaction')}
-            className="mb-4 flex w-full items-center justify-center gap-2 rounded-lg bg-gray-950 px-4 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-white dark:text-gray-950 dark:hover:bg-gray-100"
+            className="mb-5 flex w-full items-center justify-center gap-2 rounded-xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white shadow-md shadow-slate-900/15 transition-all duration-150 hover:bg-slate-800 hover:shadow-lg hover:shadow-slate-900/20 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 dark:bg-white dark:text-slate-950 dark:hover:bg-slate-100 dark:shadow-white/10"
           >
-            <Plus className="h-5 w-5" />
+            <Plus className="h-4 w-4" />
             Ajouter une opération
           </button>
 
-          <nav className="space-y-4">
+          <nav className="space-y-5">
             {groups.map(group => {
               const isGroupOpen = openGroups[group.title];
               return (
@@ -117,14 +122,17 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView = 'dashboard', onViewChan
                   <button
                     type="button"
                     onClick={() => setOpenGroups(prev => ({ ...prev, [group.title]: !isGroupOpen }))}
-                    className="mb-2 flex w-full items-center justify-between px-2 text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400"
+                    className="mb-1.5 flex w-full items-center justify-between rounded-md px-2 py-1 text-[11px] font-semibold uppercase tracking-widest text-slate-400 transition-colors hover:text-slate-600 dark:text-slate-500 dark:hover:text-slate-300"
                   >
                     <span>{group.title}</span>
-                    {isGroupOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                    {isGroupOpen
+                      ? <ChevronDown className="h-3.5 w-3.5" />
+                      : <ChevronRight className="h-3.5 w-3.5" />
+                    }
                   </button>
 
                   {isGroupOpen && (
-                    <div className="space-y-1">
+                    <div className="space-y-0.5">
                       {group.items.map(item => {
                         const Icon = item.icon;
                         const isActive = currentView === item.id;
@@ -134,16 +142,20 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView = 'dashboard', onViewChan
                             key={item.id}
                             onClick={() => handleItemClick(item.id)}
                             className={`
-                              flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm
-                              transition-colors duration-200
+                              group relative flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm
+                              transition-all duration-150
                               ${isActive
-                                ? 'bg-blue-50 text-blue-700 dark:bg-blue-950/50 dark:text-blue-200'
-                                : 'text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800'
+                                ? 'bg-blue-50 text-blue-700 font-semibold dark:bg-blue-950/50 dark:text-blue-300'
+                                : 'text-slate-600 font-medium hover:bg-slate-50 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-900 dark:hover:text-slate-100'
                               }
                             `}
                           >
-                            <Icon className="h-5 w-5 shrink-0" />
-                            <span className="font-medium">{item.label}</span>
+                            {/* Active accent bar */}
+                            {isActive && (
+                              <span className="absolute left-0 top-1/2 h-5 w-[3px] -translate-y-1/2 rounded-r-full bg-blue-600 dark:bg-blue-400" />
+                            )}
+                            <Icon className={`h-[18px] w-[18px] shrink-0 transition-colors ${isActive ? 'text-blue-600 dark:text-blue-400' : 'text-slate-400 group-hover:text-slate-600 dark:text-slate-500 dark:group-hover:text-slate-300'}`} />
+                            <span>{item.label}</span>
                           </button>
                         );
                       })}

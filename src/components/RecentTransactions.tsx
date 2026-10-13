@@ -310,7 +310,7 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({
     const canMarkCompleted = transaction.status !== 'completed' && !isDebtPayment;
 
     return (
-      <div key={transaction.id} className="p-3 transition-colors hover:bg-gray-50 dark:hover:bg-gray-700/50 sm:p-4">
+      <div key={transaction.id} className="p-3 transition-colors hover:bg-slate-50 dark:hover:bg-slate-700/50 sm:p-4">
         <div className="flex items-start gap-3 sm:items-center sm:gap-4">
           <div
             className="p-2 rounded-lg"
@@ -323,26 +323,26 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({
           </div>
 
           <div className="min-w-0 flex-1">
-            <p className="truncate text-sm font-medium text-gray-900 dark:text-white">
+            <p className="truncate text-sm font-medium text-slate-900 dark:text-white">
               {transaction.description}
             </p>
             <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1">
-              <span className="text-xs text-gray-500 dark:text-gray-400">
+              <span className="text-xs text-slate-500 dark:text-slate-400">
                 {category?.name || 'Sans categorie'}
               </span>
               {account && (
                 <>
-                  <span className="text-xs text-gray-400 dark:text-gray-500">-</span>
-                  <span className="text-xs text-gray-500 dark:text-gray-400">{account.name}</span>
+                  <span className="text-xs text-slate-400 dark:text-slate-500">-</span>
+                  <span className="text-xs text-slate-500 dark:text-slate-400">{account.name}</span>
                 </>
               )}
-              <span className="text-xs text-gray-400 dark:text-gray-500">-</span>
-              <span className="text-xs text-gray-500 dark:text-gray-400">
+              <span className="text-xs text-slate-400 dark:text-slate-500">-</span>
+              <span className="text-xs text-slate-500 dark:text-slate-400">
                 {format(transaction.date, 'dd MMM yyyy', { locale: fr })}
               </span>
               {transaction.status !== 'completed' && (
                 <>
-                  <span className="text-xs text-gray-400 dark:text-gray-500">-</span>
+                  <span className="text-xs text-slate-400 dark:text-slate-500">-</span>
                   <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${
                     transaction.status === 'scheduled'
                       ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300'
@@ -354,7 +354,7 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({
               )}
               {transaction.isShared && (
                 <>
-                  <span className="text-xs text-gray-400 dark:text-gray-500">-</span>
+                  <span className="text-xs text-slate-400 dark:text-slate-500">-</span>
                   <span className="inline-flex items-center gap-1 rounded-full bg-indigo-100 px-2 py-0.5 text-xs font-semibold text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300">
                     <LucideIcons.Users className="h-3 w-3" />
                     Commune
@@ -363,7 +363,7 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({
               )}
               {transaction.isHouseholdContribution && (
                 <>
-                  <span className="text-xs text-gray-400 dark:text-gray-500">-</span>
+                  <span className="text-xs text-slate-400 dark:text-slate-500">-</span>
                   <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-semibold text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300">
                     <LucideIcons.HeartHandshake className="h-3 w-3" />
                     Provision Foyer
@@ -385,7 +385,7 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({
               <button
                 type="button"
                 onClick={() => openEditor(transaction)}
-                className="rounded-full p-2 text-gray-400 transition hover:bg-gray-100 hover:text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:hover:bg-gray-700 dark:hover:text-gray-200 sm:rounded-lg"
+                className="rounded-full p-2 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:hover:bg-slate-700 dark:hover:text-slate-200 sm:rounded-lg"
                 aria-label="Modifier la transaction"
               >
                 <LucideIcons.Pencil className="h-4 w-4" />
@@ -395,7 +395,7 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({
               <button
                 type="button"
                 onClick={() => handleMarkAsCompleted(transaction)}
-                className="rounded-full p-2 text-gray-400 transition hover:bg-gray-100 hover:text-gray-700 focus:outline-none focus:ring-2 focus:ring-green-500 dark:hover:bg-gray-700 dark:hover:text-gray-200 sm:rounded-lg"
+                className="rounded-full p-2 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700 focus:outline-none focus:ring-2 focus:ring-green-500 dark:hover:bg-slate-700 dark:hover:text-slate-200 sm:rounded-lg"
                 aria-label="Marquer comme terminé"
               >
                 <LucideIcons.Check className="h-4 w-4" />
@@ -409,18 +409,18 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({
 
   return (
     <>
-      <div className="rounded-2xl border border-gray-200 bg-white shadow-sm dark:border-gray-700 dark:bg-gray-800">
-        <div className="border-b border-gray-200 p-4 dark:border-gray-700 sm:p-6">
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+      <div className="rounded-xl border border-slate-200/80 bg-white shadow-card dark:border-slate-800/80 dark:bg-slate-900">
+        <div className="border-b border-slate-200 p-4 dark:border-slate-700 sm:p-6">
+          <h3 className="text-lg font-semibold text-slate-900 dark:text-white">
             {title}
           </h3>
         </div>
 
         {recentTransactions.length > 0 ? (
-          <div className={mode === 'all' ? 'space-y-4 p-3 sm:p-4' : 'divide-y divide-gray-200 dark:divide-gray-700'}>
+          <div className={mode === 'all' ? 'space-y-4 p-3 sm:p-4' : 'divide-y divide-slate-200 dark:divide-slate-700'}>
             {mode === 'all' ? (
               groupedTransactions.map(group => (
-                <section key={group.key} className="overflow-hidden rounded-2xl border border-gray-200 dark:border-gray-700">
+                <section key={group.key} className="overflow-hidden rounded-2xl border border-slate-200 dark:border-slate-700">
                   <div className={`flex items-center justify-between px-4 py-3 ${
                     group.key === 'scheduled'
                       ? 'bg-blue-50 text-blue-900 dark:bg-blue-950/30 dark:text-blue-100'
@@ -429,11 +429,11 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({
                         : 'bg-emerald-50 text-emerald-900 dark:bg-emerald-950/30 dark:text-emerald-100'
                   }`}>
                     <h4 className="text-sm font-semibold">{group.title}</h4>
-                    <span className="rounded-full bg-white/70 px-2.5 py-1 text-xs font-medium dark:bg-gray-950/30">
+                    <span className="rounded-full bg-white/70 px-2.5 py-1 text-xs font-medium dark:bg-slate-950/30">
                       {group.transactions.length}
                     </span>
                   </div>
-                  <div className="divide-y divide-gray-200 dark:divide-gray-700">
+                  <div className="divide-y divide-slate-200 dark:divide-slate-700">
                     {group.transactions.map(renderTransaction)}
                   </div>
                 </section>
@@ -455,7 +455,7 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({
             )}
           </div>
         ) : (
-          <div className="p-8 text-center text-gray-500 dark:text-gray-400">
+          <div className="p-8 text-center text-slate-500 dark:text-slate-400">
             <p className="text-lg mb-2">Aucune transaction</p>
             <p className="text-sm">Commencez par ajouter votre premiere transaction</p>
           </div>
@@ -464,16 +464,16 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({
 
       {editingTransaction && (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/45 p-0 backdrop-blur-sm sm:items-center sm:p-4">
-          <div className="max-h-[92dvh] w-full overflow-hidden rounded-t-3xl bg-white shadow-2xl dark:bg-gray-900 sm:max-w-2xl sm:rounded-3xl">
-            <div className="flex items-center justify-between border-b border-gray-200 bg-white px-5 py-4 dark:border-gray-800 dark:bg-gray-900 sm:px-6">
+          <div className="max-h-[92dvh] w-full overflow-hidden rounded-t-3xl bg-white shadow-2xl dark:bg-slate-900 sm:max-w-2xl sm:rounded-3xl">
+            <div className="flex items-center justify-between border-b border-slate-200 bg-white px-5 py-4 dark:border-slate-800 dark:bg-slate-900 sm:px-6">
               <div>
-                <h2 className="text-lg font-semibold text-gray-950 dark:text-white">Modifier la transaction</h2>
-                <p className="text-sm text-gray-500 dark:text-gray-400">Les soldes seront recalcules automatiquement.</p>
+                <h2 className="text-lg font-semibold text-slate-950 dark:text-white">Modifier la transaction</h2>
+                <p className="text-sm text-slate-500 dark:text-slate-400">Les soldes seront recalcules automatiquement.</p>
               </div>
               <button
                 type="button"
                 onClick={closeEditor}
-                className="rounded-lg p-2 text-gray-400 transition hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-gray-800 dark:hover:text-gray-200"
+                className="rounded-lg p-2 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-slate-800 dark:hover:text-slate-200"
                 aria-label="Fermer"
               >
                 <LucideIcons.X className="h-5 w-5" />
@@ -488,7 +488,7 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({
                   className={`rounded-xl border-2 p-4 font-medium transition ${
                     formData.type === 'expense'
                       ? 'border-red-500 bg-red-50 text-red-700 dark:bg-red-900/20 dark:text-red-300'
-                      : 'border-gray-200 text-gray-700 hover:border-gray-300 dark:border-gray-700 dark:text-gray-300'
+                      : 'border-slate-200 text-slate-700 hover:border-slate-300 dark:border-slate-700 dark:text-slate-300'
                   }`}
                 >
                   Depense
@@ -499,7 +499,7 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({
                   className={`rounded-xl border-2 p-4 font-medium transition ${
                     formData.type === 'income'
                       ? 'border-green-500 bg-green-50 text-green-700 dark:bg-green-900/20 dark:text-green-300'
-                      : 'border-gray-200 text-gray-700 hover:border-gray-300 dark:border-gray-700 dark:text-gray-300'
+                      : 'border-slate-200 text-slate-700 hover:border-slate-300 dark:border-slate-700 dark:text-slate-300'
                   }`}
                 >
                   Revenu
@@ -508,7 +508,7 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({
 
               <div className="grid gap-5 md:grid-cols-2">
                 <div>
-                  <label htmlFor="edit-amount" className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                  <label htmlFor="edit-amount" className="mb-2 block text-sm font-medium text-slate-700 dark:text-slate-300">
                     Montant *
                   </label>
                   <input
@@ -518,13 +518,13 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({
                     min="0"
                     value={formData.amount}
                     onChange={(e) => setFormData({ ...formData, amount: e.target.value })}
-                    className="w-full rounded-lg border border-gray-300 px-4 py-3 focus:border-transparent focus:ring-2 focus:ring-blue-500 dark:border-gray-700 dark:bg-gray-800 dark:text-white"
+                    className="w-full rounded-lg border border-slate-300 px-4 py-3 focus:border-transparent focus:ring-2 focus:ring-blue-500 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
                     required
                   />
                 </div>
 
                 <div>
-                  <label htmlFor="edit-date" className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                  <label htmlFor="edit-date" className="mb-2 block text-sm font-medium text-slate-700 dark:text-slate-300">
                     Date *
                   </label>
                   <input
@@ -532,14 +532,14 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({
                     type="date"
                     value={formData.date}
                     onChange={(e) => setFormData({ ...formData, date: e.target.value })}
-                    className="w-full rounded-lg border border-gray-300 px-4 py-3 focus:border-transparent focus:ring-2 focus:ring-blue-500 dark:border-gray-700 dark:bg-gray-800 dark:text-white"
+                    className="w-full rounded-lg border border-slate-300 px-4 py-3 focus:border-transparent focus:ring-2 focus:ring-blue-500 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
                     required
                   />
                 </div>
               </div>
 
               <div>
-                <label htmlFor="edit-description" className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                <label htmlFor="edit-description" className="mb-2 block text-sm font-medium text-slate-700 dark:text-slate-300">
                   Description *
                 </label>
                 <input
@@ -547,21 +547,21 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({
                   type="text"
                   value={formData.description}
                   onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                  className="w-full rounded-lg border border-gray-300 px-4 py-3 focus:border-transparent focus:ring-2 focus:ring-blue-500 dark:border-gray-700 dark:bg-gray-800 dark:text-white"
+                  className="w-full rounded-lg border border-slate-300 px-4 py-3 focus:border-transparent focus:ring-2 focus:ring-blue-500 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
                   required
                 />
               </div>
 
               <div className="grid gap-5 md:grid-cols-2">
                 <div>
-                  <label htmlFor="edit-account" className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                  <label htmlFor="edit-account" className="mb-2 block text-sm font-medium text-slate-700 dark:text-slate-300">
                     Compte *
                   </label>
                   <select
                     id="edit-account"
                     value={formData.accountId}
                     onChange={(e) => setFormData({ ...formData, accountId: e.target.value })}
-                    className="w-full rounded-lg border border-gray-300 px-4 py-3 focus:border-transparent focus:ring-2 focus:ring-blue-500 dark:border-gray-700 dark:bg-gray-800 dark:text-white"
+                    className="w-full rounded-lg border border-slate-300 px-4 py-3 focus:border-transparent focus:ring-2 focus:ring-blue-500 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
                     required
                   >
                     {activeAccounts.map(account => (
@@ -573,14 +573,14 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({
                 </div>
 
                 <div>
-                  <label htmlFor="edit-category" className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                  <label htmlFor="edit-category" className="mb-2 block text-sm font-medium text-slate-700 dark:text-slate-300">
                     Categorie *
                   </label>
                   <select
                     id="edit-category"
                     value={formData.categoryId}
                     onChange={(e) => setFormData({ ...formData, categoryId: e.target.value })}
-                    className="w-full rounded-lg border border-gray-300 px-4 py-3 focus:border-transparent focus:ring-2 focus:ring-blue-500 dark:border-gray-700 dark:bg-gray-800 dark:text-white"
+                    className="w-full rounded-lg border border-slate-300 px-4 py-3 focus:border-transparent focus:ring-2 focus:ring-blue-500 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
                     required
                   >
                     <option value="">Choisir une categorie</option>
@@ -594,7 +594,7 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({
               </div>
 
               <div>
-                <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                <label className="mb-2 block text-sm font-medium text-slate-700 dark:text-slate-300">
                   Statut
                 </label>
                 <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
@@ -604,7 +604,7 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({
                     className={`inline-flex items-center justify-center gap-2 rounded-lg border px-4 py-3 text-sm font-medium transition ${
                       formData.status === 'pending'
                         ? 'border-amber-500 bg-amber-50 text-amber-700 dark:bg-amber-900/20 dark:text-amber-300'
-                        : 'border-gray-200 text-gray-700 hover:border-gray-300 dark:border-gray-700 dark:text-gray-300'
+                        : 'border-slate-200 text-slate-700 hover:border-slate-300 dark:border-slate-700 dark:text-slate-300'
                     }`}
                   >
                     <LucideIcons.Clock className="h-4 w-4" />
@@ -616,7 +616,7 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({
                     className={`inline-flex items-center justify-center gap-2 rounded-lg border px-4 py-3 text-sm font-medium transition ${
                       formData.status === 'scheduled'
                         ? 'border-blue-500 bg-blue-50 text-blue-700 dark:bg-blue-900/20 dark:text-blue-300'
-                        : 'border-gray-200 text-gray-700 hover:border-gray-300 dark:border-gray-700 dark:text-gray-300'
+                        : 'border-slate-200 text-slate-700 hover:border-slate-300 dark:border-slate-700 dark:text-slate-300'
                     }`}
                   >
                     <LucideIcons.CalendarClock className="h-4 w-4" />
@@ -628,7 +628,7 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({
                     className={`inline-flex items-center justify-center gap-2 rounded-lg border px-4 py-3 text-sm font-medium transition ${
                       formData.status === 'completed'
                         ? 'border-emerald-500 bg-emerald-50 text-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-300'
-                        : 'border-gray-200 text-gray-700 hover:border-gray-300 dark:border-gray-700 dark:text-gray-300'
+                        : 'border-slate-200 text-slate-700 hover:border-slate-300 dark:border-slate-700 dark:text-slate-300'
                     }`}
                   >
                     <LucideIcons.CheckCircle2 className="h-4 w-4" />
@@ -679,7 +679,7 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({
                 </div>
               )}
 
-              <div className="sticky bottom-0 -mx-5 flex flex-col-reverse gap-3 border-t border-gray-200 bg-white/95 px-5 py-4 backdrop-blur dark:border-gray-800 dark:bg-gray-900/95 sm:-mx-6 sm:flex-row sm:items-center sm:justify-between sm:px-6">
+              <div className="sticky bottom-0 -mx-5 flex flex-col-reverse gap-3 border-t border-slate-200 bg-white/95 px-5 py-4 backdrop-blur dark:border-slate-800 dark:bg-slate-900/95 sm:-mx-6 sm:flex-row sm:items-center sm:justify-between sm:px-6">
                 <button
                   type="button"
                   onClick={handleDelete}
@@ -694,7 +694,7 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({
                     type="button"
                     onClick={closeEditor}
                     disabled={isSaving}
-                    className="rounded-lg border border-gray-300 px-4 py-3 font-medium text-gray-700 transition hover:bg-gray-50 disabled:opacity-60 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800"
+                    className="rounded-lg border border-slate-300 px-4 py-3 font-medium text-slate-700 transition hover:bg-slate-50 disabled:opacity-60 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
                   >
                     Annuler
                   </button>
