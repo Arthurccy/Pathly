@@ -32,7 +32,7 @@ const balanceImpact = (t: Transaction) => {
 const FALLBACK_COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ef4444', '#14b8a6', '#ec4899'];
 
 const BalanceHistory: React.FC = () => {
-  const { accounts, transactions, selectedAccountIds } = useBudget();
+  const { accounts, transactions, selectedAccountIds, balanceSnapshots } = useBudget();
   const [period, setPeriod] = useState<PeriodKey>('90d');
   const [mode, setMode] = useState<'total' | 'accounts'>('total');
   const [compare, setCompare] = useState(false);
@@ -46,7 +46,7 @@ const BalanceHistory: React.FC = () => {
   );
 
   // Daily end-of-day balance per account, rebuilt backwards from the current balance
-  const { dailyByDate, earliest, today } = useMemo(() => {
+  const { dailyByDate, earliest, today, exactSince } = useMemo(() => {
     const today = startOfDay(new Date());
     const ids = new Set(visibleAccounts.map(a => a.id));
     const done = transactions
@@ -73,8 +73,31 @@ const BalanceHistory: React.FC = () => {
     }
 
     rows.reverse();
-    return { dailyByDate: rows, earliest, today };
-  }, [visibleAccounts, transactions]);
+
+    // Prefer the exact recorded snapshots (carried forward between days) over the reconstruction
+    const byAccount = new Map<string, { date: string; balance: number }[]>();
+    balanceSnapshots.forEach(s => {
+      if (!ids.has(s.accountId)) return;
+      const list = byAccount.get(s.accountId) || [];
+      list.push({ date: s.date, balance: s.balance });
+      byAccount.set(s.accountId, list);
+    });
+
+    let exactSince: Date | null = null;
+    byAccount.forEach((list, accountId) => {
+      list.sort((a, b) => a.date.localeCompare(b.date));
+      let pointer = -1;
+      rows.forEach(row => {
+        const key = format(row.date, 'yyyy-MM-dd');
+        while (pointer + 1 < list.length && list[pointer + 1].date <= key) pointer++;
+        if (pointer >= 0) row.balances.set(accountId, list[pointer].balance);
+      });
+      const first = new Date(`${list[0].date}T00:00:00`);
+      if (!exactSince || first < exactSince) exactSince = first;
+    });
+
+    return { dailyByDate: rows, earliest, today, exactSince: exactSince as Date | null };
+  }, [visibleAccounts, transactions, balanceSnapshots]);
 
   const view = useMemo(() => {
     const cfg = PERIODS.find(p => p.key === period)!;
@@ -325,7 +348,9 @@ const BalanceHistory: React.FC = () => {
       )}
 
       <p className="border-t border-slate-100 px-5 py-2.5 text-[11px] text-slate-400 dark:border-slate-800">
-        Historique reconstitué à partir de vos transactions terminées : les ajustements manuels de solde ne sont pas pris en compte.
+        {exactSince
+          ? `Soldes enregistrés quotidiennement depuis le ${format(exactSince, 'd MMMM yyyy', { locale: fr })}. Avant cette date, historique reconstitué à partir de vos transactions terminées (approximatif).`
+          : 'Historique reconstitué à partir de vos transactions terminées (approximatif) : les soldes seront enregistrés chaque jour à partir de maintenant.'}
       </p>
     </div>
   );

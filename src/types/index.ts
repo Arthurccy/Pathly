@@ -39,6 +39,12 @@ export interface Category {
   excludeFromReports?: boolean; // Ignore in dashboards and analytics
 }
 
+export interface BalanceSnapshot {
+  accountId: string;
+  date: string; // yyyy-MM-dd (local day)
+  balance: number;
+}
+
 export interface BankAccount {
   id: string;
   userId: string;
@@ -244,6 +250,7 @@ export interface BudgetContextType {
   transactions: Transaction[];
   categories: Category[];
   accounts: BankAccount[];
+  balanceSnapshots: BalanceSnapshot[];
   budgets: Budget[];
   savingsGoals: SavingsGoal[];
   debts: Debt[];

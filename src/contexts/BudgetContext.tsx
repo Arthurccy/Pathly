@@ -3,7 +3,8 @@ import {
   Transaction, 
   Category, 
   BankAccount,
-  Budget, 
+  BalanceSnapshot,
+  Budget,
   SavingsGoal, 
   Debt,
   DebtPayment,
@@ -475,6 +476,57 @@ export const BudgetProvider: React.FC<BudgetProviderProps> = ({ children }) => {
   useEffect(() => {
     accountsRef.current = accounts;
   }, [accounts]);
+
+  // --- Balance history: one end-of-day snapshot per account, kept up to date as balances change ---
+  const [balanceSnapshots, setBalanceSnapshots] = useState<BalanceSnapshot[]>([]);
+  const [snapshotsLoaded, setSnapshotsLoaded] = useState(false);
+  const snapshotCache = useRef<Map<string, number>>(new Map());
+
+  useEffect(() => {
+    snapshotCache.current = new Map();
+    setBalanceSnapshots([]);
+    setSnapshotsLoaded(false);
+    if (!user) return;
+
+    let cancelled = false;
+    supabaseService.getBalanceSnapshots(user.id)
+      .then(rows => {
+        if (cancelled) return;
+        rows.forEach(r => snapshotCache.current.set(`${r.accountId}|${r.date}`, r.balance));
+        setBalanceSnapshots(rows);
+      })
+      .catch(error => {
+        // Table missing (migration not applied yet) must never break the app
+        console.warn('Balance snapshots unavailable:', error);
+      })
+      .finally(() => {
+        if (!cancelled) setSnapshotsLoaded(true);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.id]);
+
+  useEffect(() => {
+    if (!user || !snapshotsLoaded || accounts.length === 0) return;
+
+    const today = format(new Date(), 'yyyy-MM-dd');
+    const rows = accounts
+      .filter(a => snapshotCache.current.get(`${a.id}|${today}`) !== a.balance)
+      .map(a => ({ accountId: a.id, date: today, balance: a.balance }));
+    if (rows.length === 0) return;
+
+    supabaseService.upsertBalanceSnapshots(user.id, rows)
+      .then(() => {
+        rows.forEach(r => snapshotCache.current.set(`${r.accountId}|${r.date}`, r.balance));
+        setBalanceSnapshots(prev => {
+          const written = new Set(rows.map(r => `${r.accountId}|${r.date}`));
+          return [...prev.filter(s => !written.has(`${s.accountId}|${s.date}`)), ...rows];
+        });
+      })
+      .catch(error => console.warn('Could not save balance snapshot:', error));
+  }, [accounts, user?.id, snapshotsLoaded]);
 
   useEffect(() => {
     if (!user || transactions.length === 0 || accounts.length === 0) return;
@@ -2035,6 +2087,7 @@ export const BudgetProvider: React.FC<BudgetProviderProps> = ({ children }) => {
       transactions,
       categories,
       accounts,
+      balanceSnapshots,
       budgets,
       savingsGoals,
       debts,

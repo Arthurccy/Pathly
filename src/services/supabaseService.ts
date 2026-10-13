@@ -290,6 +290,43 @@ export const supabaseService = {
     if (error) throw error;
   },
 
+  // Balance snapshots (daily end-of-day balance per account)
+  async getBalanceSnapshots(userId: string): Promise<{ accountId: string; date: string; balance: number }[]> {
+    const { data, error } = await supabase
+      .from('account_balance_snapshots')
+      .select('account_id, snapshot_date, balance')
+      .eq('user_id', userId)
+      .order('snapshot_date');
+
+    if (error) throw error;
+    return (data || []).map((row: any) => ({
+      accountId: row.account_id,
+      date: row.snapshot_date,
+      balance: Number(row.balance),
+    }));
+  },
+
+  async upsertBalanceSnapshots(
+    userId: string,
+    rows: { accountId: string; date: string; balance: number }[]
+  ): Promise<void> {
+    if (rows.length === 0) return;
+    const { error } = await supabase
+      .from('account_balance_snapshots')
+      .upsert(
+        rows.map(r => ({
+          user_id: userId,
+          account_id: r.accountId,
+          snapshot_date: r.date,
+          balance: r.balance,
+          updated_at: new Date().toISOString(),
+        })),
+        { onConflict: 'account_id,snapshot_date' }
+      );
+
+    if (error) throw error;
+  },
+
   // Categories
   async getCategories(userId: string): Promise<Category[]> {
     const { data, error } = await supabase
