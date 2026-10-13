@@ -475,8 +475,8 @@ const RulesManager: React.FC = () => {
 
       {/* Test Results Modal */}
       {testingRule && testResults && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-2xl w-full mx-4 max-h-[80vh] overflow-y-auto">
+        <div className="fixed inset-0 bg-slate-950/50 modal-overlay flex items-center justify-center z-50">
+          <div className="modal-panel bg-white dark:bg-slate-900 rounded-2xl max-w-2xl w-full mx-4 max-h-[80vh] overflow-y-auto">
             <div className="p-6 border-b border-gray-200 dark:border-gray-700">
               <div className="flex items-center justify-between">
                 <h3 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center">

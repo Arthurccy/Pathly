@@ -523,8 +523,8 @@ const AddTransaction: React.FC = () => {
       </div>
 
       {notice && (
-        <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/40 p-0 backdrop-blur-sm sm:items-center sm:p-4">
-          <div className="w-full max-w-md rounded-t-3xl bg-white p-6 shadow-2xl dark:bg-slate-900 sm:rounded-3xl">
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/55 p-0 modal-overlay sm:items-center sm:p-4">
+          <div className="modal-panel w-full max-w-md rounded-t-3xl bg-white p-6 shadow-2xl dark:bg-slate-900 sm:rounded-3xl">
             <div className="flex items-start justify-between gap-4">
               <div className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-full ${
                 notice.type === 'success'

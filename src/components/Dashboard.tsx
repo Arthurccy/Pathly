@@ -512,14 +512,15 @@ const Dashboard: React.FC<DashboardProps> = ({ onViewChange }) => {
 
       <AccountsOverview />
 
-      <section className="grid grid-cols-1 gap-5 xl:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]">
-        <ExpenseChart viewMode={viewMode} />
-        <BudgetProgress viewMode={viewMode} />
-      </section>
-
-      <section className="grid grid-cols-1 gap-5 xl:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
-        <SavingsGoalsProgress />
-        <CashFlowChart />
+      <section className="grid grid-cols-1 items-start gap-5 xl:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]">
+        <div className="flex flex-col gap-5">
+          <ExpenseChart viewMode={viewMode} />
+          <SavingsGoalsProgress />
+        </div>
+        <div className="flex flex-col gap-5">
+          <BudgetProgress viewMode={viewMode} />
+          <CashFlowChart />
+        </div>
       </section>
 
       <section className="grid grid-cols-1 gap-5 xl:grid-cols-2">

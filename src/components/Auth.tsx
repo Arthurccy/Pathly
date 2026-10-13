@@ -86,8 +86,8 @@ const Auth: React.FC<AuthProps> = ({ initialMode = 'login', onBack }) => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800 flex items-center justify-center p-4">
       {pendingVerificationEmail && !isLogin && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/65 p-4 backdrop-blur-sm">
-          <div className="relative w-full max-w-lg overflow-hidden rounded-2xl bg-white shadow-2xl dark:bg-gray-900">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/55 p-4 modal-overlay">
+          <div className="modal-panel w-full max-w-lg rounded-2xl bg-white dark:bg-slate-900">
             <button
               type="button"
               onClick={() => setPendingVerificationEmail('')}

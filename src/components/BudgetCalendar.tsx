@@ -408,9 +408,9 @@ const BudgetCalendar: React.FC = () => {
 
       {/* Event Details Modal */}
       {showEventDetails && selectedDate && (
-        <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/45 p-0 backdrop-blur-sm sm:items-center sm:p-4">
-          <div className="max-h-[92dvh] w-full overflow-hidden rounded-t-3xl bg-white shadow-2xl dark:bg-slate-900 sm:max-w-lg sm:rounded-3xl">
-            <div className="bg-blue-600 px-6 pb-6 pt-5 text-white dark:bg-blue-500">
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/55 p-0 modal-overlay sm:items-center sm:p-4">
+          <div className="max-h-[92dvh] w-full modal-panel rounded-t-3xl bg-white shadow-2xl dark:bg-slate-900 sm:max-w-lg sm:rounded-3xl">
+            <div className="bg-gradient-to-br from-blue-600 to-indigo-600 px-6 pb-6 pt-5 text-white dark:from-blue-500 dark:to-indigo-500">
               <div className="flex items-start justify-between gap-4">
                 <div>
                   <p className="text-sm font-medium text-blue-100">

@@ -80,7 +80,7 @@ const OnboardingTour: React.FC<OnboardingTourProps> = ({ onViewChange }) => {
   if (!isVisible) return null;
 
   return (
-    <div className="fixed inset-0 z-[70] flex items-end justify-center overflow-y-auto bg-gray-950/70 p-0 backdrop-blur-sm sm:items-center sm:p-4">
+    <div className="fixed inset-0 z-[70] flex items-end justify-center overflow-y-auto bg-slate-950/55 p-0 modal-overlay sm:items-center sm:p-4">
       <div
         className="max-h-[100dvh] w-full overflow-hidden rounded-t-2xl bg-white shadow-2xl dark:bg-gray-950 sm:max-h-[calc(100dvh-2rem)] sm:max-w-4xl sm:rounded-2xl"
         onTouchStart={(event) => {

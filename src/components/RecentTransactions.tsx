@@ -463,9 +463,9 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({
       </div>
 
       {editingTransaction && (
-        <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/45 p-0 backdrop-blur-sm sm:items-center sm:p-4">
-          <div className="max-h-[92dvh] w-full overflow-hidden rounded-t-3xl bg-white shadow-2xl dark:bg-slate-900 sm:max-w-2xl sm:rounded-3xl">
-            <div className="flex items-center justify-between border-b border-slate-200 bg-white px-5 py-4 dark:border-slate-800 dark:bg-slate-900 sm:px-6">
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/55 p-0 modal-overlay sm:items-center sm:p-4">
+          <div className="max-h-[92dvh] w-full modal-panel rounded-t-3xl bg-white shadow-2xl dark:bg-slate-900 sm:max-w-2xl sm:rounded-3xl">
+            <div className="flex items-center justify-between border-b border-slate-200/70 bg-gradient-to-b from-slate-50 to-white px-5 py-4 dark:border-slate-800 dark:from-slate-900 dark:to-slate-900 sm:px-6">
               <div>
                 <h2 className="text-lg font-semibold text-slate-950 dark:text-white">Modifier la transaction</h2>
                 <p className="text-sm text-slate-500 dark:text-slate-400">Les soldes seront recalcules automatiquement.</p>

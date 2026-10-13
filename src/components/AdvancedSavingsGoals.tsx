@@ -648,8 +648,8 @@ const AdvancedSavingsGoals: React.FC = () => {
 
       {/* Contribution Modal */}
       {showContributeModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full mx-4">
+        <div className="fixed inset-0 bg-slate-950/50 modal-overlay flex items-center justify-center z-50">
+          <div className="modal-panel bg-white dark:bg-slate-900 rounded-2xl max-w-md w-full mx-4">
             <div className="p-6 border-b border-gray-200 dark:border-gray-700">
               <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
                 Contribuer à l'objectif

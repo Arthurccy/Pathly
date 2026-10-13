@@ -204,9 +204,9 @@ const SankeyModal: React.FC<SankeyModalProps> = ({ isOpen, onClose, cashFlow, ca
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm sm:p-6" onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/50 modal-overlay sm:p-6" onClick={onClose}>
       <div 
-        className="flex flex-col w-full max-w-5xl max-h-full overflow-hidden bg-white shadow-xl dark:bg-gray-800 rounded-2xl"
+        className="flex flex-col w-full max-w-5xl max-h-full modal-panel bg-white dark:bg-slate-900 rounded-2xl"
         onClick={e => e.stopPropagation()}
       >
         {/* Header */}

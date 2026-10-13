@@ -712,9 +712,9 @@ const AccountManager: React.FC = () => {
 
       {/* Account History Modal */}
       {selectedHistoryAccount && (
-        <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/50 p-0 backdrop-blur-sm sm:items-center sm:p-4">
-          <div className="max-h-[92dvh] w-full overflow-hidden rounded-t-3xl bg-white shadow-2xl dark:bg-slate-900 sm:max-w-4xl sm:rounded-3xl">
-            <div className="border-b border-slate-200 bg-white px-5 py-4 dark:border-slate-800 dark:bg-slate-900 sm:px-6">
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/50 p-0 modal-overlay sm:items-center sm:p-4">
+          <div className="max-h-[92dvh] w-full modal-panel rounded-t-3xl bg-white shadow-2xl dark:bg-slate-900 sm:max-w-4xl sm:rounded-3xl">
+            <div className="border-b border-slate-200/70 bg-gradient-to-b from-slate-50 to-white px-5 py-4 dark:border-slate-800 dark:from-slate-900 dark:to-slate-900 sm:px-6">
               <div className="flex items-start justify-between gap-4">
                 <div className="min-w-0">
                   <p className="text-sm text-slate-500 dark:text-slate-400">Historique du compte</p>
@@ -863,8 +863,8 @@ const AccountManager: React.FC = () => {
 
       {/* Balance Update Modal */}
       {showBalanceModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white dark:bg-slate-800 rounded-lg shadow-xl max-w-md w-full mx-4">
+        <div className="fixed inset-0 bg-slate-950/50 modal-overlay flex items-center justify-center z-50">
+          <div className="modal-panel bg-white dark:bg-slate-900 rounded-2xl max-w-md w-full mx-4">
             <div className="p-6 border-b border-slate-200 dark:border-slate-700">
               <div className="flex items-center justify-between">
                 <h3 className="text-lg font-semibold text-slate-900 dark:text-white flex items-center">
@@ -986,8 +986,8 @@ const AccountManager: React.FC = () => {
 
       {/* Transfer Modal */}
       {showTransferModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white dark:bg-slate-800 rounded-lg shadow-xl max-w-lg w-full mx-4">
+        <div className="fixed inset-0 bg-slate-950/50 modal-overlay flex items-center justify-center z-50">
+          <div className="modal-panel bg-white dark:bg-slate-900 rounded-2xl max-w-lg w-full mx-4">
             <form onSubmit={handleTransfer}>
               <div className="p-6 border-b border-slate-200 dark:border-slate-700">
                 <div className="flex items-center justify-between">
