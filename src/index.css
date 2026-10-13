@@ -89,6 +89,26 @@
 
 /* Premium modals */
 @layer components {
+  .indeterminate-bar {
+    position: relative;
+    overflow: hidden;
+  }
+
+  .indeterminate-bar::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    width: 40%;
+    border-radius: inherit;
+    background: linear-gradient(90deg, #3b82f6, #6366f1, #8b5cf6);
+    animation: indeterminate 1.2s ease-in-out infinite;
+  }
+
+  @keyframes indeterminate {
+    0% { transform: translateX(-100%); }
+    100% { transform: translateX(250%); }
+  }
+
   .modal-overlay {
     animation: fadeIn 0.2s ease-out;
     -webkit-backdrop-filter: blur(8px);

@@ -368,6 +368,7 @@ export interface HouseholdConfig {
   splitMode: 'prorata' | '50_50' | 'custom';
   customRatioA?: number; // %
   sharedCategoryIds?: string[]; // IDs des budgets / catégories partagés par défaut au sein du foyer
+  accountIds?: string[]; // Comptes pris en compte dans la vue foyer (vide / absent = tous)
 }
 
 // Legacy types for backward compatibility

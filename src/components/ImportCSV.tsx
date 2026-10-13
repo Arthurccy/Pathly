@@ -47,6 +47,7 @@ const ImportCSV: React.FC = () => {
   const [fileName, setFileName] = useState<string>('');
   const [rawText, setRawText] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
+  const [processingLabel, setProcessingLabel] = useState('Traitement en cours…');
   const [processedCount, setProcessedCount] = useState(0);
   const [importTotal, setImportTotal] = useState(0);
   const [defaultAccountId, setDefaultAccountId] = useState<string>('');
@@ -113,6 +114,7 @@ const ImportCSV: React.FC = () => {
     }
 
     setFileName(file.name);
+    setProcessingLabel('Lecture du fichier…');
     setIsProcessing(true);
 
     try {
@@ -132,15 +134,21 @@ const ImportCSV: React.FC = () => {
     }
   };
 
-  const handleRawTextImport = () => {
+  const handleRawTextImport = async () => {
+    setProcessingLabel('Analyse du texte collé…');
+    setIsProcessing(true);
+    await new Promise(resolve => setTimeout(resolve, 400));
+
     let data: CSVRow[];
     try {
       data = importService.parseRawText(rawText);
     } catch (error: any) {
+      setIsProcessing(false);
       alert(`Erreur lors de la lecture du texte: ${error.message}`);
       return;
     }
     if (data.length === 0) {
+      setIsProcessing(false);
       alert('Collez au moins une ligne de relevé bancaire');
       return;
     }
@@ -149,6 +157,7 @@ const ImportCSV: React.FC = () => {
     setFileName('Copier-coller');
     setMapping(autoMapColumns(data));
     setStep('mapping');
+    setIsProcessing(false);
   };
 
   const handleMappingComplete = async () => {
@@ -157,6 +166,7 @@ const ImportCSV: React.FC = () => {
       return;
     }
 
+    setProcessingLabel('Lecture des transactions…');
     setIsProcessing(true);
 
     try {
@@ -176,6 +186,7 @@ const ImportCSV: React.FC = () => {
       let processedTransactions = transactions;
       if (settings.autoApplyRules && user) {
         console.log('[ImportCSV] Applying rules...');
+        setProcessingLabel('Application des règles et suggestions de catégories…');
         try {
           const applyPromise = importService.applyCategorization(
             transactions,
@@ -206,6 +217,7 @@ const ImportCSV: React.FC = () => {
       // Check for duplicates
       if (user) {
         console.log('[ImportCSV] Checking duplicates...');
+        setProcessingLabel('Recherche des doublons…');
         try {
           const dupPromise = importService.checkDuplicates(processedTransactions, user.id);
           processedTransactions = await Promise.race([
@@ -410,6 +422,20 @@ const ImportCSV: React.FC = () => {
 
   return (
     <div className="space-y-6">
+      {isProcessing && step !== 'importing' && (
+        <div
+          className="fixed inset-0 z-[80] flex items-center justify-center bg-slate-950/40 p-4 modal-overlay"
+          role="status"
+          aria-live="polite"
+        >
+          <div className="modal-panel w-full max-w-sm rounded-2xl bg-white p-6 text-center dark:bg-slate-900">
+            <div className="mx-auto mb-4 h-12 w-12 animate-spin rounded-full border-4 border-slate-200 border-t-indigo-500 dark:border-slate-700 dark:border-t-indigo-400" />
+            <p className="text-sm font-semibold text-slate-900 dark:text-white">{processingLabel}</p>
+            <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Cela ne prend que quelques secondes</p>
+            <div className="indeterminate-bar mx-auto mt-4 h-1.5 w-full max-w-[14rem] rounded-full bg-slate-100 dark:bg-slate-800" />
+          </div>
+        </div>
+      )}
       <div className="flex items-center space-x-3">
         <div className="p-2 bg-green-100 dark:bg-green-900/20 rounded-lg">
           <Upload className="h-6 w-6 text-green-600 dark:text-green-400" />
@@ -546,12 +572,6 @@ const ImportCSV: React.FC = () => {
               </div>
             </div>
 
-            {isProcessing && (
-              <div className="text-center py-4">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-600 mx-auto mb-2"></div>
-                <p className="text-sm text-gray-600 dark:text-gray-400">Lecture du fichier...</p>
-              </div>
-            )}
           </div>
         </div>
       )}

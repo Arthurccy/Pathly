@@ -34,6 +34,7 @@ const HouseholdManager: React.FC = () => {
     householdConfig, 
     updateHouseholdConfig, 
     transactions, 
+    accounts,
     categories, 
     updateCategory,
     toggleTransactionShared, 
@@ -58,13 +59,30 @@ const HouseholdManager: React.FC = () => {
   const monthStart = startOfMonth(selectedMonth);
   const monthEnd = endOfMonth(selectedMonth);
 
+  // Accounts taken into account in this view (none selected = all of them)
+  const householdAccounts = useMemo(() => accounts.filter(a => a.isActive !== false), [accounts]);
+  const selectedAccountIds = useMemo(
+    () => (householdConfig.accountIds || []).filter(id => householdAccounts.some(a => a.id === id)),
+    [householdConfig.accountIds, householdAccounts]
+  );
+  const allAccountsSelected = selectedAccountIds.length === 0;
+
+  const toggleHouseholdAccount = async (accountId: string) => {
+    const next = selectedAccountIds.includes(accountId)
+      ? selectedAccountIds.filter(id => id !== accountId)
+      : [...selectedAccountIds, accountId];
+    // Selecting every account is the same as "all"
+    await updateHouseholdConfig({ accountIds: next.length === householdAccounts.length ? [] : next });
+  };
+
   // Month transactions
   const monthTransactions = useMemo(() => {
     return transactions.filter(t => {
+      if (!allAccountsSelected && !selectedAccountIds.includes(t.accountId)) return false;
       const d = new Date(t.date);
       return d >= monthStart && d <= monthEnd;
     });
-  }, [transactions, monthStart, monthEnd]);
+  }, [transactions, monthStart, monthEnd, allAccountsSelected, selectedAccountIds]);
 
   // All month expenses & bills
   const monthExpenses = useMemo(() => {
@@ -221,6 +239,45 @@ const HouseholdManager: React.FC = () => {
           </button>
         </div>
       </div>
+
+      {/* Accounts included in the household view */}
+      {householdAccounts.length > 1 && (
+        <div className="flex flex-wrap items-center gap-2 rounded-xl border border-gray-200 bg-white p-3 shadow-sm dark:border-gray-700 dark:bg-gray-800">
+          <span className="mr-1 text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+            Comptes pris en compte
+          </span>
+          <button
+            type="button"
+            onClick={() => updateHouseholdConfig({ accountIds: [] })}
+            className={`rounded-full border px-3 py-1 text-xs font-medium transition ${
+              allAccountsSelected
+                ? 'border-rose-600 bg-rose-600 text-white'
+                : 'border-gray-200 text-gray-600 hover:border-gray-300 dark:border-gray-600 dark:text-gray-300'
+            }`}
+          >
+            Tous
+          </button>
+          {householdAccounts.map(account => {
+            const active = selectedAccountIds.includes(account.id);
+            return (
+              <button
+                key={account.id}
+                type="button"
+                onClick={() => toggleHouseholdAccount(account.id)}
+                aria-pressed={active}
+                className={`flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium transition ${
+                  active
+                    ? 'border-rose-600 bg-rose-50 text-rose-700 dark:border-rose-500 dark:bg-rose-950/30 dark:text-rose-300'
+                    : 'border-gray-200 text-gray-600 hover:border-gray-300 dark:border-gray-600 dark:text-gray-300'
+                }`}
+              >
+                <span className="h-2 w-2 rounded-full" style={{ backgroundColor: account.color || '#94a3b8' }} />
+                {account.name}
+              </button>
+            );
+          })}
+        </div>
+      )}
 
       {/* Tabs */}
       <div className="flex border-b border-gray-200 dark:border-gray-700 gap-2 sm:gap-6 text-sm font-medium overflow-x-auto pb-px">
