@@ -1,6 +1,6 @@
 import React, { useMemo, useEffect, useState, useCallback } from 'react';
 import { createPortal } from 'react-dom';
-import { X, ExternalLink, ArrowRight, Wallet, Calendar, AlertCircle } from 'lucide-react';
+import { X, Sparkles, TrendingDown, TrendingUp, Calendar, Wallet, CheckCircle, ChevronRight, Info } from 'lucide-react';
 import { Sankey, ResponsiveContainer } from 'recharts';
 import { CashFlow, Category, Transaction, BankAccount } from '../types';
 import { format } from 'date-fns';
@@ -21,7 +21,7 @@ interface SankeyNodeData {
   fill: string;
   side: Side;
   value?: number;
-  categoryId?: string; // Set when the node represents a specific budget category
+  categoryId?: string;
   isBudgetReserve?: boolean;
 }
 
@@ -85,7 +85,7 @@ const SankeyModal: React.FC<SankeyModalProps> = ({ isOpen, onClose, cashFlow, ca
       return nodes.length - 1;
     };
 
-    const rootIndex = getNodeIndex(ROOT, '#64748b', 'root');
+    const rootIndex = getNodeIndex(ROOT, '#475569', 'root');
 
     const incomeMap = new Map<string, { amount: number; categoryId?: string }>();
     const expenseMap = new Map<string, { amount: number; categoryId?: string }>();
@@ -142,7 +142,7 @@ const SankeyModal: React.FC<SankeyModalProps> = ({ isOpen, onClose, cashFlow, ca
     if (totalInputs < totalOutputs) {
       const deficit = totalOutputs - totalInputs;
       if (deficit > 0.01) {
-        const idx = getNodeIndex('Déficit / Solde courant', '#f43f5e', 'in');
+        const idx = getNodeIndex('Déficit', '#f43f5e', 'in');
         links.push({ source: idx, target: rootIndex, value: deficit });
       }
     } else if (totalInputs > totalOutputs) {
@@ -289,7 +289,6 @@ const SankeyModal: React.FC<SankeyModalProps> = ({ isOpen, onClose, cashFlow, ca
     const isSelected = selectedNodeDetails?.name === node.name;
     const value = node.value || 0;
     const share = (value / base) * 100;
-    const compact = height < 30;
     const label = node.side === 'root' ? ROOT_LABEL : truncate(node.name, isNarrow ? 12 : 24);
     const amount = eur0.format(value);
     const sub = node.side === 'root' ? amount : `${amount} · ${share < 1 ? '<1' : Math.round(share)} %`;
@@ -298,18 +297,18 @@ const SankeyModal: React.FC<SankeyModalProps> = ({ isOpen, onClose, cashFlow, ca
     const events = {
       onMouseEnter: () => setHover({ kind: 'node', key: node.name }),
       onMouseMove: (e: React.MouseEvent) =>
-        showTip(e, `${node.side === 'root' ? ROOT_LABEL : node.name} (cliquer pour voir les détails)`, value, node.side === 'root' ? null : share, node.fill),
+        showTip(e, `${node.side === 'root' ? ROOT_LABEL : node.name} (cliquer pour le détail)`, value, node.side === 'root' ? null : share, node.fill),
       onMouseLeave: clear,
       onClick: () => handleNodeClick(node),
     };
 
     let textProps: { x: number; anchor: 'start' | 'end' | 'middle'; y: number };
     if (node.side === 'root') {
-      textProps = { x: x + width / 2, anchor: 'middle', y: y - 22 };
+      textProps = { x: x + width / 2, anchor: 'middle', y: y - 18 };
     } else if (node.side === 'in') {
-      textProps = { x: x - 10, anchor: 'end', y: y + height / 2 };
+      textProps = { x: x - 12, anchor: 'end', y: y + height / 2 };
     } else {
-      textProps = { x: x + width + 10, anchor: 'start', y: y + height / 2 };
+      textProps = { x: x + width + 12, anchor: 'start', y: y + height / 2 };
     }
 
     return (
@@ -318,100 +317,119 @@ const SankeyModal: React.FC<SankeyModalProps> = ({ isOpen, onClose, cashFlow, ca
           x={x} 
           y={y} 
           width={width} 
-          height={Math.max(height, 2)} 
-          rx={3} 
+          height={Math.max(height, 3)} 
+          rx={4} 
           fill={node.fill} 
-          stroke={isSelected ? '#ffffff' : 'none'}
-          strokeWidth={isSelected ? 2 : 0}
+          stroke={isSelected ? '#3b82f6' : 'rgba(255,255,255,0.3)'}
+          strokeWidth={isSelected ? 3 : 0.5}
         />
         {/* larger invisible hit area so thin nodes are easy to click & hover */}
-        <rect x={x - 6} y={y - 2} width={width + 12} height={Math.max(height, 2) + 4} fill="transparent" />
-        {compact && node.side !== 'root' ? (
-          <text x={textProps.x} y={textProps.y} textAnchor={textProps.anchor} dominantBaseline="middle" fontSize="12">
-            <tspan className="fill-slate-700 dark:fill-slate-200" fontWeight="600">{label}</tspan>
-            <tspan className="fill-slate-500 dark:fill-slate-400" dx="6">{sub}</tspan>
-          </text>
-        ) : (
-          <text x={textProps.x} y={textProps.y} textAnchor={textProps.anchor} fontSize="12">
-            <tspan
-              x={textProps.x}
-              dy={node.side === 'root' ? 0 : '-0.3em'}
-              className="fill-slate-800 dark:fill-slate-100"
-              fontWeight="600"
-            >
-              {label}
-            </tspan>
-            <tspan x={textProps.x} dy="1.3em" className="fill-slate-500 dark:fill-slate-400" fontSize="11">
-              {sub}
-            </tspan>
-          </text>
-        )}
+        <rect x={x - 8} y={y - 3} width={width + 16} height={Math.max(height, 3) + 6} fill="transparent" />
+        
+        {/* Crisp text labels */}
+        <text 
+          x={textProps.x} 
+          y={textProps.y} 
+          textAnchor={textProps.anchor} 
+          dominantBaseline="middle"
+          className="font-sans select-none"
+        >
+          <tspan 
+            className="fill-slate-800 dark:fill-slate-100 font-semibold text-[11px] sm:text-xs tracking-tight"
+          >
+            {label}
+          </tspan>
+          <tspan 
+            className="fill-slate-400 dark:fill-slate-500 font-normal text-[10px] sm:text-[11px]" 
+            dx="5"
+          >
+            {sub}
+          </tspan>
+        </text>
       </g>
     );
   };
 
   if (!isOpen) return null;
 
+  // Generous side margins so long category names and amounts NEVER clip or overlap
   const margin = isNarrow
-    ? { top: 60, right: 100, bottom: 16, left: 100 }
-    : { top: 60, right: 200, bottom: 16, left: 200 };
+    ? { top: 40, right: 130, bottom: 20, left: 130 }
+    : { top: 45, right: 230, bottom: 25, left: 230 };
 
   const totals = data?.totals;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-slate-950/60 backdrop-blur-sm modal-overlay" onClick={onClose}>
       <div
-        className="flex flex-col w-full max-w-6xl max-h-[94dvh] bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200/80 dark:border-slate-800 overflow-hidden"
+        className="flex flex-col w-full max-w-5xl max-h-[92dvh] bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200/80 dark:border-slate-800 overflow-hidden"
         onClick={e => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-200/70 bg-gradient-to-b from-slate-50 to-white dark:border-slate-800 dark:from-slate-900 dark:to-slate-900 sm:px-6 shrink-0">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 dark:border-slate-800/80 bg-white dark:bg-slate-900 shrink-0">
           <div>
-            <h3 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
-              <span>Diagramme de flux de trésorerie</span>
-              <span className="text-xs font-normal px-2 py-0.5 rounded-full bg-blue-50 text-blue-600 dark:bg-blue-950/50 dark:text-blue-300">
+            <div className="flex items-center gap-2">
+              <h3 className="text-base sm:text-lg font-bold text-slate-900 dark:text-white">
+                Diagramme de flux de trésorerie
+              </h3>
+              <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-blue-50 text-blue-600 dark:bg-blue-950/60 dark:text-blue-300 border border-blue-200/60 dark:border-blue-800">
                 Interactif
               </span>
-            </h3>
-            <p className="text-xs capitalize text-slate-500 dark:text-slate-400 mt-0.5">
-              {cashFlow && cashFlow.date ? format(cashFlow.date, 'MMMM yyyy', { locale: fr }) : ''} • Cliquez sur un budget ou une catégorie pour voir ses transactions
+            </div>
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+              {cashFlow && cashFlow.date ? format(cashFlow.date, 'MMMM yyyy', { locale: fr }) : ''} • Cliquez sur un budget ou une catégorie pour afficher ses opérations
             </p>
           </div>
           <button
             onClick={onClose}
             aria-label="Fermer"
-            className="p-2 transition-colors rounded-full text-slate-400 hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-800 dark:hover:text-slate-200"
+            className="p-1.5 transition-colors rounded-xl text-slate-400 hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-800 dark:hover:text-slate-200"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
-        {/* Summary Badges */}
+        {/* Summary Metric Pills */}
         {totals && (
-          <div className="grid grid-cols-3 gap-3 px-5 pt-3 sm:px-6 shrink-0">
-            <div className="rounded-xl border border-emerald-200/70 bg-emerald-50/60 px-3 py-2 dark:border-emerald-900/40 dark:bg-emerald-950/20">
-              <p className="text-[11px] font-semibold uppercase tracking-wide text-emerald-700 dark:text-emerald-400">Entrées</p>
-              <p className="text-sm font-bold tabular-nums text-slate-900 dark:text-white sm:text-base">{eur0.format(totals.income)}</p>
+          <div className="grid grid-cols-3 gap-3 px-6 pt-4 shrink-0">
+            <div className="rounded-xl border border-emerald-100 bg-emerald-50/50 p-2.5 sm:px-4 sm:py-3 dark:border-emerald-900/30 dark:bg-emerald-950/20">
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] sm:text-xs font-semibold text-emerald-700 dark:text-emerald-400 uppercase tracking-wider">Entrées</span>
+                <TrendingUp className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400 opacity-70" />
+              </div>
+              <p className="text-base sm:text-xl font-bold text-slate-900 dark:text-white mt-0.5 tabular-nums">
+                {eur0.format(totals.income)}
+              </p>
             </div>
-            <div className="rounded-xl border border-rose-200/70 bg-rose-50/60 px-3 py-2 dark:border-rose-900/40 dark:bg-rose-950/20">
-              <p className="text-[11px] font-semibold uppercase tracking-wide text-rose-700 dark:text-rose-400">Sorties</p>
-              <p className="text-sm font-bold tabular-nums text-slate-900 dark:text-white sm:text-base">{eur0.format(totals.outflow)}</p>
+
+            <div className="rounded-xl border border-rose-100 bg-rose-50/50 p-2.5 sm:px-4 sm:py-3 dark:border-rose-900/30 dark:bg-rose-950/20">
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] sm:text-xs font-semibold text-rose-700 dark:text-rose-400 uppercase tracking-wider">Sorties</span>
+                <TrendingDown className="h-3.5 w-3.5 text-rose-600 dark:text-rose-400 opacity-70" />
+              </div>
+              <p className="text-base sm:text-xl font-bold text-slate-900 dark:text-white mt-0.5 tabular-nums">
+                {eur0.format(totals.outflow)}
+              </p>
             </div>
+
             <div
-              className={`rounded-xl border px-3 py-2 ${
+              className={`rounded-xl border p-2.5 sm:px-4 sm:py-3 ${
                 totals.balance >= 0
-                  ? 'border-teal-200/70 bg-teal-50/60 dark:border-teal-900/40 dark:bg-teal-950/20'
-                  : 'border-amber-200/70 bg-amber-50/60 dark:border-amber-900/40 dark:bg-amber-950/20'
+                  ? 'border-blue-100 bg-blue-50/50 dark:border-blue-900/30 dark:bg-blue-950/20'
+                  : 'border-amber-100 bg-amber-50/50 dark:border-amber-900/30 dark:bg-amber-950/20'
               }`}
             >
-              <p
-                className={`text-[11px] font-semibold uppercase tracking-wide ${
-                  totals.balance >= 0 ? 'text-teal-700 dark:text-teal-400' : 'text-amber-700 dark:text-amber-400'
-                }`}
-              >
-                {totals.balance >= 0 ? 'Excédent' : 'Déficit'}
-              </p>
-              <p className="text-sm font-bold tabular-nums text-slate-900 dark:text-white sm:text-base">
+              <div className="flex items-center justify-between">
+                <span
+                  className={`text-[10px] sm:text-xs font-semibold uppercase tracking-wider ${
+                    totals.balance >= 0 ? 'text-blue-700 dark:text-blue-400' : 'text-amber-700 dark:text-amber-400'
+                  }`}
+                >
+                  {totals.balance >= 0 ? 'Excédent' : 'Déficit'}
+                </span>
+                <Sparkles className="h-3.5 w-3.5 opacity-70" />
+              </div>
+              <p className="text-base sm:text-xl font-bold text-slate-900 dark:text-white mt-0.5 tabular-nums">
                 {eur0.format(Math.abs(totals.balance))}
               </p>
             </div>
@@ -419,54 +437,55 @@ const SankeyModal: React.FC<SankeyModalProps> = ({ isOpen, onClose, cashFlow, ca
         )}
 
         {/* Sankey Flow Diagram Content */}
-        <div className="p-2 overflow-x-auto sm:p-4 shrink-0" style={{ height: selectedNodeDetails ? '320px' : 'min(58vh, 520px)', minHeight: '280px' }}>
+        <div className="px-4 py-2 overflow-x-auto shrink-0" style={{ height: selectedNodeDetails ? '290px' : '440px', minHeight: '260px', transition: 'height 0.2s ease' }}>
           {data ? (
-            <ResponsiveContainer width="100%" height="100%" minWidth={isNarrow ? 520 : undefined}>
+            <ResponsiveContainer width="100%" height="100%" minWidth={isNarrow ? 560 : undefined}>
               <Sankey
                 data={data}
-                nodeWidth={12}
-                nodePadding={isNarrow ? 24 : 30}
+                nodeWidth={10}
+                nodePadding={isNarrow ? 22 : 28}
                 margin={margin}
                 link={renderLink as any}
                 node={renderNode as any}
               />
             </ResponsiveContainer>
           ) : (
-            <div className="flex items-center justify-center h-full text-slate-500 dark:text-slate-400">
+            <div className="flex items-center justify-center h-full text-slate-500 dark:text-slate-400 text-sm">
               Aucune donnée à afficher pour ce mois.
             </div>
           )}
         </div>
 
-        {/* Drilldown Drawer / Panel when a node/budget is clicked */}
-        {selectedNodeDetails && (
-          <div className="border-t border-slate-200/80 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/50 flex-1 overflow-hidden flex flex-col min-h-[220px]">
-            <div className="px-5 py-3 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between bg-white dark:bg-slate-900">
+        {/* Detail Panel when node is clicked */}
+        {selectedNodeDetails ? (
+          <div className="border-t border-slate-200/80 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-950/60 flex-1 overflow-hidden flex flex-col min-h-[200px]">
+            {/* Header of details panel */}
+            <div className="px-6 py-2.5 border-b border-slate-200/80 dark:border-slate-800 flex items-center justify-between bg-white dark:bg-slate-900 shrink-0">
               <div className="flex items-center space-x-2.5">
                 <span 
-                  className="w-3 h-3 rounded-full shrink-0" 
+                  className="w-3 h-3 rounded-full shrink-0 shadow-sm" 
                   style={{ backgroundColor: selectedNodeDetails.fill }} 
                 />
                 <div>
-                  <h4 className="text-sm font-bold text-slate-900 dark:text-white">
-                    {selectedNodeDetails.name === ROOT ? ROOT_LABEL : selectedNodeDetails.name}
+                  <h4 className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                    <span>{selectedNodeDetails.name === ROOT ? ROOT_LABEL : selectedNodeDetails.name}</span>
+                    <span className="text-xs font-normal text-slate-500 dark:text-slate-400">
+                      ({eur2.format(selectedNodeDetails.value || 0)})
+                    </span>
                   </h4>
-                  <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                    Total : <strong>{eur2.format(selectedNodeDetails.value || 0)}</strong> • {selectedNodeTransactions.length} opération(s) sur ce mois
-                  </p>
                 </div>
               </div>
 
               <button
                 onClick={() => setSelectedNodeDetails(null)}
-                className="text-xs text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800"
+                className="text-xs font-medium text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 px-2.5 py-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
               >
-                Fermer la liste ×
+                Fermer ×
               </button>
             </div>
 
-            {/* Transactions List */}
-            <div className="overflow-y-auto p-4 space-y-2 flex-1">
+            {/* List of transactions */}
+            <div className="overflow-y-auto px-6 py-3 space-y-2 flex-1">
               {selectedNodeTransactions.length > 0 ? (
                 selectedNodeTransactions.map((tx, idx) => {
                   const account = accounts.find(a => a.id === tx.accountId);
@@ -475,17 +494,17 @@ const SankeyModal: React.FC<SankeyModalProps> = ({ isOpen, onClose, cashFlow, ca
                   return (
                     <div 
                       key={tx.id || idx}
-                      className="flex items-center justify-between p-2.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-sm text-xs"
+                      className="flex items-center justify-between px-3.5 py-2.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-sm hover:border-slate-300 dark:hover:border-slate-700 transition-all text-xs"
                     >
                       <div className="flex items-center space-x-3 min-w-0">
-                        <div className="text-[11px] font-mono text-slate-400 shrink-0">
+                        <div className="text-[11px] font-mono text-slate-500 dark:text-slate-400 shrink-0 bg-slate-50 dark:bg-slate-800/80 px-2 py-1 rounded-md border border-slate-100 dark:border-slate-700">
                           {tx.date ? format(new Date(tx.date), 'dd MMM', { locale: fr }) : '-'}
                         </div>
                         <div className="min-w-0">
                           <p className="font-semibold text-slate-900 dark:text-white truncate">
                             {tx.description}
                           </p>
-                          <div className="flex items-center space-x-2 text-[10px] text-slate-500 dark:text-slate-400">
+                          <div className="flex items-center space-x-2 text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">
                             {account && <span>{account.name}</span>}
                             {tx.status === 'scheduled' && (
                               <span className="text-blue-600 dark:text-blue-400 font-medium">À venir</span>
@@ -496,24 +515,30 @@ const SankeyModal: React.FC<SankeyModalProps> = ({ isOpen, onClose, cashFlow, ca
                       </div>
 
                       <div className="text-right shrink-0 ml-3">
-                        <p className={`font-bold text-sm ${isIncome ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-900 dark:text-white'}`}>
+                        <span className={`font-bold text-sm ${isIncome ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-900 dark:text-white'}`}>
                           {isIncome ? '+' : '-'}{tx.amount.toFixed(2)} €
-                        </p>
+                        </span>
                       </div>
                     </div>
                   );
                 })
               ) : selectedNodeDetails.isBudgetReserve ? (
-                <div className="p-6 text-center text-xs text-slate-500 dark:text-slate-400 bg-white dark:bg-slate-900 rounded-xl border border-dashed border-slate-200 dark:border-slate-800">
-                  <p className="font-semibold text-slate-700 dark:text-slate-300 mb-1">Budget prévisionnel disponible</p>
-                  <p>Cette réserve de {eur2.format(selectedNodeDetails.value || 0)} correspond à l'enveloppe budgétaire prévue non encore dépensée pour ce mois.</p>
+                <div className="p-5 text-center text-xs text-slate-500 dark:text-slate-400 bg-white dark:bg-slate-900 rounded-xl border border-dashed border-slate-200 dark:border-slate-800">
+                  <p className="font-semibold text-slate-800 dark:text-slate-200 mb-1">Budget prévisionnel disponible</p>
+                  <p>Cette enveloppe de <strong>{eur2.format(selectedNodeDetails.value || 0)}</strong> correspond aux budgets alloués qui n'ont pas encore été dépensés ce mois-ci.</p>
                 </div>
               ) : (
-                <div className="p-6 text-center text-xs text-slate-500 dark:text-slate-400">
-                  Aucune transaction détaillée disponible pour ce poste.
+                <div className="p-5 text-center text-xs text-slate-500 dark:text-slate-400">
+                  Aucune transaction enregistrée pour ce poste.
                 </div>
               )}
             </div>
+          </div>
+        ) : (
+          <div className="px-6 py-2.5 border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/40 text-center shrink-0">
+            <span className="text-[11px] text-slate-400">
+              💡 Astuce : Cliquez sur un budget à droite ou un revenu à gauche pour afficher ses transactions
+            </span>
           </div>
         )}
       </div>
