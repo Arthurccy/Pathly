@@ -334,6 +334,19 @@ class ImportService {
       }
     }
 
+    // Parse balance (optional)
+    if (mapping.balance && row[mapping.balance]) {
+      const balStr = row[mapping.balance];
+      const cleanBal = balStr
+        .replace(/\s/g, '')
+        .replace(',', '.')
+        .replace(/[^\d.-]/g, '');
+      const numBal = parseFloat(cleanBal);
+      if (!isNaN(numBal)) {
+        transaction.rowBalance = numBal;
+      }
+    }
+
     transaction.errors = errors;
     return { transaction: transaction as ParsedTransaction, errors };
   }

@@ -48,6 +48,7 @@ export interface ColumnMapping {
   amount: string;
   account?: string;
   category?: string;
+  balance?: string; // Optional balance column from bank statement
 }
 
 export interface ImportSettings {
@@ -81,6 +82,10 @@ export interface ParsedTransaction {
   errors: string[];
   suggestions: CategorySuggestion[];
   isSelected?: boolean;
+  rowBalance?: number; // Running balance on this row if present in statement
+  reconciliationStatus?: 'new' | 'matched' | 'duplicate'; // Reconciliation status against existing Pathly data
+  matchedTransactionId?: string; // ID of existing transaction in Pathly if matched
+  matchedTransactionDesc?: string;
 }
 
 export interface ImportResult {
@@ -89,4 +94,6 @@ export interface ImportResult {
   duplicates: number;
   errors: string[];
   jobId?: string;
+  balanceAdjusted?: boolean;
+  newBalance?: number;
 }

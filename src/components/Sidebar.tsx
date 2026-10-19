@@ -53,7 +53,7 @@ const groups = [
     title: 'Outils',
     collapsedByDefault: true,
     items: [
-      { id: 'import-csv', label: 'Import CSV', icon: Upload },
+      { id: 'import-csv', label: 'Import & Rapprochement', icon: Upload },
       { id: 'rules', label: 'Règles auto', icon: SlidersHorizontal },
       { id: 'budget-simulator', label: 'Simul. Budget', icon: Target },
       { id: 'wealth-simulator', label: 'Simul. Patrimoine', icon: BarChart3 },
