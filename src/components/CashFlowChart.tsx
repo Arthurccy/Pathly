@@ -33,7 +33,7 @@ ChartJS.register(
 );
 
 const CashFlowChart: React.FC = () => {
-  const { getCashFlowProjection, categories } = useBudget();
+  const { getCashFlowProjection, categories, accounts } = useBudget();
   const { user } = useAuth();
   
   const [selectedMonthForSankey, setSelectedMonthForSankey] = useState<CashFlow | null>(null);
@@ -360,6 +360,7 @@ const CashFlowChart: React.FC = () => {
         onClose={() => setSelectedMonthForSankey(null)}
         cashFlow={selectedMonthForSankey}
         categories={categories}
+        accounts={accounts}
       />
       <AIAdvisorModal
         isOpen={!!selectedMonthForAI}
