@@ -94,6 +94,9 @@ export interface RecurringPattern {
   isActive: boolean;
   maxOccurrences?: number;
   currentOccurrence?: number;
+  calculationType?: 'fixed' | 'percentage';
+  percentage?: number;
+  linkedTransactionId?: string;
 }
 
 export interface Budget {

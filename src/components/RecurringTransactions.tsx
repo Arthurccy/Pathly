@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Calendar, Clock, Repeat, Plus, Edit, Trash2, Play, Pause } from 'lucide-react';
+import { Calendar, Clock, Repeat, Plus, Edit, Trash2, Play, Pause, Percent } from 'lucide-react';
 import * as LucideIcons from 'lucide-react';
 import { format, addDays, addWeeks, addMonths, addYears } from 'date-fns';
 import { fr } from 'date-fns/locale';
@@ -37,9 +37,35 @@ const RecurringTransactions: React.FC = () => {
     nextDate: new Date().toISOString().split('T')[0],
     endDate: '',
     maxOccurrences: '',
+    calculationType: 'fixed' as 'fixed' | 'percentage',
+    percentage: '',
+    linkedTransactionId: '',
   });
 
   const recurringTransactions = transactions.filter(t => t.isRecurring);
+
+  const selectedLinkedTransaction = recurringTransactions.find(t => t.id === formData.linkedTransactionId);
+
+  const resetForm = () => {
+    setFormData({
+      amount: '',
+      description: '',
+      categoryId: '',
+      accountId: '',
+      transferToAccountId: '',
+      type: 'expense',
+      frequency: 'monthly',
+      interval: 1,
+      nextDate: new Date().toISOString().split('T')[0],
+      endDate: '',
+      maxOccurrences: '',
+      calculationType: 'fixed',
+      percentage: '',
+      linkedTransactionId: '',
+    });
+    setShowForm(false);
+    setEditingTransaction(null);
+  };
 
   const getFrequencyLabel = (frequency: string, interval: number) => {
     const labels = {
@@ -75,7 +101,23 @@ const RecurringTransactions: React.FC = () => {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!formData.amount || !formData.description || !formData.accountId) {
+    if (formData.calculationType === 'percentage') {
+      if (!formData.linkedTransactionId) {
+        alert('Veuillez sélectionner la transaction récurrente de référence');
+        return;
+      }
+      if (!formData.percentage || parseFloat(formData.percentage) <= 0) {
+        alert('Veuillez renseigner un pourcentage valide');
+        return;
+      }
+    } else {
+      if (!formData.amount || parseFloat(formData.amount) <= 0) {
+        alert('Veuillez renseigner un montant valide');
+        return;
+      }
+    }
+
+    if (!formData.description || !formData.accountId) {
       alert('Veuillez remplir tous les champs obligatoires');
       return;
     }
@@ -97,18 +139,28 @@ const RecurringTransactions: React.FC = () => {
     }
     const destinationAccount = accounts.find(account => account.id === formData.transferToAccountId);
 
+    let finalAmount = parseFloat(formData.amount) || 0;
+    const linkedTx = recurringTransactions.find(t => t.id === formData.linkedTransactionId);
+    if (formData.calculationType === 'percentage' && linkedTx) {
+      const pct = parseFloat(formData.percentage) || 0;
+      finalAmount = Math.round((linkedTx.amount * (pct / 100)) * 100) / 100;
+    }
+
     const recurringPattern: RecurringPattern = {
       frequency: formData.frequency,
       interval: formData.interval,
       nextDate: new Date(formData.nextDate),
       endDate: formData.endDate ? new Date(formData.endDate) : undefined,
       maxOccurrences: formData.maxOccurrences ? parseInt(formData.maxOccurrences) : undefined,
-      currentOccurrence: 0,
-      isActive: true,
+      currentOccurrence: editingTransaction?.recurringPattern?.currentOccurrence || 0,
+      isActive: editingTransaction?.recurringPattern ? editingTransaction.recurringPattern.isActive : true,
+      calculationType: formData.calculationType,
+      percentage: formData.calculationType === 'percentage' ? parseFloat(formData.percentage) : undefined,
+      linkedTransactionId: formData.calculationType === 'percentage' ? formData.linkedTransactionId : undefined,
     };
 
     const transactionData = {
-      amount: parseFloat(formData.amount),
+      amount: finalAmount,
       description: formData.type === 'transfer'
         ? `Virement vers ${destinationAccount?.name || 'compte'} - ${formData.description}`
         : formData.description,
@@ -128,22 +180,7 @@ const RecurringTransactions: React.FC = () => {
       addTransaction(transactionData);
     }
 
-    // Reset form
-    setFormData({
-      amount: '',
-      description: '',
-      categoryId: '',
-      accountId: '',
-      transferToAccountId: '',
-      type: 'expense',
-      frequency: 'monthly',
-      interval: 1,
-      nextDate: new Date().toISOString().split('T')[0],
-      endDate: '',
-      maxOccurrences: '',
-    });
-    setShowForm(false);
-    setEditingTransaction(null);
+    resetForm();
   };
 
   const toggleRecurringStatus = (transaction: Transaction) => {
@@ -173,6 +210,9 @@ const RecurringTransactions: React.FC = () => {
       nextDate: transaction.recurringPattern?.nextDate.toISOString().split('T')[0] || transaction.date.toISOString().split('T')[0],
       endDate: transaction.recurringPattern?.endDate?.toISOString().split('T')[0] || '',
       maxOccurrences: transaction.recurringPattern?.maxOccurrences?.toString() || '',
+      calculationType: transaction.recurringPattern?.calculationType || 'fixed',
+      percentage: transaction.recurringPattern?.percentage !== undefined ? transaction.recurringPattern.percentage.toString() : '',
+      linkedTransactionId: transaction.recurringPattern?.linkedTransactionId || '',
     });
     setShowForm(true);
   };
@@ -249,23 +289,6 @@ const RecurringTransactions: React.FC = () => {
                 </div>
               </div>
 
-              {/* Amount */}
-              <div>
-                <label htmlFor="amount" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Montant * (€)
-                </label>
-                <input
-                  type="number"
-                  id="amount"
-                  step="0.01"
-                  min="0"
-                  value={formData.amount}
-                  onChange={(e) => setFormData({ ...formData, amount: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
-                  required
-                />
-              </div>
-
               {/* Description */}
               <div>
                 <label htmlFor="description" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
@@ -277,9 +300,143 @@ const RecurringTransactions: React.FC = () => {
                   value={formData.description}
                   onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                   className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
-                  placeholder="Ex: Loyer mensuel"
+                  placeholder="Ex: Prime de performance, Salaire..."
                   required
                 />
+              </div>
+
+              {/* Mode de montant et calcul */}
+              <div className="col-span-1 md:col-span-2 bg-purple-50/50 dark:bg-purple-950/20 p-4 rounded-xl border border-purple-200/80 dark:border-purple-800/40 space-y-3">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                  <label className="text-sm font-semibold text-gray-900 dark:text-gray-200">
+                    Mode de calcul du montant *
+                  </label>
+                  <div className="inline-flex rounded-lg border border-gray-200 dark:border-gray-700 p-0.5 bg-gray-100 dark:bg-gray-850">
+                    <button
+                      type="button"
+                      onClick={() => setFormData(prev => ({ ...prev, calculationType: 'fixed' }))}
+                      className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
+                        formData.calculationType === 'fixed'
+                          ? 'bg-white dark:bg-gray-700 text-purple-700 dark:text-purple-300 shadow-sm'
+                          : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
+                      }`}
+                    >
+                      Montant fixe (€)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setFormData(prev => ({ ...prev, calculationType: 'percentage' }))}
+                      className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all flex items-center space-x-1.5 ${
+                        formData.calculationType === 'percentage'
+                          ? 'bg-white dark:bg-gray-700 text-purple-700 dark:text-purple-300 shadow-sm'
+                          : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
+                      }`}
+                    >
+                      <Percent className="h-3 w-3" />
+                      <span>Pourcentage (%) d'une récurrence</span>
+                    </button>
+                  </div>
+                </div>
+
+                {formData.calculationType === 'fixed' ? (
+                  <div>
+                    <label htmlFor="amount" className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
+                      Montant fixe (€) *
+                    </label>
+                    <input
+                      type="number"
+                      id="amount"
+                      step="0.01"
+                      min="0"
+                      value={formData.amount}
+                      onChange={(e) => setFormData({ ...formData, amount: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
+                      placeholder="0.00"
+                      required
+                    />
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      <div>
+                        <label htmlFor="linkedTransactionId" className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
+                          Lié à la transaction récurrente (ex: Salaire) *
+                        </label>
+                        <select
+                          id="linkedTransactionId"
+                          value={formData.linkedTransactionId}
+                          onChange={(e) => {
+                            const selectedId = e.target.value;
+                            const linkedTx = recurringTransactions.find(t => t.id === selectedId);
+                            const pct = parseFloat(formData.percentage) || 0;
+                            const calc = linkedTx ? ((linkedTx.amount * pct) / 100).toFixed(2) : formData.amount;
+                            setFormData(prev => ({
+                              ...prev,
+                              linkedTransactionId: selectedId,
+                              amount: calc,
+                            }));
+                          }}
+                          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
+                          required
+                        >
+                          <option value="">Sélectionner une transaction récurrente</option>
+                          {recurringTransactions
+                            .filter(t => t.id !== editingTransaction?.id)
+                            .map(t => (
+                              <option key={t.id} value={t.id}>
+                                {t.description} ({t.amount.toFixed(2)} €)
+                              </option>
+                            ))}
+                        </select>
+                      </div>
+
+                      <div>
+                        <label htmlFor="percentage" className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
+                          Pourcentage (%) *
+                        </label>
+                        <div className="relative">
+                          <input
+                            type="number"
+                            id="percentage"
+                            step="0.01"
+                            min="0"
+                            max="1000"
+                            value={formData.percentage}
+                            onChange={(e) => {
+                              const pctVal = e.target.value;
+                              const pct = parseFloat(pctVal) || 0;
+                              const linkedTx = recurringTransactions.find(t => t.id === formData.linkedTransactionId);
+                              const calc = linkedTx ? ((linkedTx.amount * pct) / 100).toFixed(2) : '';
+                              setFormData(prev => ({
+                                ...prev,
+                                percentage: pctVal,
+                                amount: calc,
+                              }));
+                            }}
+                            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent dark:bg-gray-700 dark:text-white pr-8"
+                            placeholder="Ex: 10 pour 10%"
+                            required
+                          />
+                          <span className="absolute right-3 top-2 text-gray-500 dark:text-gray-400 font-semibold text-sm">%</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {selectedLinkedTransaction && (
+                      <div className="p-3 bg-white dark:bg-gray-800 border border-purple-200 dark:border-purple-800 rounded-lg flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
+                        <div className="flex items-center space-x-2 text-purple-900 dark:text-purple-200">
+                          <Percent className="h-4 w-4 text-purple-600 dark:text-purple-400 shrink-0" />
+                          <span>
+                            Montant calculé : <strong className="text-sm font-bold text-purple-700 dark:text-purple-300">{(parseFloat(formData.amount) || 0).toFixed(2)} €</strong> ({formData.percentage || 0}% de {selectedLinkedTransaction.description} à {selectedLinkedTransaction.amount.toFixed(2)} €)
+                          </span>
+                        </div>
+                        <span className="text-purple-600 dark:text-purple-400 italic">
+                          Mise à jour automatique en cas d'ajustement du salaire
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
 
               {/* Account */}
@@ -435,23 +592,7 @@ const RecurringTransactions: React.FC = () => {
             <div className="flex justify-end space-x-3 pt-4">
               <button
                 type="button"
-                onClick={() => {
-                  setShowForm(false);
-                  setEditingTransaction(null);
-                  setFormData({
-                    amount: '',
-                    description: '',
-                    categoryId: '',
-                    accountId: '',
-                    transferToAccountId: '',
-                    type: 'expense',
-                    frequency: 'monthly',
-                    interval: 1,
-                    nextDate: new Date().toISOString().split('T')[0],
-                    endDate: '',
-                    maxOccurrences: '',
-                  });
-                }}
+                onClick={resetForm}
                 className="px-4 py-2 text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-lg transition-colors"
               >
                 Annuler
@@ -482,6 +623,9 @@ const RecurringTransactions: React.FC = () => {
               const account = accounts.find(a => a.id === transaction.accountId);
               const IconComponent = category ? (LucideIcons as any)[category.icon] : LucideIcons.DollarSign;
               const pattern = transaction.recurringPattern;
+              const linkedTx = pattern?.linkedTransactionId
+                ? transactions.find(t => t.id === pattern.linkedTransactionId)
+                : undefined;
               const displayImpact = getTransactionDisplayImpact(transaction);
               const displayPattern = pattern || {
                 frequency: 'monthly' as const,
@@ -506,10 +650,16 @@ const RecurringTransactions: React.FC = () => {
                       </div>
                       
                       <div className="flex-1">
-                        <div className="flex items-center space-x-2">
+                        <div className="flex items-center space-x-2 flex-wrap gap-y-1">
                           <h4 className="text-sm font-medium text-gray-900 dark:text-white">
                             {transaction.description}
                           </h4>
+                          {pattern?.calculationType === 'percentage' && (
+                            <span className="inline-flex items-center space-x-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300 border border-purple-200 dark:border-purple-800">
+                              <Percent className="h-3 w-3" />
+                              <span>{pattern.percentage}% de {linkedTx ? linkedTx.description : 'transaction liée'}</span>
+                            </span>
+                          )}
                           <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
                             pattern?.isActive 
                               ? 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400'
@@ -534,13 +684,20 @@ const RecurringTransactions: React.FC = () => {
                     </div>
                     
                     <div className="flex items-center space-x-3">
-                      <span className={`text-sm font-semibold ${
-                        displayImpact >= 0
-                          ? 'text-green-600 dark:text-green-400'
-                          : 'text-red-600 dark:text-red-400'
-                      }`}>
-                        {displayImpact >= 0 ? '+' : '-'}{Math.abs(displayImpact).toFixed(2)} €
-                      </span>
+                      <div className="text-right">
+                        <span className={`text-sm font-semibold ${
+                          displayImpact >= 0
+                            ? 'text-green-600 dark:text-green-400'
+                            : 'text-red-600 dark:text-red-400'
+                        }`}>
+                          {displayImpact >= 0 ? '+' : '-'}{Math.abs(displayImpact).toFixed(2)} €
+                        </span>
+                        {pattern?.calculationType === 'percentage' && (
+                          <span className="block text-[11px] text-purple-600 dark:text-purple-400 font-medium">
+                            {pattern.percentage}% indexé
+                          </span>
+                        )}
+                      </div>
                       
                       <div className="flex items-center space-x-1">
                         <button

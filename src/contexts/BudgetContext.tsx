@@ -804,6 +804,30 @@ export const BudgetProvider: React.FC<BudgetProviderProps> = ({ children }) => {
     }
   };
 
+  const updateDependentRecurringTransactions = async (
+    sourceId: string,
+    sourceAmount: number,
+    currentTransactions: Transaction[]
+  ) => {
+    const dependentTransactions = currentTransactions.filter(t => 
+      t.id !== sourceId &&
+      t.isRecurring &&
+      t.recurringPattern?.isActive &&
+      t.recurringPattern?.calculationType === 'percentage' &&
+      t.recurringPattern?.linkedTransactionId === sourceId
+    );
+
+    for (const dep of dependentTransactions) {
+      const pct = dep.recurringPattern?.percentage || 0;
+      const newDepAmount = Math.round((sourceAmount * (pct / 100)) * 100) / 100;
+      if (Math.abs(newDepAmount - dep.amount) >= 0.005) {
+        const updatedDep = await supabaseService.updateTransaction(dep.id, { amount: newDepAmount });
+        setTransactions(prev => prev.map(t => t.id === dep.id ? updatedDep : t));
+        await updateDependentRecurringTransactions(dep.id, newDepAmount, currentTransactions);
+      }
+    }
+  };
+
   const updateTransaction = async (id: string, updates: Partial<Transaction>) => {
     if (!user) return;
 
@@ -838,6 +862,11 @@ export const BudgetProvider: React.FC<BudgetProviderProps> = ({ children }) => {
           );
         }
       }
+
+      // If amount was updated, cascade to dependent recurring transactions (e.g. bonus / prime % based on salary)
+      if (updates.amount !== undefined && updates.amount !== oldTransaction.amount) {
+        await updateDependentRecurringTransactions(id, updatedTransaction.amount, transactions);
+      }
     } catch (error) {
       console.error('Error updating transaction:', error);
       throw error;
@@ -860,6 +889,24 @@ export const BudgetProvider: React.FC<BudgetProviderProps> = ({ children }) => {
           transaction.accountId, 
           -getAccountBalanceImpact(transaction)
         );
+      }
+
+      // If any recurring transactions were linked to this deleted transaction, switch them back to fixed
+      const dependentTransactions = transactions.filter(t =>
+        t.isRecurring &&
+        t.recurringPattern?.linkedTransactionId === id
+      );
+      for (const dep of dependentTransactions) {
+        if (dep.recurringPattern) {
+          const updatedPattern: RecurringPattern = {
+            ...dep.recurringPattern,
+            calculationType: 'fixed',
+            percentage: undefined,
+            linkedTransactionId: undefined,
+          };
+          const updatedDep = await supabaseService.updateTransaction(dep.id, { recurringPattern: updatedPattern });
+          setTransactions(prev => prev.map(t => t.id === dep.id ? updatedDep : t));
+        }
       }
     } catch (error) {
       console.error('Error deleting transaction:', error);
