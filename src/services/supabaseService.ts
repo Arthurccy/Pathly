@@ -11,19 +11,50 @@ import {
 
 // Helper function to convert database row to app format
 const convertDatabaseToApp = {
-  account: (row: any): BankAccount => ({
-    id: row.id,
-    userId: row.user_id,
-    name: row.name,
-    type: row.type,
-    balance: parseFloat(row.balance),
-    currency: row.currency,
-    color: row.color,
-    isActive: row.is_active,
-    order: row.order_index,
-    bankName: row.bank_name,
-    description: row.description,
-  }),
+  account: (row: any): BankAccount => {
+    let subType: string | undefined = undefined;
+    let totalDeposits: number | undefined = undefined;
+    let openingDate: string | undefined = undefined;
+    let cashBalance: number | undefined = undefined;
+    let cleanDesc = row.description;
+
+    if (row.description && typeof row.description === 'string' && row.description.includes('__META__:')) {
+      try {
+        const parts = row.description.split('__META__:');
+        cleanDesc = parts[0].trim() || undefined;
+        const meta = JSON.parse(parts[1]);
+        subType = meta.subType;
+        totalDeposits = meta.totalDeposits !== undefined ? Number(meta.totalDeposits) : undefined;
+        openingDate = meta.openingDate;
+        cashBalance = meta.cashBalance !== undefined ? Number(meta.cashBalance) : undefined;
+      } catch {}
+    }
+
+    const nameLower = (row.name || '').toLowerCase();
+    if (!subType) {
+      if (nameLower.includes('pea')) subType = 'pea';
+      else if (nameLower.includes('cto') || nameLower.includes('titres')) subType = 'cto';
+      else if (row.type === 'crypto' || nameLower.includes('crypto')) subType = 'crypto';
+    }
+
+    return {
+      id: row.id,
+      userId: row.user_id,
+      name: row.name,
+      type: row.type,
+      balance: parseFloat(row.balance),
+      currency: row.currency,
+      color: row.color,
+      isActive: row.is_active,
+      order: row.order_index,
+      bankName: row.bank_name,
+      description: cleanDesc,
+      subType,
+      totalDeposits,
+      openingDate,
+      cashBalance,
+    };
+  },
 
   category: (row: any): Category => ({
     id: row.id,
@@ -151,18 +182,33 @@ const formatIsoDateTime = (d: any): string | undefined => {
 
 // Helper function to convert app format to database format
 const convertAppToDatabase = {
-  account: (account: Omit<BankAccount, 'id'> | Partial<BankAccount>): any => ({
-    user_id: account.userId,
-    name: account.name,
-    type: account.type,
-    balance: account.balance,
-    currency: account.currency,
-    color: account.color,
-    is_active: account.isActive,
-    order_index: account.order,
-    bank_name: account.bankName,
-    description: account.description,
-  }),
+  account: (account: Omit<BankAccount, 'id'> | Partial<BankAccount>): any => {
+    let desc = account.description;
+    const hasMeta = account.subType !== undefined || account.totalDeposits !== undefined || account.openingDate !== undefined || account.cashBalance !== undefined;
+    if (hasMeta) {
+      const meta = {
+        subType: account.subType,
+        totalDeposits: account.totalDeposits,
+        openingDate: account.openingDate,
+        cashBalance: account.cashBalance,
+      };
+      const cleanDesc = (desc || '').split('__META__:')[0].trim();
+      desc = cleanDesc ? `${cleanDesc} __META__:${JSON.stringify(meta)}` : `__META__:${JSON.stringify(meta)}`;
+    }
+
+    return {
+      user_id: account.userId,
+      name: account.name,
+      type: account.type,
+      balance: account.balance,
+      currency: account.currency,
+      color: account.color,
+      is_active: account.isActive,
+      order_index: account.order,
+      bank_name: account.bankName,
+      description: desc,
+    };
+  },
 
   category: (category: Omit<Category, 'id'> | Partial<Category>): any => ({
     user_id: category.userId,

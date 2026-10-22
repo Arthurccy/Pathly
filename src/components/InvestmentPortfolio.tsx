@@ -37,6 +37,7 @@ export const InvestmentPortfolio: React.FC<InvestmentPortfolioProps> = ({ onView
     accounts,
     addAccount,
     updateAccount,
+    deleteAccount,
     investmentPositions,
     addInvestmentPosition,
     updateInvestmentPosition,
@@ -75,13 +76,20 @@ export const InvestmentPortfolio: React.FC<InvestmentPortfolioProps> = ({ onView
   const [searchResults, setSearchResults] = useState<StockSearchResult[]>([]);
   const [isSearching, setIsSearching] = useState(false);
 
-  // Form state for creating an investment account (PEA/CTO)
+  // Selected Account Filter
+  const [selectedAccountIdFilter, setSelectedAccountIdFilter] = useState<string | 'all'>('all');
+
+  // Form state for managing / editing investment accounts (PEA/CTO)
+  const [editingAccount, setEditingAccount] = useState<BankAccount | null>(null);
+  const [accountModalTab, setAccountModalTab] = useState<'create' | 'link_existing'>('create');
+  const [selectedExistingAccId, setSelectedExistingAccId] = useState('');
   const [accName, setAccName] = useState('');
   const [accSubType, setAccSubType] = useState<'pea' | 'cto' | 'crypto'>('pea');
   const [accBankName, setAccBankName] = useState('BoursoBank');
   const [accCashBalance, setAccCashBalance] = useState('');
   const [accTotalDeposits, setAccTotalDeposits] = useState('');
   const [accOpeningDate, setAccOpeningDate] = useState(new Date().toISOString().substring(0, 10));
+  const [autoSyncBalance, setAutoSyncBalance] = useState(true);
 
   // Find all investment & crypto accounts
   const investmentAccounts = useMemo(() => {
@@ -255,8 +263,44 @@ export const InvestmentPortfolio: React.FC<InvestmentPortfolioProps> = ({ onView
     }
   };
 
-  // Create new investment account
-  const handleCreateAccount = async (e: React.FormEvent) => {
+  // Reset account form
+  const resetAccountForm = () => {
+    setEditingAccount(null);
+    setAccountModalTab('create');
+    setSelectedExistingAccId('');
+    setAccName('');
+    setAccSubType('pea');
+    setAccBankName('BoursoBank');
+    setAccCashBalance('');
+    setAccTotalDeposits('');
+    setAccOpeningDate(new Date().toISOString().substring(0, 10));
+    setAutoSyncBalance(true);
+  };
+
+  // Open Add Account modal
+  const handleOpenAddAccount = () => {
+    resetAccountForm();
+    setShowAddAccountModal(true);
+  };
+
+  // Open Edit Account modal
+  const handleOpenEditAccount = (acc: BankAccount) => {
+    setEditingAccount(acc);
+    setAccName(acc.name);
+    setAccSubType((acc.subType as any) || (acc.name.toLowerCase().includes('pea') ? 'pea' : 'cto'));
+    setAccBankName(acc.bankName || 'BoursoBank');
+    
+    // Find cash portion
+    const cash = acc.cashBalance !== undefined ? acc.cashBalance : acc.balance;
+    setAccCashBalance(cash.toString());
+    setAccTotalDeposits(acc.totalDeposits ? acc.totalDeposits.toString() : '');
+    setAccOpeningDate(acc.openingDate || new Date().toISOString().substring(0, 10));
+    setAutoSyncBalance(true);
+    setShowAddAccountModal(true);
+  };
+
+  // Save / Update / Link Account
+  const handleSaveAccount = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!accName.trim()) {
       alert('Veuillez nommer le compte.');
@@ -266,25 +310,100 @@ export const InvestmentPortfolio: React.FC<InvestmentPortfolioProps> = ({ onView
     const cash = parseFloat(accCashBalance) || 0;
     const deposits = parseFloat(accTotalDeposits) || 0;
 
-    await addAccount({
-      name: accName.trim(),
-      type: accSubType === 'crypto' ? 'crypto' : 'investment',
-      subType: accSubType,
-      balance: cash,
-      currency: 'EUR',
-      color: accSubType === 'pea' ? '#059669' : '#4F46E5',
-      isActive: true,
-      order: accounts.length + 1,
-      bankName: accBankName.trim() || undefined,
-      totalDeposits: deposits,
-      openingDate: accOpeningDate || undefined,
-      description: accSubType === 'pea' ? 'Plan d\'Épargne en Actions' : 'Compte-Titres Ordinaire'
-    });
+    // Calculate current titles valuation in this account
+    const targetAccountId = editingAccount ? editingAccount.id : selectedExistingAccId;
+    const linkedPositions = targetAccountId 
+      ? portfolioMetrics.enrichedPositions.filter(p => p.accountId === targetAccountId)
+      : [];
+    const titlesValuation = linkedPositions.reduce((sum, p) => sum + p.currentValPos, 0);
+    const targetBalance = autoSyncBalance ? (titlesValuation + cash) : cash;
+
+    if (editingAccount) {
+      await updateAccount(editingAccount.id, {
+        name: accName.trim(),
+        type: accSubType === 'crypto' ? 'crypto' : 'investment',
+        subType: accSubType,
+        balance: Math.round(targetBalance * 100) / 100,
+        cashBalance: cash,
+        bankName: accBankName.trim() || undefined,
+        totalDeposits: deposits,
+        openingDate: accOpeningDate || undefined,
+        description: accSubType === 'pea' ? 'Plan d\'Épargne en Actions' : 'Compte-Titres Ordinaire'
+      });
+    } else if (accountModalTab === 'link_existing' && selectedExistingAccId) {
+      const existing = accounts.find(a => a.id === selectedExistingAccId);
+      if (existing) {
+        await updateAccount(existing.id, {
+          name: accName.trim() || existing.name,
+          type: accSubType === 'crypto' ? 'crypto' : 'investment',
+          subType: accSubType,
+          cashBalance: cash || existing.balance,
+          balance: autoSyncBalance ? (titlesValuation + (cash || existing.balance)) : existing.balance,
+          bankName: accBankName.trim() || existing.bankName,
+          totalDeposits: deposits,
+          openingDate: accOpeningDate || undefined,
+        });
+      }
+    } else {
+      await addAccount({
+        name: accName.trim(),
+        type: accSubType === 'crypto' ? 'crypto' : 'investment',
+        subType: accSubType,
+        balance: Math.round(targetBalance * 100) / 100,
+        cashBalance: cash,
+        currency: 'EUR',
+        color: accSubType === 'pea' ? '#059669' : '#4F46E5',
+        isActive: true,
+        order: accounts.length + 1,
+        bankName: accBankName.trim() || undefined,
+        totalDeposits: deposits,
+        openingDate: accOpeningDate || undefined,
+        description: accSubType === 'pea' ? 'Plan d\'Épargne en Actions' : 'Compte-Titres Ordinaire'
+      });
+    }
 
     setShowAddAccountModal(false);
-    setAccName('');
-    setAccCashBalance('');
-    setAccTotalDeposits('');
+    resetAccountForm();
+  };
+
+  // Delete an investment account
+  const handleDeleteAccount = async (acc: BankAccount) => {
+    const linkedCount = investmentPositions.filter(p => p.accountId === acc.id).length;
+    const msg = linkedCount > 0
+      ? `Attention : Le compte "${acc.name}" contient ${linkedCount} position(s). Voulez-vous vraiment le supprimer ?`
+      : `Supprimer le compte "${acc.name}" ?`;
+    if (window.confirm(msg)) {
+      await deleteAccount(acc.id);
+      if (selectedAccountIdFilter === acc.id) {
+        setSelectedAccountIdFilter('all');
+      }
+    }
+  };
+
+  // Synchronize single account balance with portfolio value
+  const syncAccountBalance = async (accId: string) => {
+    const metric = accountsMetrics.find(m => m.account.id === accId);
+    if (!metric) return;
+    try {
+      await updateAccount(accId, {
+        balance: Math.round(metric.totalValuation * 100) / 100,
+        cashBalance: metric.cash
+      });
+    } catch (err) {
+      console.error('Failed to sync account balance:', err);
+    }
+  };
+
+  // Synchronize all investment accounts with their portfolio value
+  const syncAllAccounts = async () => {
+    for (const metric of accountsMetrics) {
+      try {
+        await updateAccount(metric.account.id, {
+          balance: Math.round(metric.totalValuation * 100) / 100,
+          cashBalance: metric.cash
+        });
+      } catch {}
+    }
   };
 
   // ==========================================
@@ -410,9 +529,77 @@ export const InvestmentPortfolio: React.FC<InvestmentPortfolioProps> = ({ onView
     };
   }, [investmentPositions, quotesMap, usdRate, accounts, investmentAccounts, peaAccount, ctoAccount]);
 
-  // Filtered positions based on activeTab, search query, and assetType
+  // Calculate detailed metrics per account
+  const accountsMetrics = useMemo(() => {
+    return investmentAccounts.map(acc => {
+      const accPositions = portfolioMetrics.enrichedPositions.filter(p => p.accountId === acc.id);
+      const titlesValuation = accPositions.reduce((sum, p) => sum + p.currentValPos, 0);
+      const investedAmount = accPositions.reduce((sum, p) => sum + p.investedPos, 0);
+      const gainLossEur = titlesValuation - investedAmount;
+      const gainLossPercent = investedAmount > 0 ? (gainLossEur / investedAmount) * 100 : 0;
+
+      // Cash portion
+      const cash = acc.cashBalance !== undefined 
+        ? acc.cashBalance 
+        : Math.max(0, acc.balance - titlesValuation);
+
+      const totalValuation = titlesValuation + cash;
+      const isSynced = Math.abs(acc.balance - totalValuation) < 0.5;
+
+      const isPea = acc.subType === 'pea' || acc.name.toLowerCase().includes('pea');
+      const isCto = acc.subType === 'cto' || acc.name.toLowerCase().includes('cto');
+      const isCrypto = acc.type === 'crypto' || acc.subType === 'crypto' || acc.name.toLowerCase().includes('crypto');
+
+      const deposits = acc.totalDeposits || 0;
+      const peaCeiling = 150000;
+      const remainingDeposit = Math.max(0, peaCeiling - deposits);
+      const ceilingProgress = (deposits / peaCeiling) * 100;
+
+      let ageYears = 0;
+      let ageMonths = 0;
+      let isMature = false;
+      if (acc.openingDate) {
+        const openDate = new Date(acc.openingDate);
+        const now = new Date();
+        const diffMs = now.getTime() - openDate.getTime();
+        const diffDays = diffMs / (1000 * 60 * 60 * 24);
+        ageYears = Math.floor(diffDays / 365.25);
+        ageMonths = Math.floor((diffDays % 365.25) / 30.4);
+        isMature = diffDays >= (5 * 365.25);
+      }
+
+      return {
+        account: acc,
+        positions: accPositions,
+        positionsCount: accPositions.length,
+        titlesValuation,
+        investedAmount,
+        gainLossEur,
+        gainLossPercent,
+        cash,
+        totalValuation,
+        isSynced,
+        isPea,
+        isCto,
+        isCrypto,
+        deposits,
+        peaCeiling,
+        remainingDeposit,
+        ceilingProgress,
+        ageYears,
+        ageMonths,
+        isMature,
+      };
+    });
+  }, [investmentAccounts, portfolioMetrics.enrichedPositions]);
+
+  // Filtered positions based on activeTab, account filter, search query, and assetType
   const displayedPositions = useMemo(() => {
     let list = portfolioMetrics.enrichedPositions;
+
+    if (selectedAccountIdFilter !== 'all') {
+      list = list.filter(p => p.accountId === selectedAccountIdFilter);
+    }
 
     if (activeTab === 'pea') {
       list = list.filter(p => p.isPea);
@@ -432,7 +619,7 @@ export const InvestmentPortfolio: React.FC<InvestmentPortfolioProps> = ({ onView
     }
 
     return list;
-  }, [portfolioMetrics.enrichedPositions, activeTab, selectedAssetType, searchQuery]);
+  }, [portfolioMetrics.enrichedPositions, selectedAccountIdFilter, activeTab, selectedAssetType, searchQuery]);
 
   return (
     <div className="space-y-6 pb-12 animate-fade-in">
@@ -561,69 +748,213 @@ export const InvestmentPortfolio: React.FC<InvestmentPortfolioProps> = ({ onView
         </div>
       </div>
 
-      {/* PEA FISCAL BANNER / CEILING WIDGET (IF PEA HAS BEEN CREATED OR TARGETED) */}
-      {peaAccount ? (
-        <div className="bg-gradient-to-r from-emerald-50 to-teal-50 dark:from-emerald-950/30 dark:to-teal-950/30 p-5 rounded-2xl border border-emerald-200 dark:border-emerald-800/60 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div className="space-y-1">
-            <div className="flex items-center gap-2">
-              <span className="font-bold text-sm text-emerald-900 dark:text-emerald-200 flex items-center gap-1.5">
-                <ShieldCheck className="h-4 w-4 text-emerald-600" />
-                <span>{peaAccount.name}</span>
-              </span>
-              <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-900/60 text-emerald-800 dark:text-emerald-300">
-                Plafond 150 000 €
-              </span>
-              {peaAccount.openingDate && (
-                <span className="text-[11px] font-medium text-emerald-700 dark:text-emerald-400 flex items-center gap-1">
-                  <Clock className="h-3 w-3" />
-                  <span>
-                    {portfolioMetrics.isPeaMature
-                      ? 'Maturité fiscale 5 ans atteinte (Exonération d\'IR)'
-                      : `Ancienneté : ${portfolioMetrics.peaAgeYears} an(s) et ${portfolioMetrics.peaAgeMonths} mois`}
-                  </span>
-                </span>
-              )}
+      {/* SECTION: MES COMPTES & ENVELOPPES D'INVESTISSEMENT */}
+      <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200/80 dark:border-slate-700 p-5 shadow-xs space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 dark:border-slate-700/80 pb-3">
+          <div className="flex items-center space-x-2.5">
+            <div className="p-2 bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 rounded-xl">
+              <Wallet className="h-5 w-5" />
             </div>
-            <p className="text-xs text-emerald-800 dark:text-emerald-300">
-              Valorisation totale du PEA : <strong>{portfolioMetrics.peaTotal.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €</strong> (dont {portfolioMetrics.peaCash.toLocaleString('fr-FR')} € d'espèces non investies).
-            </p>
+            <div>
+              <div className="flex items-center gap-2">
+                <h2 className="font-bold text-slate-900 dark:text-white text-base">
+                  Mes Comptes & Enveloppes d'Investissement
+                </h2>
+                <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300">
+                  {investmentAccounts.length} compte{investmentAccounts.length > 1 ? 's' : ''}
+                </span>
+              </div>
+              <p className="text-xs text-slate-500">
+                Gérez vos PEA, CTO et comptes crypto • La valeur de chaque compte est reliée directement à vos actions et liquidités
+              </p>
+            </div>
           </div>
 
-          {/* Progress bar of deposits */}
-          <div className="w-full md:w-64 space-y-1.5 shrink-0">
-            <div className="flex justify-between text-[11px] font-bold text-emerald-900 dark:text-emerald-200">
-              <span>Versements : {portfolioMetrics.peaDeposits.toLocaleString('fr-FR')} €</span>
-              <span>Reste : {portfolioMetrics.peaRemainingDeposit.toLocaleString('fr-FR')} €</span>
-            </div>
-            <div className="w-full h-2.5 bg-emerald-200/80 dark:bg-emerald-900/60 rounded-full overflow-hidden">
-              <div
-                className="h-full bg-emerald-600 rounded-full transition-all"
-                style={{ width: `${Math.min(100, Math.max(2, portfolioMetrics.peaCeilingProgress))}%` }}
-              />
-            </div>
+          <div className="flex flex-wrap items-center gap-2 shrink-0">
+            {investmentAccounts.length > 0 && (
+              <button
+                type="button"
+                onClick={syncAllAccounts}
+                title="Met à jour le solde de tous vos comptes dans Pathly pour correspondre exactement à la valeur réelle de vos titres"
+                className="px-3 py-1.5 bg-slate-100 hover:bg-indigo-50 dark:bg-slate-700 dark:hover:bg-indigo-950/40 text-slate-700 dark:text-slate-200 hover:text-indigo-600 rounded-xl text-xs font-bold transition flex items-center gap-1.5 border border-transparent hover:border-indigo-200"
+              >
+                <RefreshCw className="h-3.5 w-3.5" />
+                <span>Tout synchroniser avec Pathly</span>
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={handleOpenAddAccount}
+              className="px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold shadow-xs transition flex items-center gap-1.5"
+            >
+              <Plus className="h-3.5 w-3.5" />
+              <span>Gérer / Ajouter un compte</span>
+            </button>
           </div>
         </div>
-      ) : (
-        <div className="p-4 bg-indigo-50 dark:bg-indigo-950/30 border border-indigo-200 dark:border-indigo-800/60 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
-          <div className="flex items-center space-x-3 text-indigo-950 dark:text-indigo-200">
-            <Sparkles className="h-5 w-5 text-indigo-600 shrink-0" />
-            <div>
-              <strong>Configurez votre PEA dans Pathly :</strong> Suivez votre plafond de versements de 150 000 € et l'horloge fiscale des 5 ans pour vos ETF Monde / Actions françaises.
-            </div>
+
+        {/* Grid of Accounts Cards */}
+        {accountsMetrics.length > 0 ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5">
+            {accountsMetrics.map(metric => {
+              const acc = metric.account;
+              const isSelected = selectedAccountIdFilter === acc.id;
+
+              return (
+                <div
+                  key={acc.id}
+                  onClick={() => setSelectedAccountIdFilter(isSelected ? 'all' : acc.id)}
+                  className={`relative p-4 rounded-xl border transition cursor-pointer flex flex-col justify-between gap-3 ${
+                    isSelected
+                      ? 'border-indigo-500 bg-indigo-50/40 dark:bg-indigo-950/30 ring-2 ring-indigo-500/20'
+                      : 'border-slate-200/80 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-850 hover:border-slate-300 dark:hover:border-slate-600'
+                  }`}
+                >
+                  {/* Top: Name & Badges */}
+                  <div>
+                    <div className="flex items-center justify-between gap-2 mb-1.5">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <span
+                          className="w-2.5 h-2.5 rounded-full shrink-0"
+                          style={{ backgroundColor: acc.color || (metric.isPea ? '#059669' : '#4F46E5') }}
+                        />
+                        <h4 className="font-bold text-slate-900 dark:text-white text-sm truncate" title={acc.name}>
+                          {acc.name}
+                        </h4>
+                      </div>
+                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase shrink-0 ${
+                        metric.isPea
+                          ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/60 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800'
+                          : metric.isCrypto
+                          ? 'bg-amber-100 text-amber-800 dark:bg-amber-900/60 dark:text-amber-300 border border-amber-200 dark:border-amber-800'
+                          : 'bg-indigo-100 text-indigo-800 dark:bg-indigo-900/60 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800'
+                      }`}>
+                        {metric.isPea ? 'PEA' : metric.isCrypto ? 'Crypto' : 'CTO'}
+                      </span>
+                    </div>
+
+                    {acc.bankName && (
+                      <p className="text-[11px] text-slate-500 dark:text-slate-400 mb-2 font-medium">
+                        {acc.bankName}
+                      </p>
+                    )}
+
+                    {/* Valuation Numbers */}
+                    <div className="space-y-1 pt-1">
+                      <div className="flex items-baseline justify-between">
+                        <span className="text-xs text-slate-500 dark:text-slate-400">Valeur totale :</span>
+                        <span className="text-base font-black text-slate-900 dark:text-white">
+                          {metric.totalValuation.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between text-[11px] text-slate-500 pt-0.5 border-t border-slate-200/60 dark:border-slate-700/60">
+                        <span>Titres ({metric.positionsCount}) : <strong>{metric.titlesValuation.toLocaleString('fr-FR', { maximumFractionDigits: 0 })} €</strong></span>
+                        <span>Espèces : <strong>{metric.cash.toLocaleString('fr-FR', { maximumFractionDigits: 0 })} €</strong></span>
+                      </div>
+                    </div>
+
+                    {/* PEA Ceiling & Tax Clock */}
+                    {metric.isPea && (
+                      <div className="mt-3 pt-2.5 border-t border-slate-200/60 dark:border-slate-700/60 space-y-2">
+                        <div className="flex justify-between text-[10px] font-bold text-slate-600 dark:text-slate-300">
+                          <span>Versements : {metric.deposits.toLocaleString('fr-FR')} €</span>
+                          <span>Plafond : {metric.peaCeiling.toLocaleString('fr-FR')} €</span>
+                        </div>
+                        <div className="w-full h-1.5 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
+                          <div
+                            className="h-full bg-emerald-500 rounded-full transition-all"
+                            style={{ width: `${Math.min(100, Math.max(2, metric.ceilingProgress))}%` }}
+                          />
+                        </div>
+                        <div className="flex items-center justify-between text-[10px] text-slate-500">
+                          <span className="flex items-center gap-1">
+                            <Clock className="h-3 w-3 text-emerald-600" />
+                            {acc.openingDate
+                              ? (metric.isMature
+                                  ? <strong className="text-emerald-600 font-bold">Exonération IR (5 ans atteinte)</strong>
+                                  : `Ancienneté : ${metric.ageYears} an(s) ${metric.ageMonths} mois`)
+                              : 'Date d\'ouverture non renseignée'}
+                          </span>
+                          <span className="text-slate-400">
+                            Reste {metric.remainingDeposit.toLocaleString('fr-FR')} €
+                          </span>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Bottom: Sync status & actions */}
+                  <div className="pt-2.5 border-t border-slate-200/60 dark:border-slate-700/60 flex items-center justify-between gap-2" onClick={e => e.stopPropagation()}>
+                    <div>
+                      {metric.isSynced ? (
+                        <span className="inline-flex items-center gap-1 text-[11px] font-medium text-emerald-600 dark:text-emerald-400">
+                          <CheckCircle2 className="h-3 w-3" />
+                          <span>Solde synchronisé</span>
+                        </span>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => syncAccountBalance(acc.id)}
+                          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-bold bg-amber-100 hover:bg-amber-200 text-amber-800 dark:bg-amber-950/60 dark:text-amber-200 transition"
+                          title="Mettre à jour le solde de ce compte dans Pathly pour correspondre à la valeur de vos actions"
+                        >
+                          <RefreshCw className="h-3 w-3" />
+                          <span>Synchroniser ({metric.totalValuation.toLocaleString('fr-FR', { maximumFractionDigits: 0 })} €)</span>
+                        </button>
+                      )}
+                    </div>
+
+                    <div className="flex items-center space-x-1">
+                      <button
+                        type="button"
+                        onClick={() => handleOpenEditAccount(acc)}
+                        className="p-1.5 text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 rounded-lg hover:bg-slate-200/60 dark:hover:bg-slate-700 transition"
+                        title="Gérer / Modifier ce compte"
+                      >
+                        <Edit2 className="h-3.5 w-3.5" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteAccount(acc)}
+                        className="p-1.5 text-slate-400 hover:text-rose-600 rounded-lg hover:bg-slate-200/60 dark:hover:bg-slate-700 transition"
+                        title="Supprimer ce compte"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
           </div>
-          <button
-            type="button"
-            onClick={() => {
-              setAccSubType('pea');
-              setAccName('PEA BoursoBank');
-              setShowAddAccountModal(true);
-            }}
-            className="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold shrink-0 shadow-sm transition"
-          >
-            + Configurer mon PEA
-          </button>
-        </div>
-      )}
+        ) : (
+          <div className="p-6 text-center border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-xl space-y-2">
+            <p className="text-xs text-slate-500">Aucun compte d'investissement configuré.</p>
+            <button
+              type="button"
+              onClick={handleOpenAddAccount}
+              className="px-3.5 py-2 bg-indigo-600 text-white rounded-xl text-xs font-bold shadow-xs hover:bg-indigo-700 transition"
+            >
+              + Configurer mon premier compte (PEA / CTO)
+            </button>
+          </div>
+        )}
+
+        {selectedAccountIdFilter !== 'all' && (
+          <div className="flex items-center justify-between p-2.5 bg-indigo-50 dark:bg-indigo-950/40 rounded-xl text-xs text-indigo-900 dark:text-indigo-200">
+            <span>
+              Affichage filtré sur le compte : <strong>{accounts.find(a => a.id === selectedAccountIdFilter)?.name}</strong>
+            </span>
+            <button
+              type="button"
+              onClick={() => setSelectedAccountIdFilter('all')}
+              className="font-bold underline text-indigo-700 dark:text-indigo-300 hover:text-indigo-900"
+            >
+              Afficher tous les comptes
+            </button>
+          </div>
+        )}
+      </div>
 
       {/* FILTER TABS & SEARCH BAR */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-200 dark:border-slate-700 pb-3">
@@ -1134,10 +1465,10 @@ export const InvestmentPortfolio: React.FC<InvestmentPortfolioProps> = ({ onView
         </div>
       )}
 
-      {/* MODAL: ADD / CONFIGURE INVESTMENT ACCOUNT (PEA / CTO) */}
+      {/* MODAL: MANAGE / ADD / EDIT / LINK INVESTMENT ACCOUNT */}
       {showAddAccountModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
-          <div className="bg-white dark:bg-slate-800 rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200 dark:border-slate-700 space-y-4">
+          <div className="bg-white dark:bg-slate-800 rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200 dark:border-slate-700 space-y-4 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-700">
               <div className="flex items-center space-x-2">
                 <div className="p-2 bg-emerald-100 dark:bg-emerald-950/60 text-emerald-600 rounded-xl">
@@ -1145,21 +1476,79 @@ export const InvestmentPortfolio: React.FC<InvestmentPortfolioProps> = ({ onView
                 </div>
                 <div>
                   <h3 className="font-bold text-slate-900 dark:text-white text-base">
-                    Nouveau compte d'investissement
+                    {editingAccount ? `Gérer le compte : ${editingAccount.name}` : 'Compte d\'investissement'}
                   </h3>
                   <p className="text-xs text-slate-500">PEA, CTO ou Compte Crypto</p>
                 </div>
               </div>
               <button
                 type="button"
-                onClick={() => setShowAddAccountModal(false)}
+                onClick={() => {
+                  setShowAddAccountModal(false);
+                  resetAccountForm();
+                }}
                 className="text-slate-400 hover:text-slate-600 text-sm font-bold p-1"
               >
                 ✕
               </button>
             </div>
 
-            <form onSubmit={handleCreateAccount} className="space-y-3.5">
+            {/* Mode Selector for New Account (Create vs Link Existing) */}
+            {!editingAccount && (
+              <div className="grid grid-cols-2 p-1 bg-slate-100 dark:bg-slate-900/50 rounded-xl text-xs font-bold text-center">
+                <button
+                  type="button"
+                  onClick={() => setAccountModalTab('create')}
+                  className={`py-1.5 rounded-lg transition ${accountModalTab === 'create' ? 'bg-white dark:bg-slate-800 text-indigo-600 dark:text-indigo-400 shadow-xs' : 'text-slate-500'}`}
+                >
+                  Nouveau compte
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setAccountModalTab('link_existing')}
+                  className={`py-1.5 rounded-lg transition ${accountModalTab === 'link_existing' ? 'bg-white dark:bg-slate-800 text-indigo-600 dark:text-indigo-400 shadow-xs' : 'text-slate-500'}`}
+                >
+                  Associer un compte existant
+                </button>
+              </div>
+            )}
+
+            <form onSubmit={handleSaveAccount} className="space-y-3.5">
+              {/* If linking existing account */}
+              {!editingAccount && accountModalTab === 'link_existing' && (
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">
+                    Sélectionner le compte existant dans Pathly *
+                  </label>
+                  <select
+                    required
+                    value={selectedExistingAccId}
+                    onChange={e => {
+                      const id = e.target.value;
+                      setSelectedExistingAccId(id);
+                      const acc = accounts.find(a => a.id === id);
+                      if (acc) {
+                        setAccName(acc.name);
+                        setAccBankName(acc.bankName || '');
+                        setAccCashBalance((acc.cashBalance ?? acc.balance).toString());
+                        if (acc.name.toLowerCase().includes('pea')) setAccSubType('pea');
+                        else if (acc.name.toLowerCase().includes('cto')) setAccSubType('cto');
+                        else if (acc.type === 'crypto') setAccSubType('crypto');
+                      }
+                    }}
+                    className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900/50 border border-slate-300 dark:border-slate-600 rounded-xl text-xs font-semibold dark:text-white"
+                  >
+                    <option value="">-- Choisir un compte existant --</option>
+                    {accounts.map(a => (
+                      <option key={a.id} value={a.id}>
+                        {a.name} ({a.type}) - {a.balance.toFixed(2)} €
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              {/* Envelope Type */}
               <div>
                 <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">
                   Type d'enveloppe fiscale *
@@ -1169,7 +1558,7 @@ export const InvestmentPortfolio: React.FC<InvestmentPortfolioProps> = ({ onView
                     type="button"
                     onClick={() => {
                       setAccSubType('pea');
-                      setAccName('PEA BoursoBank');
+                      if (!accName || accName.includes('CTO') || accName.includes('Crypto')) setAccName('PEA BoursoBank');
                     }}
                     className={`p-2.5 rounded-xl border text-left text-xs font-bold transition ${
                       accSubType === 'pea'
@@ -1185,7 +1574,7 @@ export const InvestmentPortfolio: React.FC<InvestmentPortfolioProps> = ({ onView
                     type="button"
                     onClick={() => {
                       setAccSubType('cto');
-                      setAccName('CTO Trade Republic');
+                      if (!accName || accName.includes('PEA') || accName.includes('Crypto')) setAccName('CTO Trade Republic');
                     }}
                     className={`p-2.5 rounded-xl border text-left text-xs font-bold transition ${
                       accSubType === 'cto'
@@ -1201,7 +1590,7 @@ export const InvestmentPortfolio: React.FC<InvestmentPortfolioProps> = ({ onView
                     type="button"
                     onClick={() => {
                       setAccSubType('crypto');
-                      setAccName('Portefeuille Crypto');
+                      if (!accName || accName.includes('PEA') || accName.includes('CTO')) setAccName('Portefeuille Crypto');
                     }}
                     className={`p-2.5 rounded-xl border text-left text-xs font-bold transition ${
                       accSubType === 'crypto'
@@ -1225,7 +1614,7 @@ export const InvestmentPortfolio: React.FC<InvestmentPortfolioProps> = ({ onView
                   value={accName}
                   onChange={e => setAccName(e.target.value)}
                   className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900/50 border border-slate-300 dark:border-slate-600 rounded-xl text-xs font-semibold dark:text-white"
-                  placeholder="Ex: PEA BoursoBank, Fortuneo..."
+                  placeholder="Ex: PEA BoursoBank, Fortuneo, Bourse Direct..."
                 />
               </div>
 
@@ -1238,22 +1627,23 @@ export const InvestmentPortfolio: React.FC<InvestmentPortfolioProps> = ({ onView
                   value={accBankName}
                   onChange={e => setAccBankName(e.target.value)}
                   className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900/50 border border-slate-300 dark:border-slate-600 rounded-xl text-xs font-semibold dark:text-white"
-                  placeholder="Ex: BoursoBank, Trade Republic, Bourse Direct..."
+                  placeholder="Ex: BoursoBank, Trade Republic, Bourse Direct, Fortuneo..."
                 />
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">
-                    Solde espèces (€)
+                    Poche espèces (€)
+                    <span className="block text-[10px] text-slate-400 font-normal">Liquidités non investies</span>
                   </label>
                   <input
                     type="number"
-                    step="10"
+                    step="any"
                     min="0"
                     value={accCashBalance}
                     onChange={e => setAccCashBalance(e.target.value)}
-                    className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900/50 border border-slate-300 dark:border-slate-600 rounded-xl text-xs font-semibold dark:text-white"
+                    className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900/50 border border-slate-300 dark:border-slate-600 rounded-xl text-xs font-bold dark:text-white"
                     placeholder="0"
                   />
                 </div>
@@ -1261,14 +1651,15 @@ export const InvestmentPortfolio: React.FC<InvestmentPortfolioProps> = ({ onView
                 <div>
                   <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">
                     Versements cumulés (€)
+                    <span className="block text-[10px] text-slate-400 font-normal">Pour le plafond des 150k€</span>
                   </label>
                   <input
                     type="number"
-                    step="100"
+                    step="any"
                     min="0"
                     value={accTotalDeposits}
                     onChange={e => setAccTotalDeposits(e.target.value)}
-                    className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900/50 border border-slate-300 dark:border-slate-600 rounded-xl text-xs font-semibold dark:text-white"
+                    className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900/50 border border-slate-300 dark:border-slate-600 rounded-xl text-xs font-bold dark:text-white"
                     placeholder="Total versé"
                   />
                 </div>
@@ -1277,7 +1668,8 @@ export const InvestmentPortfolio: React.FC<InvestmentPortfolioProps> = ({ onView
               {accSubType === 'pea' && (
                 <div>
                   <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">
-                    Date d'ouverture du PEA (pour les 5 ans)
+                    Date d'ouverture du PEA
+                    <span className="block text-[10px] text-slate-400 font-normal">Nécessaire pour le calcul exact des 5 ans d'ancienneté fiscale</span>
                   </label>
                   <input
                     type="date"
@@ -1288,19 +1680,42 @@ export const InvestmentPortfolio: React.FC<InvestmentPortfolioProps> = ({ onView
                 </div>
               )}
 
+              {/* Automatic valuation synchronization checkbox */}
+              <div className="p-3 bg-indigo-50/70 dark:bg-indigo-950/40 rounded-xl border border-indigo-100 dark:border-indigo-900/60">
+                <label className="flex items-start gap-2.5 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={autoSyncBalance}
+                    onChange={e => setAutoSyncBalance(e.target.checked)}
+                    className="w-4 h-4 text-indigo-600 rounded focus:ring-indigo-500 mt-0.5 cursor-pointer"
+                  />
+                  <div className="text-xs">
+                    <span className="font-bold text-indigo-950 dark:text-indigo-200 block">
+                      Relier la valeur du compte dans Pathly au portefeuille
+                    </span>
+                    <span className="text-slate-500 dark:text-slate-400 text-[11px]">
+                      Le solde du compte dans Pathly prendra automatiquement la valeur globale (Titres détenus + Poche espèces).
+                    </span>
+                  </div>
+                </label>
+              </div>
+
               <div className="flex justify-end space-x-2 pt-2">
                 <button
                   type="button"
-                  onClick={() => setShowAddAccountModal(false)}
+                  onClick={() => {
+                    setShowAddAccountModal(false);
+                    resetAccountForm();
+                  }}
                   className="px-4 py-2 text-xs font-semibold text-slate-600 dark:text-slate-400 hover:bg-slate-100 rounded-xl transition"
                 >
                   Annuler
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold shadow-md transition"
+                  className="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold shadow-md transition"
                 >
-                  Créer le compte
+                  {editingAccount ? 'Enregistrer les modifications' : 'Ajouter le compte'}
                 </button>
               </div>
             </form>

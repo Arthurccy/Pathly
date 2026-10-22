@@ -61,6 +61,10 @@ export interface BankAccount {
   gocardlessAccountId?: string;
   gocardlessInstitutionId?: string;
   lastSyncedAt?: string;
+  subType?: 'pea' | 'cto' | 'crypto' | string;
+  totalDeposits?: number;
+  openingDate?: string;
+  cashBalance?: number;
 }
 
 export interface Transaction {
