@@ -86,25 +86,19 @@ interface AssetManagerProps {
 }
 
 const AssetManager: React.FC<AssetManagerProps> = ({ onViewChange }) => {
-  const { assets, addAsset, updateAsset, deleteAsset, debts, accounts, addDebt } = useBudget();
-  const { user } = useAuth();
+  const { assets, addAsset, updateAsset, deleteAsset, debts, accounts, addDebt, realEstatePlans } = useBudget();
 
   const [activeCategoryFilter, setActiveCategoryFilter] = useState<string>('all');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingAsset, setEditingAsset] = useState<PhysicalAsset | null>(null);
 
-  // Real estate project in progress (from RealEstatePlanner)
+  // Active real estate project in progress (only if configured and propertyPrice > 0)
   const plannedRealEstatePlan = useMemo(() => {
-    try {
-      const storageKey = `pathly_real_estate_plans_${user?.id || 'guest'}`;
-      const saved = localStorage.getItem(storageKey);
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed[0];
-      }
-    } catch {}
+    if (realEstatePlans && realEstatePlans.length > 0 && realEstatePlans[0].propertyPrice > 0) {
+      return realEstatePlans[0];
+    }
     return null;
-  }, [user?.id]);
+  }, [realEstatePlans]);
 
   // Form State
   const [formData, setFormData] = useState({

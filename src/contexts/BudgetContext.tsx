@@ -16,7 +16,8 @@ import {
   ExportOptions,
   SimulatedEvent,
   HouseholdConfig,
-  PhysicalAsset
+  PhysicalAsset,
+  RealEstatePlan
 } from '../types';
 import { useAuth } from './AuthContext';
 import { supabaseService } from '../services/supabaseService';
@@ -393,6 +394,46 @@ export const BudgetProvider: React.FC<BudgetProviderProps> = ({ children }) => {
   };
 
   const totalAssetsValue = assets.reduce((sum, a) => sum + (Number(a.currentValue) || 0), 0);
+
+  // --- REAL ESTATE PLANS PERSISTENCE (Supabase + localStorage) ---
+  const [realEstatePlans, setRealEstatePlansState] = useState<RealEstatePlan[]>(() => {
+    try {
+      const saved = localStorage.getItem('pathly_real_estate_plans');
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
+
+  useEffect(() => {
+    if (user?.user_metadata?.pathly_real_estate_plans) {
+      const dbPlans = user.user_metadata.pathly_real_estate_plans;
+      if (Array.isArray(dbPlans)) {
+        setRealEstatePlansState(dbPlans);
+        try {
+          localStorage.setItem('pathly_real_estate_plans', JSON.stringify(dbPlans));
+        } catch {}
+      }
+    }
+  }, [user?.id, user?.user_metadata?.pathly_real_estate_plans]);
+
+  const saveRealEstatePlans = async (newPlans: RealEstatePlan[]) => {
+    setRealEstatePlansState(newPlans);
+    try {
+      localStorage.setItem('pathly_real_estate_plans', JSON.stringify(newPlans));
+    } catch (e) {
+      console.error('Failed to save real estate plans to localStorage:', e);
+    }
+    if (user) {
+      try {
+        await supabase.auth.updateUser({
+          data: { pathly_real_estate_plans: newPlans }
+        });
+      } catch (err) {
+        console.error('Failed to save real estate plans to Supabase:', err);
+      }
+    }
+  };
 
   // --- ONE TIME CLEANUP ---
   useEffect(() => {
@@ -2209,6 +2250,10 @@ export const BudgetProvider: React.FC<BudgetProviderProps> = ({ children }) => {
       updateAsset,
       deleteAsset,
       totalAssetsValue,
+
+      // Real Estate Plans / Projets Immobiliers (Persistance Supabase)
+      realEstatePlans,
+      saveRealEstatePlans,
 
       reloadAll,
     }}>

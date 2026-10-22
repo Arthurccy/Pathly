@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   Home,
   Calculator,
@@ -27,8 +27,6 @@ import {
   TrendingUp,
   Tag
 } from 'lucide-react';
-import { format } from 'date-fns';
-import { fr } from 'date-fns/locale';
 import { useBudget } from '../contexts/BudgetContext';
 import { useAuth } from '../contexts/AuthContext';
 import { RealEstatePlan, SalaryEvolution } from '../types';
@@ -37,86 +35,54 @@ interface RealEstatePlannerProps {
   onViewChange?: (view: string) => void;
 }
 
-const defaultPlan: RealEstatePlan = {
-  id: 'plan-1',
-  name: 'Maison principale',
-  targetDate: '2027-06',
-  propertyType: 'old',
-  propertyPrice: 280000,
-  notaryFeesRate: 7.5,
-  notaryFeesAmount: 21000,
-  useCustomNotaryFees: false,
-  agencyFees: 0,
-  renovationBudget: 15000,
-  bankGuaranteeFees: 2500,
+const createBlankPlan = (id: string, name: string, buyerAName: string, buyerAIncome: number, buyerBName: string, buyerBIncome: number): RealEstatePlan => {
+  const nextYear = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString().substring(0, 7);
+  return {
+    id,
+    name,
+    targetDate: nextYear,
+    propertyType: 'old',
+    propertyPrice: 0,
+    notaryFeesRate: 7.5,
+    notaryFeesAmount: 0,
+    useCustomNotaryFees: false,
+    agencyFees: 0,
+    renovationBudget: 0,
+    bankGuaranteeFees: 0,
 
-  buyerAName: 'Moi',
-  buyerAIncome: 2173,
-  buyerAContribution: 30000,
-  buyerBName: 'Conjoint(e)',
-  buyerBIncome: 1639,
-  buyerBContribution: 15000,
-  salaryEvolutions: [
-    {
-      id: 'evo-1',
-      borrower: 'buyerA',
-      date: '2027-01',
-      newIncome: 2500,
-      note: 'Évolution de poste prévue'
-    },
-    {
-      id: 'evo-2',
-      borrower: 'buyerB',
-      date: '2028-01',
-      newIncome: 2000,
-      note: 'Augmentation prévue'
-    }
-  ],
+    buyerAName,
+    buyerAIncome,
+    buyerAContribution: 0,
+    buyerBName,
+    buyerBIncome,
+    buyerBContribution: 0,
+    salaryEvolutions: [],
 
-  ownershipSplitMode: 'pro_rata_total',
-  customOwnershipRatioA: 60,
+    ownershipSplitMode: 'pro_rata_total',
+    customOwnershipRatioA: 50,
 
-  hasPtz: true,
-  ptzAmount: 60000,
-  ptzDurationYears: 20,
-  ptzDeferredYears: 5,
-  ptzInsuranceRate: 0.30,
+    hasPtz: false,
+    ptzAmount: 0,
+    ptzDurationYears: 20,
+    ptzDeferredYears: 0,
+    ptzInsuranceRate: 0.30,
 
-  mainLoanDurationYears: 25,
-  mainLoanInterestRate: 3.40,
-  mainLoanInsuranceRate: 0.34,
+    mainLoanDurationYears: 25,
+    mainLoanInterestRate: 3.40,
+    mainLoanInsuranceRate: 0.34,
 
-  monthlySplitMode: 'pro_rata_income',
-  customMonthlyRatioA: 55,
+    monthlySplitMode: 'pro_rata_income',
+    customMonthlyRatioA: 50,
+  };
 };
 
 const RealEstatePlanner: React.FC<RealEstatePlannerProps> = ({ onViewChange }) => {
-  const { householdConfig, addAsset, addDebt } = useBudget();
+  const { householdConfig, addAsset, addDebt, realEstatePlans, saveRealEstatePlans } = useBudget();
   const { user } = useAuth();
-  const storageKey = `pathly_real_estate_plans_${user?.id || 'guest'}`;
 
-  // State for plans
-  const [plans, setPlans] = useState<RealEstatePlan[]>(() => {
-    try {
-      const saved = localStorage.getItem(storageKey);
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
-      }
-    } catch (e) {
-      console.error('Failed to parse real estate plans', e);
-    }
-
-    // Initialize with householdConfig defaults if available
-    const init = { ...defaultPlan };
-    if (householdConfig?.userA?.name) init.buyerAName = householdConfig.userA.name;
-    if (householdConfig?.userA?.income) init.buyerAIncome = householdConfig.userA.income;
-    if (householdConfig?.userB?.name) init.buyerBName = householdConfig.userB.name;
-    if (householdConfig?.userB?.income) init.buyerBIncome = householdConfig.userB.income;
-    return [init];
+  const [activePlanId, setActivePlanId] = useState<string>(() => {
+    return realEstatePlans[0]?.id || '';
   });
-
-  const [activePlanId, setActivePlanId] = useState<string>(plans[0]?.id || 'plan-1');
   const [showIntegrateModal, setShowIntegrateModal] = useState(false);
   const [integratedSuccess, setIntegratedSuccess] = useState(false);
   const [activeTab, setActiveTab] = useState<'project' | 'borrowers' | 'loans' | 'analysis'>('project');
@@ -128,55 +94,58 @@ const RealEstatePlanner: React.FC<RealEstatePlannerProps> = ({ onViewChange }) =
   const [newEvoNote, setNewEvoNote] = useState<string>('');
   const [showAddEvoForm, setShowAddEvoForm] = useState(false);
 
-  // Save to localStorage whenever plans change
-  useEffect(() => {
-    try {
-      localStorage.setItem(storageKey, JSON.stringify(plans));
-    } catch (e) {
-      console.error('Failed to save real estate plans to localStorage', e);
-    }
-  }, [plans, storageKey]);
-
   const currentPlan = useMemo(() => {
-    return plans.find(p => p.id === activePlanId) || plans[0] || defaultPlan;
-  }, [plans, activePlanId]);
+    if (!realEstatePlans || realEstatePlans.length === 0) return null;
+    return realEstatePlans.find(p => p.id === activePlanId) || realEstatePlans[0];
+  }, [realEstatePlans, activePlanId]);
 
-  const updateCurrentPlan = (updates: Partial<RealEstatePlan>) => {
-    setPlans(prev => prev.map(p => p.id === currentPlan.id ? { ...p, ...updates } : p));
+  const updateCurrentPlan = async (updates: Partial<RealEstatePlan>) => {
+    if (!currentPlan) return;
+    const updated = realEstatePlans.map(p => p.id === currentPlan.id ? { ...p, ...updates } : p);
+    await saveRealEstatePlans(updated);
   };
 
-  const handleAddNewPlan = () => {
+  const handleCreateFirstPlan = async () => {
+    const defaultNameA = householdConfig?.userA?.name || user?.user_metadata?.name || 'Moi';
+    const defaultIncomeA = householdConfig?.userA?.income || 0;
+    const defaultNameB = householdConfig?.userB?.name || 'Conjoint(e)';
+    const defaultIncomeB = householdConfig?.userB?.income || 0;
+
     const newId = `plan-${Date.now()}`;
-    const newPlan: RealEstatePlan = {
-      ...defaultPlan,
-      id: newId,
-      name: `Projet ${plans.length + 1}`,
-      targetDate: '2027-06',
-      buyerAName: householdConfig?.userA?.name || user?.user_metadata?.name || 'Moi',
-      buyerAIncome: householdConfig?.userA?.income || 2173,
-      buyerBName: householdConfig?.userB?.name || 'Conjoint(e)',
-      buyerBIncome: householdConfig?.userB?.income || 1639,
-      salaryEvolutions: [],
-    };
-    setPlans(prev => [...prev, newPlan]);
+    const newPlan = createBlankPlan(newId, 'Mon Projet Immobilier', defaultNameA, defaultIncomeA, defaultNameB, defaultIncomeB);
+    await saveRealEstatePlans([newPlan]);
     setActivePlanId(newId);
   };
 
-  const handleDeletePlan = (id: string) => {
-    if (plans.length <= 1) {
-      alert('Vous devez conserver au moins un scénario de projet immobilier.');
-      return;
-    }
-    if (confirm('Voulez-vous vraiment supprimer ce scénario ?')) {
-      const remaining = plans.filter(p => p.id !== id);
-      setPlans(remaining);
-      setActivePlanId(remaining[0].id);
+  const handleAddNewPlan = async () => {
+    const defaultNameA = householdConfig?.userA?.name || user?.user_metadata?.name || 'Moi';
+    const defaultIncomeA = householdConfig?.userA?.income || 0;
+    const defaultNameB = householdConfig?.userB?.name || 'Conjoint(e)';
+    const defaultIncomeB = householdConfig?.userB?.income || 0;
+
+    const newId = `plan-${Date.now()}`;
+    const newPlan = createBlankPlan(newId, `Projet ${realEstatePlans.length + 1}`, defaultNameA, defaultIncomeA, defaultNameB, defaultIncomeB);
+    await saveRealEstatePlans([...realEstatePlans, newPlan]);
+    setActivePlanId(newId);
+  };
+
+  const handleDeletePlan = async (id: string) => {
+    if (confirm('Voulez-vous vraiment supprimer ce projet immobilier ?')) {
+      const remaining = realEstatePlans.filter(p => p.id !== id);
+      await saveRealEstatePlans(remaining);
+      if (remaining.length > 0) {
+        setActivePlanId(remaining[0].id);
+      } else {
+        setActivePlanId('');
+      }
     }
   };
 
   // Add a salary evolution to the current plan
-  const handleAddSalaryEvolution = (e: React.FormEvent) => {
+  const handleAddSalaryEvolution = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!currentPlan) return;
+
     const incomeVal = parseFloat(newEvoIncome);
     if (!incomeVal || incomeVal <= 0 || !newEvoDate) {
       alert('Veuillez renseigner une date et un montant de salaire valide.');
@@ -192,7 +161,7 @@ const RealEstatePlanner: React.FC<RealEstatePlannerProps> = ({ onViewChange }) =
     };
 
     const currentEvos = currentPlan.salaryEvolutions || [];
-    updateCurrentPlan({
+    await updateCurrentPlan({
       salaryEvolutions: [...currentEvos, newEvo],
     });
 
@@ -201,9 +170,10 @@ const RealEstatePlanner: React.FC<RealEstatePlannerProps> = ({ onViewChange }) =
     setShowAddEvoForm(false);
   };
 
-  const handleDeleteSalaryEvolution = (id: string) => {
+  const handleDeleteSalaryEvolution = async (id: string) => {
+    if (!currentPlan) return;
     const currentEvos = currentPlan.salaryEvolutions || [];
-    updateCurrentPlan({
+    await updateCurrentPlan({
       salaryEvolutions: currentEvos.filter(e => e.id !== id),
     });
   };
@@ -212,8 +182,9 @@ const RealEstatePlanner: React.FC<RealEstatePlannerProps> = ({ onViewChange }) =
   // FINANCIAL CALCULATIONS WITH FUTURE SALARY
   // ==========================================
   const calculations = useMemo(() => {
+    if (!currentPlan) return null;
     const p = currentPlan;
-    const projectTargetDate = p.targetDate || '2027-06';
+    const projectTargetDate = p.targetDate || new Date().toISOString().substring(0, 7);
 
     // 1. Compute effective salary at project target date
     const getEffectiveIncome = (borrower: 'buyerA' | 'buyerB', baseIncome: number) => {
@@ -225,46 +196,44 @@ const RealEstatePlanner: React.FC<RealEstatePlannerProps> = ({ onViewChange }) =
       return evos[evos.length - 1].newIncome;
     };
 
-    const effectiveIncomeA = getEffectiveIncome('buyerA', p.buyerAIncome);
-    const effectiveIncomeB = getEffectiveIncome('buyerB', p.buyerBIncome);
+    const effectiveIncomeA = getEffectiveIncome('buyerA', p.buyerAIncome || 0);
+    const effectiveIncomeB = getEffectiveIncome('buyerB', p.buyerBIncome || 0);
     const totalEffectiveIncome = effectiveIncomeA + effectiveIncomeB;
 
-    // Has salary changed between base and target date?
-    const hasIncomeChangedA = effectiveIncomeA !== p.buyerAIncome;
-    const hasIncomeChangedB = effectiveIncomeB !== p.buyerBIncome;
+    const hasIncomeChangedA = effectiveIncomeA !== (p.buyerAIncome || 0);
+    const hasIncomeChangedB = effectiveIncomeB !== (p.buyerBIncome || 0);
 
     // 2. Notary fees
-    const calculatedNotaryFees = Math.round(p.propertyPrice * (p.notaryFeesRate / 100));
-    const finalNotaryFees = p.useCustomNotaryFees ? p.notaryFeesAmount : calculatedNotaryFees;
+    const calculatedNotaryFees = Math.round((p.propertyPrice || 0) * ((p.notaryFeesRate || 7.5) / 100));
+    const finalNotaryFees = p.useCustomNotaryFees ? (p.notaryFeesAmount || 0) : calculatedNotaryFees;
 
     // 3. Total operation cost
-    const totalCost = p.propertyPrice + finalNotaryFees + p.agencyFees + p.renovationBudget + p.bankGuaranteeFees;
+    const totalCost = (p.propertyPrice || 0) + finalNotaryFees + (p.agencyFees || 0) + (p.renovationBudget || 0) + (p.bankGuaranteeFees || 0);
 
     // 4. Total down payment (apports)
-    const totalContribution = p.buyerAContribution + p.buyerBContribution;
-    const contributionRatioA = totalContribution > 0 ? (p.buyerAContribution / totalContribution) * 100 : 50;
+    const totalContribution = (p.buyerAContribution || 0) + (p.buyerBContribution || 0);
+    const contributionRatioA = totalContribution > 0 ? ((p.buyerAContribution || 0) / totalContribution) * 100 : 50;
     const contributionRatioB = 100 - contributionRatioA;
 
     // 5. Amount to borrow
     const totalBorrowing = Math.max(0, totalCost - totalContribution);
 
     // 6. PTZ (Prêt à Taux Zéro)
-    const ptzPrincipal = p.hasPtz ? Math.min(p.ptzAmount, totalBorrowing) : 0;
-    const ptzDurationMonths = p.ptzDurationYears * 12;
-    const ptzDeferredMonths = p.ptzDeferredYears * 12;
+    const ptzPrincipal = p.hasPtz ? Math.min(p.ptzAmount || 0, totalBorrowing) : 0;
+    const ptzDurationMonths = (p.ptzDurationYears || 20) * 12;
+    const ptzDeferredMonths = (p.ptzDeferredYears || 0) * 12;
     const ptzAmortizationMonths = Math.max(1, ptzDurationMonths - ptzDeferredMonths);
 
-    const ptzMonthlyInsurance = ptzPrincipal > 0 ? (ptzPrincipal * (p.ptzInsuranceRate / 100)) / 12 : 0;
+    const ptzMonthlyInsurance = ptzPrincipal > 0 ? (ptzPrincipal * ((p.ptzInsuranceRate || 0.3) / 100)) / 12 : 0;
     const ptzMonthlyCapital = ptzPrincipal > 0 ? ptzPrincipal / ptzAmortizationMonths : 0;
 
-    // Phase 1 (during deferral) & Phase 2 (after deferral)
     const ptzMonthlyDuringDeferral = ptzMonthlyInsurance;
     const ptzMonthlyAfterDeferral = ptzMonthlyCapital + ptzMonthlyInsurance;
 
     // 7. Main Loan (Classique)
     const mainLoanPrincipal = Math.max(0, totalBorrowing - ptzPrincipal);
-    const mainLoanDurationMonths = p.mainLoanDurationYears * 12;
-    const monthlyRate = (p.mainLoanInterestRate / 100) / 12;
+    const mainLoanDurationMonths = (p.mainLoanDurationYears || 25) * 12;
+    const monthlyRate = ((p.mainLoanInterestRate || 3.4) / 100) / 12;
 
     const mainLoanMonthlyCapitalInterest = mainLoanPrincipal > 0
       ? (monthlyRate > 0
@@ -273,15 +242,15 @@ const RealEstatePlanner: React.FC<RealEstatePlannerProps> = ({ onViewChange }) =
       : 0;
 
     const mainLoanMonthlyInsurance = mainLoanPrincipal > 0
-      ? (mainLoanPrincipal * (p.mainLoanInsuranceRate / 100)) / 12
+      ? (mainLoanPrincipal * ((p.mainLoanInsuranceRate || 0.34) / 100)) / 12
       : 0;
 
     const mainLoanMonthlyTotal = mainLoanMonthlyCapitalInterest + mainLoanMonthlyInsurance;
 
     // 8. Global monthly payment
-    const totalMonthlyPhase1 = mainLoanMonthlyTotal + (p.hasPtz ? (p.ptzDeferredYears > 0 ? ptzMonthlyDuringDeferral : ptzMonthlyAfterDeferral) : 0);
+    const totalMonthlyPhase1 = mainLoanMonthlyTotal + (p.hasPtz ? ((p.ptzDeferredYears || 0) > 0 ? ptzMonthlyDuringDeferral : ptzMonthlyAfterDeferral) : 0);
     const totalMonthlyPhase2 = mainLoanMonthlyTotal + (p.hasPtz ? ptzMonthlyAfterDeferral : 0);
-    const representativeMonthly = p.hasPtz && p.ptzDeferredYears > 0 ? totalMonthlyPhase2 : totalMonthlyPhase1;
+    const representativeMonthly = p.hasPtz && (p.ptzDeferredYears || 0) > 0 ? totalMonthlyPhase2 : totalMonthlyPhase1;
 
     // 9. Total cost of credit
     const totalMainLoanInterests = (mainLoanMonthlyCapitalInterest * mainLoanDurationMonths) - mainLoanPrincipal;
@@ -298,10 +267,10 @@ const RealEstatePlanner: React.FC<RealEstatePlannerProps> = ({ onViewChange }) =
       ratioMonthlyA = totalEffectiveIncome > 0 ? Math.round((effectiveIncomeA / totalEffectiveIncome) * 1000) / 10 : 50;
     } else if (p.monthlySplitMode === 'ownership_ratio') {
       ratioMonthlyA = p.ownershipSplitMode === 'custom'
-        ? p.customOwnershipRatioA
+        ? (p.customOwnershipRatioA || 50)
         : 50;
     } else if (p.monthlySplitMode === 'custom') {
-      ratioMonthlyA = p.customMonthlyRatioA;
+      ratioMonthlyA = p.customMonthlyRatioA || 50;
     }
 
     const ratioMonthlyB = Math.round((100 - ratioMonthlyA) * 10) / 10;
@@ -325,21 +294,20 @@ const RealEstatePlanner: React.FC<RealEstatePlannerProps> = ({ onViewChange }) =
     const totalRepaidByA = totalRepaidOverTime * (ratioMonthlyA / 100);
     const totalRepaidByB = totalRepaidOverTime * (ratioMonthlyB / 100);
 
-    const totalEffortA = p.buyerAContribution + totalRepaidByA;
-    const totalEffortB = p.buyerBContribution + totalRepaidByB;
+    const totalEffortA = (p.buyerAContribution || 0) + totalRepaidByA;
+    const totalEffortB = (p.buyerBContribution || 0) + totalRepaidByB;
     const grandTotalEffort = totalEffortA + totalEffortB;
 
     const equitableRatioA = grandTotalEffort > 0 ? Math.round((totalEffortA / grandTotalEffort) * 1000) / 10 : 50;
     const equitableRatioB = Math.round((100 - equitableRatioA) * 10) / 10;
 
-    // Official ownership ratio selected
     let officialRatioA = 50;
     if (p.ownershipSplitMode === 'pro_rata_total') {
       officialRatioA = equitableRatioA;
     } else if (p.ownershipSplitMode === '50_50') {
       officialRatioA = 50;
     } else {
-      officialRatioA = p.customOwnershipRatioA;
+      officialRatioA = p.customOwnershipRatioA || 50;
     }
     const officialRatioB = Math.round((100 - officialRatioA) * 10) / 10;
 
@@ -392,12 +360,14 @@ const RealEstatePlanner: React.FC<RealEstatePlannerProps> = ({ onViewChange }) =
 
   // Integration into Pathly
   const handleIntegrateIntoPathly = async () => {
+    if (!currentPlan || !calculations) return;
+
     try {
       await addAsset({
         name: currentPlan.name || 'Maison principale',
         category: 'real_estate',
-        purchasePrice: currentPlan.propertyPrice,
-        currentValue: currentPlan.propertyPrice,
+        purchasePrice: currentPlan.propertyPrice || 0,
+        currentValue: currentPlan.propertyPrice || 0,
         purchaseDate: `${currentPlan.targetDate || '2027-06'}-01`,
         notes: `Achat prévu pour ${currentPlan.targetDate || '2027-06'}. Apport global: ${calculations.totalContribution.toLocaleString('fr-FR')} €. Quote-part notariée: ${currentPlan.buyerAName} (${calculations.officialRatioA}%) / ${currentPlan.buyerBName} (${calculations.officialRatioB}%).`,
       });
@@ -407,11 +377,11 @@ const RealEstatePlanner: React.FC<RealEstatePlannerProps> = ({ onViewChange }) =
           name: `Prêt Immo Principal - ${currentPlan.name}`,
           totalAmount: calculations.mainLoanPrincipal,
           remainingAmount: calculations.mainLoanPrincipal,
-          interestRate: currentPlan.mainLoanInterestRate,
+          interestRate: currentPlan.mainLoanInterestRate || 3.4,
           minimumPayment: Math.round(calculations.mainLoanMonthlyTotal * 100) / 100,
           type: 'mortgage',
           dueDate: `${currentPlan.targetDate || '2027-06'}-01`,
-          description: `Prêt immobilier sur ${currentPlan.mainLoanDurationYears} ans (${currentPlan.mainLoanInterestRate}% + assurance). Mensualité: ${calculations.mainLoanMonthlyTotal.toFixed(2)} €/mois.`,
+          description: `Prêt immobilier sur ${currentPlan.mainLoanDurationYears || 25} ans (${currentPlan.mainLoanInterestRate}% + assurance). Mensualité: ${calculations.mainLoanMonthlyTotal.toFixed(2)} €/mois.`,
         });
       }
 
@@ -424,7 +394,7 @@ const RealEstatePlanner: React.FC<RealEstatePlannerProps> = ({ onViewChange }) =
           minimumPayment: Math.round(calculations.ptzMonthlyAfterDeferral * 100) / 100,
           type: 'mortgage',
           dueDate: `${currentPlan.targetDate || '2027-06'}-01`,
-          description: `PTZ 0% sur ${currentPlan.ptzDurationYears} ans (${currentPlan.ptzDeferredYears} ans de différé). Mensualité: ${calculations.ptzMonthlyAfterDeferral.toFixed(2)} €/mois.`,
+          description: `PTZ 0% sur ${currentPlan.ptzDurationYears || 20} ans (${currentPlan.ptzDeferredYears || 0} ans de différé). Mensualité: ${calculations.ptzMonthlyAfterDeferral.toFixed(2)} €/mois.`,
         });
       }
 
@@ -438,6 +408,33 @@ const RealEstatePlanner: React.FC<RealEstatePlannerProps> = ({ onViewChange }) =
       alert('Une erreur est survenue lors de la création du bien et des crédits.');
     }
   };
+
+  // EMPTY STATE IF NO REAL ESTATE PLAN EXISTS YET
+  if (!currentPlan || !calculations) {
+    return (
+      <div className="bg-white dark:bg-slate-800 rounded-3xl border border-slate-200 dark:border-slate-700 p-8 sm:p-12 text-center max-w-2xl mx-auto my-12 shadow-sm space-y-6">
+        <div className="w-16 h-16 mx-auto bg-gradient-to-br from-indigo-500 to-purple-600 rounded-2xl flex items-center justify-center text-white shadow-lg">
+          <Home className="h-8 w-8" />
+        </div>
+        <div className="space-y-2">
+          <h2 className="text-2xl font-bold text-slate-900 dark:text-white">
+            Planificateur d'Achat Immobilier
+          </h2>
+          <p className="text-sm text-slate-500 dark:text-slate-400 max-w-md mx-auto leading-relaxed">
+            Modélisez l'achat de votre futur logement à deux : apports respectifs, prêt classique, Prêt à Taux Zéro (PTZ), date cible et évolution future de vos salaires.
+          </p>
+        </div>
+
+        <button
+          onClick={handleCreateFirstPlan}
+          className="inline-flex items-center space-x-2 px-6 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white font-bold text-sm rounded-xl shadow-md transition-all hover:scale-105"
+        >
+          <Plus className="h-4 w-4" />
+          <span>Créer mon premier projet immobilier</span>
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -462,7 +459,7 @@ const RealEstatePlanner: React.FC<RealEstatePlannerProps> = ({ onViewChange }) =
         {/* Scenarios switcher */}
         <div className="flex flex-wrap items-center gap-2">
           <div className="flex items-center space-x-1.5 bg-slate-100 dark:bg-slate-700/60 p-1 rounded-xl">
-            {plans.map(p => (
+            {realEstatePlans.map(p => (
               <button
                 key={p.id}
                 onClick={() => setActivePlanId(p.id)}
@@ -486,7 +483,7 @@ const RealEstatePlanner: React.FC<RealEstatePlannerProps> = ({ onViewChange }) =
             <span>Nouveau</span>
           </button>
 
-          {plans.length > 1 && (
+          {realEstatePlans.length > 1 && (
             <button
               onClick={() => handleDeletePlan(currentPlan.id)}
               className="p-1.5 text-slate-400 hover:text-red-600 dark:hover:text-red-400 transition-colors"
@@ -496,13 +493,15 @@ const RealEstatePlanner: React.FC<RealEstatePlannerProps> = ({ onViewChange }) =
             </button>
           )}
 
-          <button
-            onClick={() => setShowIntegrateModal(true)}
-            className="flex items-center space-x-1.5 px-3.5 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white rounded-xl text-xs font-bold shadow-md transition-all hover:scale-[1.02]"
-          >
-            <Building2 className="h-3.5 w-3.5" />
-            <span>Intégrer à Pathly</span>
-          </button>
+          {calculations.totalCost > 0 && (
+            <button
+              onClick={() => setShowIntegrateModal(true)}
+              className="flex items-center space-x-1.5 px-3.5 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white rounded-xl text-xs font-bold shadow-md transition-all hover:scale-[1.02]"
+            >
+              <Building2 className="h-3.5 w-3.5" />
+              <span>Intégrer à Pathly</span>
+            </button>
+          )}
         </div>
       </div>
 
@@ -518,7 +517,7 @@ const RealEstatePlanner: React.FC<RealEstatePlannerProps> = ({ onViewChange }) =
                 Date cible de l'acquisition
               </span>
               <span className="text-xs font-extrabold px-2.5 py-0.5 rounded-full bg-indigo-600 text-white">
-                {currentPlan.targetDate || '2027-06'}
+                {currentPlan.targetDate || 'À définir'}
               </span>
             </div>
             <p className="text-xs text-slate-600 dark:text-slate-300 mt-1">
@@ -559,7 +558,7 @@ const RealEstatePlanner: React.FC<RealEstatePlannerProps> = ({ onViewChange }) =
             {calculations.totalCost.toLocaleString('fr-FR')} €
           </div>
           <div className="mt-2 text-xs text-slate-500 dark:text-slate-400 flex items-center justify-between">
-            <span>Bien : {currentPlan.propertyPrice.toLocaleString('fr-FR')} €</span>
+            <span>Bien : {(currentPlan.propertyPrice || 0).toLocaleString('fr-FR')} €</span>
             <span className="font-semibold text-slate-600 dark:text-slate-300">Notaire : {calculations.finalNotaryFees.toLocaleString('fr-FR')} €</span>
           </div>
         </div>
@@ -574,8 +573,8 @@ const RealEstatePlanner: React.FC<RealEstatePlannerProps> = ({ onViewChange }) =
             {calculations.totalContribution.toLocaleString('fr-FR')} €
           </div>
           <div className="mt-2 text-xs text-slate-500 dark:text-slate-400 flex items-center justify-between">
-            <span>{currentPlan.buyerAName} : {currentPlan.buyerAContribution.toLocaleString('fr-FR')} €</span>
-            <span>{currentPlan.buyerBName} : {currentPlan.buyerBContribution.toLocaleString('fr-FR')} €</span>
+            <span>{currentPlan.buyerAName} : {(currentPlan.buyerAContribution || 0).toLocaleString('fr-FR')} €</span>
+            <span>{currentPlan.buyerBName} : {(currentPlan.buyerBContribution || 0).toLocaleString('fr-FR')} €</span>
           </div>
         </div>
 
@@ -589,7 +588,7 @@ const RealEstatePlanner: React.FC<RealEstatePlannerProps> = ({ onViewChange }) =
             {Math.round(calculations.representativeMonthly).toLocaleString('fr-FR')} € <span className="text-xs font-medium text-slate-500">/mois</span>
           </div>
           <div className="mt-2 text-xs text-slate-500 dark:text-slate-400">
-            {currentPlan.hasPtz && currentPlan.ptzDeferredYears > 0 ? (
+            {currentPlan.hasPtz && (currentPlan.ptzDeferredYears || 0) > 0 ? (
               <span className="text-purple-600 dark:text-purple-300 font-medium">
                 Phase 1 : {Math.round(calculations.totalMonthlyPhase1)} € puis {Math.round(calculations.totalMonthlyPhase2)} €
               </span>
@@ -599,7 +598,7 @@ const RealEstatePlanner: React.FC<RealEstatePlannerProps> = ({ onViewChange }) =
           </div>
         </div>
 
-        {/* Debt Ratio (Endettement calculé sur salaires à la date cible) */}
+        {/* Debt Ratio */}
         <div className="bg-white dark:bg-slate-800 p-5 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm">
           <div className="flex items-center justify-between text-slate-500 dark:text-slate-400 text-xs font-medium mb-2">
             <span>Taux d'endettement à terme</span>
@@ -777,6 +776,7 @@ const RealEstatePlanner: React.FC<RealEstatePlannerProps> = ({ onViewChange }) =
                     value={currentPlan.propertyPrice || ''}
                     onChange={e => updateCurrentPlan({ propertyPrice: parseFloat(e.target.value) || 0 })}
                     className="w-full pl-3.5 pr-8 py-2.5 bg-slate-50 dark:bg-slate-900/50 border border-slate-300 dark:border-slate-600 rounded-xl text-sm font-semibold focus:ring-2 focus:ring-indigo-500 focus:border-transparent dark:text-white"
+                    placeholder="0"
                   />
                   <span className="absolute right-3 top-2.5 text-slate-400 text-sm">€</span>
                 </div>
@@ -841,6 +841,7 @@ const RealEstatePlanner: React.FC<RealEstatePlannerProps> = ({ onViewChange }) =
                     value={currentPlan.renovationBudget || ''}
                     onChange={e => updateCurrentPlan({ renovationBudget: parseFloat(e.target.value) || 0 })}
                     className="w-full pl-3.5 pr-8 py-2.5 bg-slate-50 dark:bg-slate-900/50 border border-slate-300 dark:border-slate-600 rounded-xl text-sm font-semibold focus:ring-2 focus:ring-indigo-500 focus:border-transparent dark:text-white"
+                    placeholder="0"
                   />
                   <span className="absolute right-3 top-2.5 text-slate-400 text-sm">€</span>
                 </div>
@@ -858,6 +859,7 @@ const RealEstatePlanner: React.FC<RealEstatePlannerProps> = ({ onViewChange }) =
                     value={currentPlan.bankGuaranteeFees || ''}
                     onChange={e => updateCurrentPlan({ bankGuaranteeFees: parseFloat(e.target.value) || 0 })}
                     className="w-full pl-3.5 pr-8 py-2.5 bg-slate-50 dark:bg-slate-900/50 border border-slate-300 dark:border-slate-600 rounded-xl text-sm font-semibold focus:ring-2 focus:ring-indigo-500 focus:border-transparent dark:text-white"
+                    placeholder="0"
                   />
                   <span className="absolute right-3 top-2.5 text-slate-400 text-sm">€</span>
                 </div>
@@ -874,22 +876,22 @@ const RealEstatePlanner: React.FC<RealEstatePlannerProps> = ({ onViewChange }) =
             <div className="space-y-3 pt-2 text-sm">
               <div className="flex justify-between items-center py-1.5 border-b border-indigo-900/60">
                 <span className="text-slate-300">Prix d'achat net</span>
-                <span className="font-bold">{currentPlan.propertyPrice.toLocaleString('fr-FR')} €</span>
+                <span className="font-bold">{(currentPlan.propertyPrice || 0).toLocaleString('fr-FR')} €</span>
               </div>
               <div className="flex justify-between items-center py-1.5 border-b border-indigo-900/60">
                 <span className="text-slate-300">Frais de notaire</span>
                 <span className="font-bold">{calculations.finalNotaryFees.toLocaleString('fr-FR')} €</span>
               </div>
-              {currentPlan.renovationBudget > 0 && (
+              {(currentPlan.renovationBudget || 0) > 0 && (
                 <div className="flex justify-between items-center py-1.5 border-b border-indigo-900/60">
                   <span className="text-slate-300">Enveloppe travaux</span>
-                  <span className="font-bold">{currentPlan.renovationBudget.toLocaleString('fr-FR')} €</span>
+                  <span className="font-bold">{(currentPlan.renovationBudget || 0).toLocaleString('fr-FR')} €</span>
                 </div>
               )}
-              {currentPlan.bankGuaranteeFees > 0 && (
+              {(currentPlan.bankGuaranteeFees || 0) > 0 && (
                 <div className="flex justify-between items-center py-1.5 border-b border-indigo-900/60">
                   <span className="text-slate-300">Frais garantie & dossier</span>
-                  <span className="font-bold">{currentPlan.bankGuaranteeFees.toLocaleString('fr-FR')} €</span>
+                  <span className="font-bold">{(currentPlan.bankGuaranteeFees || 0).toLocaleString('fr-FR')} €</span>
                 </div>
               )}
 
@@ -972,6 +974,7 @@ const RealEstatePlanner: React.FC<RealEstatePlannerProps> = ({ onViewChange }) =
                       value={currentPlan.buyerAIncome || ''}
                       onChange={e => updateCurrentPlan({ buyerAIncome: parseFloat(e.target.value) || 0 })}
                       className="w-full pl-3.5 pr-8 py-2.5 bg-slate-50 dark:bg-slate-900/50 border border-slate-300 dark:border-slate-600 rounded-xl text-sm font-semibold focus:ring-2 focus:ring-indigo-500 dark:text-white"
+                      placeholder="0"
                     />
                     <span className="absolute right-3 top-2.5 text-slate-400 text-sm">€</span>
                   </div>
@@ -989,6 +992,7 @@ const RealEstatePlanner: React.FC<RealEstatePlannerProps> = ({ onViewChange }) =
                       value={currentPlan.buyerAContribution || ''}
                       onChange={e => updateCurrentPlan({ buyerAContribution: parseFloat(e.target.value) || 0 })}
                       className="w-full pl-3.5 pr-8 py-2.5 bg-slate-50 dark:bg-slate-900/50 border border-slate-300 dark:border-slate-600 rounded-xl text-sm font-black text-indigo-600 dark:text-indigo-400 focus:ring-2 focus:ring-indigo-500"
+                      placeholder="0"
                     />
                     <span className="absolute right-3 top-2.5 text-slate-400 text-sm">€</span>
                   </div>
@@ -1045,6 +1049,7 @@ const RealEstatePlanner: React.FC<RealEstatePlannerProps> = ({ onViewChange }) =
                       value={currentPlan.buyerBIncome || ''}
                       onChange={e => updateCurrentPlan({ buyerBIncome: parseFloat(e.target.value) || 0 })}
                       className="w-full pl-3.5 pr-8 py-2.5 bg-slate-50 dark:bg-slate-900/50 border border-slate-300 dark:border-slate-600 rounded-xl text-sm font-semibold focus:ring-2 focus:ring-purple-500 dark:text-white"
+                      placeholder="0"
                     />
                     <span className="absolute right-3 top-2.5 text-slate-400 text-sm">€</span>
                   </div>
@@ -1062,6 +1067,7 @@ const RealEstatePlanner: React.FC<RealEstatePlannerProps> = ({ onViewChange }) =
                       value={currentPlan.buyerBContribution || ''}
                       onChange={e => updateCurrentPlan({ buyerBContribution: parseFloat(e.target.value) || 0 })}
                       className="w-full pl-3.5 pr-8 py-2.5 bg-slate-50 dark:bg-slate-900/50 border border-slate-300 dark:border-slate-600 rounded-xl text-sm font-black text-purple-600 dark:text-purple-400 focus:ring-2 focus:ring-purple-500"
+                      placeholder="0"
                     />
                     <span className="absolute right-3 top-2.5 text-slate-400 text-sm">€</span>
                   </div>
@@ -1302,6 +1308,7 @@ const RealEstatePlanner: React.FC<RealEstatePlannerProps> = ({ onViewChange }) =
                       value={currentPlan.ptzAmount || ''}
                       onChange={e => updateCurrentPlan({ ptzAmount: parseFloat(e.target.value) || 0 })}
                       className="w-full pl-3 pr-7 py-2 bg-slate-50 dark:bg-slate-900/50 border border-slate-300 dark:border-slate-600 rounded-xl text-sm font-black text-emerald-600 dark:text-emerald-400 focus:ring-2 focus:ring-emerald-500"
+                      placeholder="0"
                     />
                     <span className="absolute right-3 top-2 text-slate-400 text-xs">€</span>
                   </div>
@@ -1315,7 +1322,7 @@ const RealEstatePlanner: React.FC<RealEstatePlannerProps> = ({ onViewChange }) =
                     Durée totale du PTZ
                   </label>
                   <select
-                    value={currentPlan.ptzDurationYears}
+                    value={currentPlan.ptzDurationYears || 20}
                     onChange={e => updateCurrentPlan({ ptzDurationYears: parseInt(e.target.value) || 20 })}
                     className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900/50 border border-slate-300 dark:border-slate-600 rounded-xl text-sm font-semibold focus:ring-2 focus:ring-emerald-500 dark:text-white"
                   >
@@ -1330,7 +1337,7 @@ const RealEstatePlanner: React.FC<RealEstatePlannerProps> = ({ onViewChange }) =
                     Différé de remboursement
                   </label>
                   <select
-                    value={currentPlan.ptzDeferredYears}
+                    value={currentPlan.ptzDeferredYears || 0}
                     onChange={e => updateCurrentPlan({ ptzDeferredYears: parseInt(e.target.value) || 0 })}
                     className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900/50 border border-slate-300 dark:border-slate-600 rounded-xl text-sm font-semibold focus:ring-2 focus:ring-emerald-500 dark:text-white"
                   >
@@ -1356,6 +1363,7 @@ const RealEstatePlanner: React.FC<RealEstatePlannerProps> = ({ onViewChange }) =
                       value={currentPlan.ptzInsuranceRate || ''}
                       onChange={e => updateCurrentPlan({ ptzInsuranceRate: parseFloat(e.target.value) || 0 })}
                       className="w-full pl-3 pr-7 py-2 bg-slate-50 dark:bg-slate-900/50 border border-slate-300 dark:border-slate-600 rounded-xl text-sm font-semibold focus:ring-2 focus:ring-emerald-500 dark:text-white"
+                      placeholder="0.30"
                     />
                     <span className="absolute right-3 top-2 text-slate-400 text-xs">%</span>
                   </div>
@@ -1394,7 +1402,7 @@ const RealEstatePlanner: React.FC<RealEstatePlannerProps> = ({ onViewChange }) =
                   Durée du prêt principal (années)
                 </label>
                 <select
-                  value={currentPlan.mainLoanDurationYears}
+                  value={currentPlan.mainLoanDurationYears || 25}
                   onChange={e => updateCurrentPlan({ mainLoanDurationYears: parseInt(e.target.value) || 25 })}
                   className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900/50 border border-slate-300 dark:border-slate-600 rounded-xl text-sm font-semibold focus:ring-2 focus:ring-indigo-500 dark:text-white"
                 >
@@ -1416,6 +1424,7 @@ const RealEstatePlanner: React.FC<RealEstatePlannerProps> = ({ onViewChange }) =
                     value={currentPlan.mainLoanInterestRate || ''}
                     onChange={e => updateCurrentPlan({ mainLoanInterestRate: parseFloat(e.target.value) || 0 })}
                     className="w-full pl-3 pr-7 py-2 bg-slate-50 dark:bg-slate-900/50 border border-slate-300 dark:border-slate-600 rounded-xl text-sm font-bold text-indigo-600 dark:text-indigo-400 focus:ring-2 focus:ring-indigo-500"
+                    placeholder="3.40"
                   />
                   <span className="absolute right-3 top-2 text-slate-400 text-xs">%</span>
                 </div>
@@ -1434,6 +1443,7 @@ const RealEstatePlanner: React.FC<RealEstatePlannerProps> = ({ onViewChange }) =
                     value={currentPlan.mainLoanInsuranceRate || ''}
                     onChange={e => updateCurrentPlan({ mainLoanInsuranceRate: parseFloat(e.target.value) || 0 })}
                     className="w-full pl-3 pr-7 py-2 bg-slate-50 dark:bg-slate-900/50 border border-slate-300 dark:border-slate-600 rounded-xl text-sm font-semibold focus:ring-2 focus:ring-indigo-500 dark:text-white"
+                    placeholder="0.34"
                   />
                   <span className="absolute right-3 top-2 text-slate-400 text-xs">%</span>
                 </div>
@@ -1507,13 +1517,13 @@ const RealEstatePlanner: React.FC<RealEstatePlannerProps> = ({ onViewChange }) =
                 <div className="mt-4 p-3 bg-slate-50 dark:bg-slate-900/50 rounded-xl border border-slate-200 dark:border-slate-700">
                   <div className="flex justify-between text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
                     <span>Part de {currentPlan.buyerAName} : {currentPlan.customMonthlyRatioA}%</span>
-                    <span>Part de {currentPlan.buyerBName} : {100 - currentPlan.customMonthlyRatioA}%</span>
+                    <span>Part de {currentPlan.buyerBName} : {100 - (currentPlan.customMonthlyRatioA || 50)}%</span>
                   </div>
                   <input
                     type="range"
                     min="10"
                     max="90"
-                    value={currentPlan.customMonthlyRatioA}
+                    value={currentPlan.customMonthlyRatioA || 50}
                     onChange={e => updateCurrentPlan({ customMonthlyRatioA: parseInt(e.target.value) || 50 })}
                     className="w-full accent-indigo-600"
                   />
@@ -1564,13 +1574,13 @@ const RealEstatePlanner: React.FC<RealEstatePlannerProps> = ({ onViewChange }) =
                 <div className="mt-4 p-3 bg-slate-50 dark:bg-slate-900/50 rounded-xl border border-slate-200 dark:border-slate-700">
                   <div className="flex justify-between text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
                     <span>Propriété {currentPlan.buyerAName} : {currentPlan.customOwnershipRatioA}%</span>
-                    <span>Propriété {currentPlan.buyerBName} : {100 - currentPlan.customOwnershipRatioA}%</span>
+                    <span>Propriété {currentPlan.buyerBName} : {100 - (currentPlan.customOwnershipRatioA || 50)}%</span>
                   </div>
                   <input
                     type="range"
                     min="10"
                     max="90"
-                    value={currentPlan.customOwnershipRatioA}
+                    value={currentPlan.customOwnershipRatioA || 50}
                     onChange={e => updateCurrentPlan({ customOwnershipRatioA: parseInt(e.target.value) || 50 })}
                     className="w-full accent-indigo-600"
                   />
@@ -1585,7 +1595,7 @@ const RealEstatePlanner: React.FC<RealEstatePlannerProps> = ({ onViewChange }) =
             <div className="bg-white dark:bg-slate-800 p-6 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm space-y-4">
               <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-700">
                 <div className="font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                  <div className="w-6 h-6 rounded-full bg-indigo-600 text-white flex items-center justify-center text-xs">A</div>
+                  <div className="w-6 h-6 rounded-full bg-indigo-600 text-white flex items-center justify-center text-xs">1</div>
                   <span>Impact pour {currentPlan.buyerAName}</span>
                 </div>
                 <span className="text-xs font-black px-2.5 py-1 bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 rounded-full">
@@ -1636,7 +1646,7 @@ const RealEstatePlanner: React.FC<RealEstatePlannerProps> = ({ onViewChange }) =
             <div className="bg-white dark:bg-slate-800 p-6 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm space-y-4">
               <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-700">
                 <div className="font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                  <div className="w-6 h-6 rounded-full bg-purple-600 text-white flex items-center justify-center text-xs">B</div>
+                  <div className="w-6 h-6 rounded-full bg-purple-600 text-white flex items-center justify-center text-xs">2</div>
                   <span>Impact pour {currentPlan.buyerBName}</span>
                 </div>
                 <span className="text-xs font-black px-2.5 py-1 bg-purple-50 dark:bg-purple-950/40 text-purple-600 dark:text-purple-400 rounded-full">
@@ -1723,7 +1733,7 @@ const RealEstatePlanner: React.FC<RealEstatePlannerProps> = ({ onViewChange }) =
             <div className="bg-slate-50 dark:bg-slate-900/50 p-4 rounded-xl border border-slate-200 dark:border-slate-700 text-xs space-y-2 text-slate-700 dark:text-slate-300">
               <div className="flex items-center gap-2 font-semibold text-slate-900 dark:text-white">
                 <CheckCircle2 className="h-4 w-4 text-emerald-500" />
-                <span>1 Bien immobilier créé : "{currentPlan.name}" ({currentPlan.propertyPrice.toLocaleString('fr-FR')} €)</span>
+                <span>1 Bien immobilier créé : "{currentPlan.name}" ({(currentPlan.propertyPrice || 0).toLocaleString('fr-FR')} €)</span>
               </div>
               <div className="flex items-center gap-2 font-semibold text-slate-900 dark:text-white">
                 <CheckCircle2 className="h-4 w-4 text-emerald-500" />

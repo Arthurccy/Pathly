@@ -329,6 +329,10 @@ export interface BudgetContextType {
   deleteAsset: (id: string) => Promise<void>;
   totalAssetsValue: number;
 
+  // Real Estate Plans / Projets Immobiliers (Supabase persistant)
+  realEstatePlans: RealEstatePlan[];
+  saveRealEstatePlans: (plans: RealEstatePlan[]) => Promise<void>;
+
   // Utilities
   reloadAll?: () => Promise<void>;
 }
