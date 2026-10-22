@@ -17,7 +17,8 @@ import {
   SimulatedEvent,
   HouseholdConfig,
   PhysicalAsset,
-  RealEstatePlan
+  RealEstatePlan,
+  InvestmentPosition
 } from '../types';
 import { useAuth } from './AuthContext';
 import { supabaseService } from '../services/supabaseService';
@@ -460,6 +461,76 @@ export const BudgetProvider: React.FC<BudgetProviderProps> = ({ children }) => {
         }
       }, 500);
     }
+  };
+
+  // --- INVESTMENT POSITIONS / BOURSE (PEA / CTO) ---
+  const [investmentPositions, setInvestmentPositionsState] = useState<InvestmentPosition[]>(() => {
+    try {
+      const saved = localStorage.getItem('pathly_investment_positions');
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
+
+  useEffect(() => {
+    if (user?.user_metadata?.pathly_investment_positions) {
+      const dbPositions = user.user_metadata.pathly_investment_positions;
+      if (Array.isArray(dbPositions)) {
+        setInvestmentPositionsState(dbPositions);
+        try {
+          localStorage.setItem('pathly_investment_positions', JSON.stringify(dbPositions));
+        } catch {}
+      }
+    }
+  }, [user?.id, user?.user_metadata?.pathly_investment_positions]);
+
+  const saveInvestmentPositionsTimeout = useRef<NodeJS.Timeout | null>(null);
+  const saveInvestmentPositions = async (newPositions: InvestmentPosition[]) => {
+    setInvestmentPositionsState(newPositions);
+    try {
+      localStorage.setItem('pathly_investment_positions', JSON.stringify(newPositions));
+    } catch (e) {
+      console.error('Failed to save investment positions to localStorage:', e);
+    }
+    if (user) {
+      if (saveInvestmentPositionsTimeout.current) {
+        clearTimeout(saveInvestmentPositionsTimeout.current);
+      }
+      saveInvestmentPositionsTimeout.current = setTimeout(async () => {
+        try {
+          await supabase.auth.updateUser({
+            data: { pathly_investment_positions: newPositions }
+          });
+        } catch (err) {
+          console.error('Failed to save investment positions to Supabase:', err);
+        }
+      }, 500);
+    }
+  };
+
+  const addInvestmentPosition = async (positionData: Omit<InvestmentPosition, 'id'>): Promise<InvestmentPosition> => {
+    const newPosition: InvestmentPosition = {
+      ...positionData,
+      id: `pos-${Date.now()}-${Math.random().toString(36).substr(2, 7)}`,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+    const updated = [...investmentPositions, newPosition];
+    await saveInvestmentPositions(updated);
+    return newPosition;
+  };
+
+  const updateInvestmentPosition = async (id: string, updates: Partial<InvestmentPosition>) => {
+    const updated = investmentPositions.map(pos =>
+      pos.id === id ? { ...pos, ...updates, updatedAt: new Date().toISOString() } : pos
+    );
+    await saveInvestmentPositions(updated);
+  };
+
+  const deleteInvestmentPosition = async (id: string) => {
+    const updated = investmentPositions.filter(pos => pos.id !== id);
+    await saveInvestmentPositions(updated);
   };
 
   // --- ONE TIME CLEANUP ---
@@ -2282,6 +2353,13 @@ export const BudgetProvider: React.FC<BudgetProviderProps> = ({ children }) => {
       // Real Estate Plans / Projets Immobiliers (Persistance Supabase)
       realEstatePlans,
       saveRealEstatePlans,
+
+      // Investment Positions (PEA / CTO)
+      investmentPositions,
+      saveInvestmentPositions,
+      addInvestmentPosition,
+      updateInvestmentPosition,
+      deleteInvestmentPosition,
 
       reloadAll,
     }}>

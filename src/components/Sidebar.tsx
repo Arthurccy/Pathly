@@ -17,6 +17,7 @@ import {
   Settings,
   SlidersHorizontal,
   Target,
+  TrendingUp,
   Upload,
   Users,
   Wallet,
@@ -43,6 +44,7 @@ const groups = [
     title: 'Planifier',
     items: [
       { id: 'assets', label: 'Biens & Patrimoine', icon: Building2 },
+      { id: 'investments', label: 'Bourse & Portefeuille', icon: TrendingUp },
       { id: 'real-estate-project', label: 'Projet Immobilier', icon: Home },
       { id: 'household', label: 'Foyer & Couple', icon: Users },
       { id: 'goals', label: 'Objectifs', icon: Target },

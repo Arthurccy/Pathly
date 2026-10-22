@@ -333,6 +333,13 @@ export interface BudgetContextType {
   realEstatePlans: RealEstatePlan[];
   saveRealEstatePlans: (plans: RealEstatePlan[]) => Promise<void>;
 
+  // Investment Positions / Bourse, PEA, CTO
+  investmentPositions: InvestmentPosition[];
+  saveInvestmentPositions: (positions: InvestmentPosition[]) => Promise<void>;
+  addInvestmentPosition: (position: Omit<InvestmentPosition, 'id'>) => Promise<InvestmentPosition>;
+  updateInvestmentPosition: (id: string, updates: Partial<InvestmentPosition>) => Promise<void>;
+  deleteInvestmentPosition: (id: string) => Promise<void>;
+
   // Utilities
   reloadAll?: () => Promise<void>;
 }
@@ -444,3 +451,41 @@ export interface RealEstatePlan {
 
 // Legacy types for backward compatibility
 export interface Goal extends SavingsGoal {}
+
+export interface InvestmentPosition {
+  id: string;
+  userId?: string;
+  accountId: string; // Linked BankAccount (PEA or CTO)
+  symbol: string; // e.g. "CW8.PA", "MC.PA", "NVDA", "BTC-EUR"
+  name: string; // e.g. "Amundi MSCI World UCITS ETF"
+  isin?: string; // e.g. "LU1681043599"
+  shares: number; // e.g. 15.5
+  buyPrice: number; // PRU (Prix de Revient Unitaire)
+  currency: string; // e.g. "EUR", "USD"
+  currentPrice: number; // Dernier cours du marché
+  previousClosePrice?: number; // Cours de clôture de la veille
+  assetType: 'etf' | 'stock' | 'crypto' | 'bond' | 'other';
+  notes?: string;
+  lastPriceUpdatedAt?: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface StockQuote {
+  symbol: string;
+  price: number;
+  previousClose?: number;
+  change?: number;
+  changePercent?: number;
+  currency?: string;
+  name?: string;
+  timestamp?: number;
+}
+
+export interface StockSearchResult {
+  symbol: string;
+  name: string;
+  type: string;
+  exchange: string;
+  currency?: string;
+}

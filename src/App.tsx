@@ -30,6 +30,7 @@ import OnboardingTour from './components/OnboardingTour';
 import HouseholdManager from './components/HouseholdManager';
 import AssetManager from './components/AssetManager';
 import RealEstatePlanner from './components/RealEstatePlanner';
+import { InvestmentPortfolio } from './components/InvestmentPortfolio';
 import { getCustomMonthPeriod } from './utils/dateUtils';
 
 const AppContent: React.FC = () => {
@@ -102,6 +103,8 @@ const AppContent: React.FC = () => {
         return <HouseholdManager />;
       case 'assets':
         return <AssetManager onViewChange={setCurrentView} />;
+      case 'investments':
+        return <InvestmentPortfolio onViewChange={setCurrentView} />;
       case 'real-estate-project':
         return <RealEstatePlanner onViewChange={setCurrentView} />;
       case 'wealth-simulator':
