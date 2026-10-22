@@ -473,10 +473,20 @@ export const BudgetProvider: React.FC<BudgetProviderProps> = ({ children }) => {
     }
   });
 
+  const investmentPositionsRef = useRef<InvestmentPosition[]>(investmentPositions);
   useEffect(() => {
+    investmentPositionsRef.current = investmentPositions;
+  }, [investmentPositions]);
+
+  const isLocalPositionsDirtyRef = useRef(false);
+
+  // Sync from Supabase user_metadata only on mount or if no local dirty writes in flight
+  useEffect(() => {
+    if (isLocalPositionsDirtyRef.current) return;
     if (user?.user_metadata?.pathly_investment_positions) {
       const dbPositions = user.user_metadata.pathly_investment_positions;
       if (Array.isArray(dbPositions)) {
+        investmentPositionsRef.current = dbPositions;
         setInvestmentPositionsState(dbPositions);
         try {
           localStorage.setItem('pathly_investment_positions', JSON.stringify(dbPositions));
@@ -485,8 +495,8 @@ export const BudgetProvider: React.FC<BudgetProviderProps> = ({ children }) => {
     }
   }, [user?.id, user?.user_metadata?.pathly_investment_positions]);
 
-  const saveInvestmentPositionsTimeout = useRef<NodeJS.Timeout | null>(null);
   const saveInvestmentPositions = async (newPositions: InvestmentPosition[]) => {
+    investmentPositionsRef.current = newPositions;
     setInvestmentPositionsState(newPositions);
     try {
       localStorage.setItem('pathly_investment_positions', JSON.stringify(newPositions));
@@ -494,18 +504,18 @@ export const BudgetProvider: React.FC<BudgetProviderProps> = ({ children }) => {
       console.error('Failed to save investment positions to localStorage:', e);
     }
     if (user) {
-      if (saveInvestmentPositionsTimeout.current) {
-        clearTimeout(saveInvestmentPositionsTimeout.current);
+      isLocalPositionsDirtyRef.current = true;
+      try {
+        await supabase.auth.updateUser({
+          data: { pathly_investment_positions: newPositions }
+        });
+      } catch (err) {
+        console.error('Failed to save investment positions to Supabase:', err);
+      } finally {
+        setTimeout(() => {
+          isLocalPositionsDirtyRef.current = false;
+        }, 1200);
       }
-      saveInvestmentPositionsTimeout.current = setTimeout(async () => {
-        try {
-          await supabase.auth.updateUser({
-            data: { pathly_investment_positions: newPositions }
-          });
-        } catch (err) {
-          console.error('Failed to save investment positions to Supabase:', err);
-        }
-      }, 500);
     }
   };
 
@@ -516,20 +526,34 @@ export const BudgetProvider: React.FC<BudgetProviderProps> = ({ children }) => {
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
-    const updated = [...investmentPositions, newPosition];
+    const currentList = investmentPositionsRef.current;
+    // Prevent rapid duplicate clicks
+    const exists = currentList.some(p => 
+      p.symbol.toUpperCase() === newPosition.symbol.toUpperCase() && 
+      p.accountId === newPosition.accountId &&
+      p.shares === newPosition.shares &&
+      p.buyPrice === newPosition.buyPrice
+    );
+    if (exists) {
+      return currentList.find(p => p.symbol.toUpperCase() === newPosition.symbol.toUpperCase() && p.accountId === newPosition.accountId) || newPosition;
+    }
+
+    const updated = [...currentList, newPosition];
     await saveInvestmentPositions(updated);
     return newPosition;
   };
 
   const updateInvestmentPosition = async (id: string, updates: Partial<InvestmentPosition>) => {
-    const updated = investmentPositions.map(pos =>
+    const currentList = investmentPositionsRef.current;
+    const updated = currentList.map(pos =>
       pos.id === id ? { ...pos, ...updates, updatedAt: new Date().toISOString() } : pos
     );
     await saveInvestmentPositions(updated);
   };
 
   const deleteInvestmentPosition = async (id: string) => {
-    const updated = investmentPositions.filter(pos => pos.id !== id);
+    const currentList = investmentPositionsRef.current;
+    const updated = currentList.filter(pos => pos.id !== id);
     await saveInvestmentPositions(updated);
   };
 

@@ -118,18 +118,6 @@ export const InvestmentPortfolio: React.FC<InvestmentPortfolioProps> = ({ onView
       setQuotesMap(prev => ({ ...prev, ...newQuotes }));
       setUsdRate(rate);
       setLastRefreshedAt(new Date());
-
-      // Update current prices in stored positions if available
-      for (const pos of investmentPositions) {
-        const q = newQuotes[pos.symbol];
-        if (q && q.price && q.price !== pos.currentPrice) {
-          updateInvestmentPosition(pos.id, {
-            currentPrice: q.price,
-            previousClosePrice: q.previousClose,
-            lastPriceUpdatedAt: new Date().toISOString()
-          });
-        }
-      }
     } catch (err) {
       console.error('Failed to refresh quotes:', err);
     } finally {
@@ -234,38 +222,37 @@ export const InvestmentPortfolio: React.FC<InvestmentPortfolioProps> = ({ onView
       return;
     }
 
+    const symbolUpper = formSymbol.trim().toUpperCase();
+    const posPayload = {
+      symbol: symbolUpper,
+      name: formName.trim(),
+      accountId: formAccountId,
+      shares: sharesNum,
+      buyPrice: buyPriceNum,
+      currentPrice: currentPriceNum,
+      assetType: formAssetType,
+      currency: formCurrency,
+      notes: formNotes.trim() || undefined,
+      lastPriceUpdatedAt: new Date().toISOString()
+    };
+
     if (editingPosition) {
-      await updateInvestmentPosition(editingPosition.id, {
-        symbol: formSymbol.trim().toUpperCase(),
-        name: formName.trim(),
-        accountId: formAccountId,
-        shares: sharesNum,
-        buyPrice: buyPriceNum,
-        currentPrice: currentPriceNum,
-        assetType: formAssetType,
-        currency: formCurrency,
-        notes: formNotes.trim() || undefined,
-        lastPriceUpdatedAt: new Date().toISOString()
-      });
+      await updateInvestmentPosition(editingPosition.id, posPayload);
     } else {
-      await addInvestmentPosition({
-        symbol: formSymbol.trim().toUpperCase(),
-        name: formName.trim(),
-        accountId: formAccountId,
-        shares: sharesNum,
-        buyPrice: buyPriceNum,
-        currentPrice: currentPriceNum,
-        assetType: formAssetType,
-        currency: formCurrency,
-        notes: formNotes.trim() || undefined,
-        lastPriceUpdatedAt: new Date().toISOString()
-      });
+      await addInvestmentPosition(posPayload);
     }
 
     setShowAddPositionModal(false);
     resetForm();
-    // Refresh quotes to make sure current price is sync
-    refreshQuotes();
+
+    // Immediately fetch quote for this symbol to populate live market data
+    if (symbolUpper) {
+      fetchStockQuotes([symbolUpper]).then(quotes => {
+        if (quotes && quotes[symbolUpper]) {
+          setQuotesMap(prev => ({ ...prev, ...quotes }));
+        }
+      }).catch(() => {});
+    }
   };
 
   // Create new investment account
