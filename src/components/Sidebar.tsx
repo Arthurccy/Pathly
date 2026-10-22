@@ -43,7 +43,7 @@ const groups = [
     title: 'Planifier',
     items: [
       { id: 'assets', label: 'Biens & Patrimoine', icon: Building2 },
-      { id: 'real-estate-project', label: 'Projet Immo & PTZ', icon: Home },
+      { id: 'real-estate-project', label: 'Projet Immobilier', icon: Home },
       { id: 'household', label: 'Foyer & Couple', icon: Users },
       { id: 'goals', label: 'Objectifs', icon: Target },
       { id: 'debts', label: 'Dettes', icon: CreditCard },

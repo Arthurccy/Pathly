@@ -223,16 +223,16 @@ export const BudgetProvider: React.FC<BudgetProviderProps> = ({ children }) => {
       const saved = localStorage.getItem('pathly_household_config');
       return saved ? JSON.parse(saved) : {
         enabled: true,
-        userA: { name: 'Arthur', income: 2173 },
-        userB: { name: 'Alicia', income: 1639 },
+        userA: { name: 'Moi', income: 2173 },
+        userB: { name: 'Conjoint(e)', income: 1639 },
         splitMode: 'prorata',
         customRatioA: 57,
       };
     } catch {
       return {
         enabled: true,
-        userA: { name: 'Arthur', income: 2173 },
-        userB: { name: 'Alicia', income: 1639 },
+        userA: { name: 'Moi', income: 2173 },
+        userB: { name: 'Conjoint(e)', income: 1639 },
         splitMode: 'prorata',
         customRatioA: 57,
       };

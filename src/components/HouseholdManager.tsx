@@ -103,22 +103,22 @@ const HouseholdManager: React.FC = () => {
   const userAShare = (totalSharedAmount * ratioA) / 100;
   const userBShare = (totalSharedAmount * ratioB) / 100;
 
-  // Contributions / transfers received from user B (Alicia)
+  // Contributions / transfers received from user B (Partner)
   const partnerContributions = useMemo(() => {
     return monthTransactions.filter(t => {
       if (t.isHouseholdContribution) return true;
       if (t.type !== 'income' && t.type !== 'transfer') return false;
       const desc = t.description.toLowerCase();
-      const userB = householdConfig.userB.name.toLowerCase();
-      return desc.includes(userB) || desc.includes('foyer') || desc.includes('provision') || desc.includes('aide alicia');
+      const userB = (householdConfig.userB?.name || '').toLowerCase();
+      return (userB && desc.includes(userB)) || desc.includes('foyer') || desc.includes('provision') || desc.includes('partenaire');
     });
-  }, [monthTransactions, householdConfig.userB.name]);
+  }, [monthTransactions, householdConfig.userB?.name]);
 
   const totalContributionsReceived = useMemo(() => {
     return partnerContributions.reduce((sum, t) => sum + t.amount, 0);
   }, [partnerContributions]);
 
-  // Balance: what Alicia has contributed minus what she is expected to pay
+  // Balance: what user B has contributed minus what they are expected to pay
   const balance = totalContributionsReceived - userBShare;
   const isSettled = Math.abs(balance) < 1;
 
@@ -775,7 +775,7 @@ const HouseholdManager: React.FC = () => {
               </div>
             ) : (
               <div className="p-4 rounded-lg bg-gray-50 dark:bg-gray-900/50 text-center text-xs text-gray-500 dark:text-gray-400">
-                Aucun virement d'Alicia ou de provision foyer détecté pour ce mois-ci. Vous pouvez marquer une rentrée d'argent comme participation au foyer dans la liste des transactions.
+                Aucun virement de participation ou de provision foyer détecté pour ce mois-ci. Vous pouvez marquer une rentrée d'argent comme participation au foyer dans la liste des transactions.
               </div>
             )}
           </div>

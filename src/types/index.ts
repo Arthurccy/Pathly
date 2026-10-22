@@ -374,9 +374,18 @@ export interface HouseholdConfig {
   accountIds?: string[]; // Comptes pris en compte dans la vue foyer (vide / absent = tous)
 }
 
+export interface SalaryEvolution {
+  id: string;
+  borrower: 'buyerA' | 'buyerB';
+  date: string; // YYYY-MM
+  newIncome: number;
+  note?: string;
+}
+
 export interface RealEstatePlan {
   id: string;
   name: string;
+  targetDate: string; // YYYY-MM (e.g. '2027-06')
   createdAt?: string;
   updatedAt?: string;
 
@@ -397,6 +406,7 @@ export interface RealEstatePlan {
   buyerBName: string;
   buyerBIncome: number;
   buyerBContribution: number;
+  salaryEvolutions?: SalaryEvolution[];
 
   // Ownership split (clé notariée)
   ownershipSplitMode: 'pro_rata_total' | '50_50' | 'custom';

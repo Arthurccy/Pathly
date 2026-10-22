@@ -21,15 +21,26 @@ import {
   Building2,
   RotateCcw,
   ArrowUpRight,
-  Info
+  Info,
+  Calendar,
+  Clock,
+  TrendingUp,
+  Tag
 } from 'lucide-react';
+import { format } from 'date-fns';
+import { fr } from 'date-fns/locale';
 import { useBudget } from '../contexts/BudgetContext';
 import { useAuth } from '../contexts/AuthContext';
-import { RealEstatePlan } from '../types';
+import { RealEstatePlan, SalaryEvolution } from '../types';
+
+interface RealEstatePlannerProps {
+  onViewChange?: (view: string) => void;
+}
 
 const defaultPlan: RealEstatePlan = {
   id: 'plan-1',
   name: 'Maison principale',
+  targetDate: '2027-06',
   propertyType: 'old',
   propertyPrice: 280000,
   notaryFeesRate: 7.5,
@@ -39,12 +50,28 @@ const defaultPlan: RealEstatePlan = {
   renovationBudget: 15000,
   bankGuaranteeFees: 2500,
 
-  buyerAName: 'Arthur',
+  buyerAName: 'Moi',
   buyerAIncome: 2173,
   buyerAContribution: 30000,
   buyerBName: 'Conjoint(e)',
-  buyerBIncome: 2100,
+  buyerBIncome: 1639,
   buyerBContribution: 15000,
+  salaryEvolutions: [
+    {
+      id: 'evo-1',
+      borrower: 'buyerA',
+      date: '2027-01',
+      newIncome: 2500,
+      note: 'Évolution de poste prévue'
+    },
+    {
+      id: 'evo-2',
+      borrower: 'buyerB',
+      date: '2028-01',
+      newIncome: 2000,
+      note: 'Augmentation prévue'
+    }
+  ],
 
   ownershipSplitMode: 'pro_rata_total',
   customOwnershipRatioA: 60,
@@ -63,7 +90,7 @@ const defaultPlan: RealEstatePlan = {
   customMonthlyRatioA: 55,
 };
 
-const RealEstatePlanner: React.FC = () => {
+const RealEstatePlanner: React.FC<RealEstatePlannerProps> = ({ onViewChange }) => {
   const { householdConfig, addAsset, addDebt } = useBudget();
   const { user } = useAuth();
   const storageKey = `pathly_real_estate_plans_${user?.id || 'guest'}`;
@@ -94,6 +121,13 @@ const RealEstatePlanner: React.FC = () => {
   const [integratedSuccess, setIntegratedSuccess] = useState(false);
   const [activeTab, setActiveTab] = useState<'project' | 'borrowers' | 'loans' | 'analysis'>('project');
 
+  // Form states for adding a new salary evolution
+  const [newEvoBorrower, setNewEvoBorrower] = useState<'buyerA' | 'buyerB'>('buyerA');
+  const [newEvoDate, setNewEvoDate] = useState<string>('2027-01');
+  const [newEvoIncome, setNewEvoIncome] = useState<string>('');
+  const [newEvoNote, setNewEvoNote] = useState<string>('');
+  const [showAddEvoForm, setShowAddEvoForm] = useState(false);
+
   // Save to localStorage whenever plans change
   useEffect(() => {
     try {
@@ -117,10 +151,12 @@ const RealEstatePlanner: React.FC = () => {
       ...defaultPlan,
       id: newId,
       name: `Projet ${plans.length + 1}`,
-      buyerAName: householdConfig?.userA?.name || 'Arthur',
+      targetDate: '2027-06',
+      buyerAName: householdConfig?.userA?.name || user?.user_metadata?.name || 'Moi',
       buyerAIncome: householdConfig?.userA?.income || 2173,
       buyerBName: householdConfig?.userB?.name || 'Conjoint(e)',
-      buyerBIncome: householdConfig?.userB?.income || 2100,
+      buyerBIncome: householdConfig?.userB?.income || 1639,
+      salaryEvolutions: [],
     };
     setPlans(prev => [...prev, newPlan]);
     setActivePlanId(newId);
@@ -138,28 +174,81 @@ const RealEstatePlanner: React.FC = () => {
     }
   };
 
+  // Add a salary evolution to the current plan
+  const handleAddSalaryEvolution = (e: React.FormEvent) => {
+    e.preventDefault();
+    const incomeVal = parseFloat(newEvoIncome);
+    if (!incomeVal || incomeVal <= 0 || !newEvoDate) {
+      alert('Veuillez renseigner une date et un montant de salaire valide.');
+      return;
+    }
+
+    const newEvo: SalaryEvolution = {
+      id: `evo-${Date.now()}`,
+      borrower: newEvoBorrower,
+      date: newEvoDate,
+      newIncome: incomeVal,
+      note: newEvoNote.trim() || undefined,
+    };
+
+    const currentEvos = currentPlan.salaryEvolutions || [];
+    updateCurrentPlan({
+      salaryEvolutions: [...currentEvos, newEvo],
+    });
+
+    setNewEvoIncome('');
+    setNewEvoNote('');
+    setShowAddEvoForm(false);
+  };
+
+  const handleDeleteSalaryEvolution = (id: string) => {
+    const currentEvos = currentPlan.salaryEvolutions || [];
+    updateCurrentPlan({
+      salaryEvolutions: currentEvos.filter(e => e.id !== id),
+    });
+  };
+
   // ==========================================
-  // FINANCIAL CALCULATIONS
+  // FINANCIAL CALCULATIONS WITH FUTURE SALARY
   // ==========================================
   const calculations = useMemo(() => {
     const p = currentPlan;
+    const projectTargetDate = p.targetDate || '2027-06';
 
-    // 1. Notary fees
+    // 1. Compute effective salary at project target date
+    const getEffectiveIncome = (borrower: 'buyerA' | 'buyerB', baseIncome: number) => {
+      const evos = (p.salaryEvolutions || [])
+        .filter(e => e.borrower === borrower && e.date <= projectTargetDate)
+        .sort((a, b) => a.date.localeCompare(b.date));
+
+      if (evos.length === 0) return baseIncome;
+      return evos[evos.length - 1].newIncome;
+    };
+
+    const effectiveIncomeA = getEffectiveIncome('buyerA', p.buyerAIncome);
+    const effectiveIncomeB = getEffectiveIncome('buyerB', p.buyerBIncome);
+    const totalEffectiveIncome = effectiveIncomeA + effectiveIncomeB;
+
+    // Has salary changed between base and target date?
+    const hasIncomeChangedA = effectiveIncomeA !== p.buyerAIncome;
+    const hasIncomeChangedB = effectiveIncomeB !== p.buyerBIncome;
+
+    // 2. Notary fees
     const calculatedNotaryFees = Math.round(p.propertyPrice * (p.notaryFeesRate / 100));
     const finalNotaryFees = p.useCustomNotaryFees ? p.notaryFeesAmount : calculatedNotaryFees;
 
-    // 2. Total operation cost
+    // 3. Total operation cost
     const totalCost = p.propertyPrice + finalNotaryFees + p.agencyFees + p.renovationBudget + p.bankGuaranteeFees;
 
-    // 3. Total down payment (apports)
+    // 4. Total down payment (apports)
     const totalContribution = p.buyerAContribution + p.buyerBContribution;
     const contributionRatioA = totalContribution > 0 ? (p.buyerAContribution / totalContribution) * 100 : 50;
     const contributionRatioB = 100 - contributionRatioA;
 
-    // 4. Amount to borrow
+    // 5. Amount to borrow
     const totalBorrowing = Math.max(0, totalCost - totalContribution);
 
-    // 5. PTZ (Prêt à Taux Zéro)
+    // 6. PTZ (Prêt à Taux Zéro)
     const ptzPrincipal = p.hasPtz ? Math.min(p.ptzAmount, totalBorrowing) : 0;
     const ptzDurationMonths = p.ptzDurationYears * 12;
     const ptzDeferredMonths = p.ptzDeferredYears * 12;
@@ -172,7 +261,7 @@ const RealEstatePlanner: React.FC = () => {
     const ptzMonthlyDuringDeferral = ptzMonthlyInsurance;
     const ptzMonthlyAfterDeferral = ptzMonthlyCapital + ptzMonthlyInsurance;
 
-    // 6. Main Loan (Classique)
+    // 7. Main Loan (Classique)
     const mainLoanPrincipal = Math.max(0, totalBorrowing - ptzPrincipal);
     const mainLoanDurationMonths = p.mainLoanDurationYears * 12;
     const monthlyRate = (p.mainLoanInterestRate / 100) / 12;
@@ -189,34 +278,28 @@ const RealEstatePlanner: React.FC = () => {
 
     const mainLoanMonthlyTotal = mainLoanMonthlyCapitalInterest + mainLoanMonthlyInsurance;
 
-    // 7. Global monthly payment
-    // Phase 1 (years 1 to ptzDeferredYears) vs Phase 2 (years ptzDeferredYears to end of PTZ)
+    // 8. Global monthly payment
     const totalMonthlyPhase1 = mainLoanMonthlyTotal + (p.hasPtz ? (p.ptzDeferredYears > 0 ? ptzMonthlyDuringDeferral : ptzMonthlyAfterDeferral) : 0);
     const totalMonthlyPhase2 = mainLoanMonthlyTotal + (p.hasPtz ? ptzMonthlyAfterDeferral : 0);
-
-    // Reference monthly payment for standard budget calculation (Phase 2 if deferred, or Phase 1)
     const representativeMonthly = p.hasPtz && p.ptzDeferredYears > 0 ? totalMonthlyPhase2 : totalMonthlyPhase1;
 
-    // 8. Total cost of credit
+    // 9. Total cost of credit
     const totalMainLoanInterests = (mainLoanMonthlyCapitalInterest * mainLoanDurationMonths) - mainLoanPrincipal;
     const totalMainLoanInsurance = mainLoanMonthlyInsurance * mainLoanDurationMonths;
     const totalPtzInsurance = ptzMonthlyInsurance * ptzDurationMonths;
     const totalCreditCost = totalMainLoanInterests + totalMainLoanInsurance + totalPtzInsurance;
 
-    // 9. Monthly repayment split between A and B
-    const totalIncome = p.buyerAIncome + p.buyerBIncome;
+    // 10. Monthly repayment split between A and B
     let ratioMonthlyA = 50;
 
     if (p.monthlySplitMode === '50_50') {
       ratioMonthlyA = 50;
     } else if (p.monthlySplitMode === 'pro_rata_income') {
-      ratioMonthlyA = totalIncome > 0 ? Math.round((p.buyerAIncome / totalIncome) * 1000) / 10 : 50;
+      ratioMonthlyA = totalEffectiveIncome > 0 ? Math.round((effectiveIncomeA / totalEffectiveIncome) * 1000) / 10 : 50;
     } else if (p.monthlySplitMode === 'ownership_ratio') {
       ratioMonthlyA = p.ownershipSplitMode === 'custom'
         ? p.customOwnershipRatioA
-        : p.ownershipSplitMode === '50_50'
-          ? 50
-          : 50; // will be updated below
+        : 50;
     } else if (p.monthlySplitMode === 'custom') {
       ratioMonthlyA = p.customMonthlyRatioA;
     }
@@ -226,17 +309,16 @@ const RealEstatePlanner: React.FC = () => {
     const monthlyA = representativeMonthly * (ratioMonthlyA / 100);
     const monthlyB = representativeMonthly * (ratioMonthlyB / 100);
 
-    // 10. Debt Ratios & Left-to-live
-    const debtRatioA = p.buyerAIncome > 0 ? (monthlyA / p.buyerAIncome) * 100 : 0;
-    const debtRatioB = p.buyerBIncome > 0 ? (monthlyB / p.buyerBIncome) * 100 : 0;
-    const debtRatioHousehold = totalIncome > 0 ? (representativeMonthly / totalIncome) * 100 : 0;
+    // 11. Debt Ratios & Left-to-live USING EFFECTIVE INCOMES AT TARGET DATE
+    const debtRatioA = effectiveIncomeA > 0 ? (monthlyA / effectiveIncomeA) * 100 : 0;
+    const debtRatioB = effectiveIncomeB > 0 ? (monthlyB / effectiveIncomeB) * 100 : 0;
+    const debtRatioHousehold = totalEffectiveIncome > 0 ? (representativeMonthly / totalEffectiveIncome) * 100 : 0;
 
-    const leftToLiveA = p.buyerAIncome - monthlyA;
-    const leftToLiveB = p.buyerBIncome - monthlyB;
-    const leftToLiveHousehold = totalIncome - representativeMonthly;
+    const leftToLiveA = effectiveIncomeA - monthlyA;
+    const leftToLiveB = effectiveIncomeB - monthlyB;
+    const leftToLiveHousehold = totalEffectiveIncome - representativeMonthly;
 
-    // 11. Lifetime Financial Effort & Equitable Notarial Split
-    // Total invested = Down payment + All monthly repayments over the loan horizon
+    // 12. Lifetime Financial Effort & Equitable Notarial Split
     const totalRepaidOverTime = (mainLoanMonthlyTotal * mainLoanDurationMonths) +
       (p.hasPtz ? ((ptzMonthlyDuringDeferral * ptzDeferredMonths) + (ptzMonthlyAfterDeferral * ptzAmortizationMonths)) : 0);
 
@@ -262,6 +344,12 @@ const RealEstatePlanner: React.FC = () => {
     const officialRatioB = Math.round((100 - officialRatioA) * 10) / 10;
 
     return {
+      projectTargetDate,
+      effectiveIncomeA,
+      effectiveIncomeB,
+      totalEffectiveIncome,
+      hasIncomeChangedA,
+      hasIncomeChangedB,
       finalNotaryFees,
       totalCost,
       totalContribution,
@@ -302,20 +390,18 @@ const RealEstatePlanner: React.FC = () => {
     };
   }, [currentPlan]);
 
-  // Integration into Pathly: Creates the Real Estate Asset and 2 Debts (Main Loan + PTZ)
+  // Integration into Pathly
   const handleIntegrateIntoPathly = async () => {
     try {
-      // 1. Add Asset in Biens & Patrimoine
       await addAsset({
         name: currentPlan.name || 'Maison principale',
         category: 'real_estate',
         purchasePrice: currentPlan.propertyPrice,
         currentValue: currentPlan.propertyPrice,
-        purchaseDate: new Date().toISOString().split('T')[0],
-        notes: `Achat financé avec ${calculations.totalContribution.toLocaleString('fr-FR')} € d'apport et ${calculations.totalBorrowing.toLocaleString('fr-FR')} € d'emprunt (dont PTZ). Quote-part: ${currentPlan.buyerAName} (${calculations.officialRatioA}%) / ${currentPlan.buyerBName} (${calculations.officialRatioB}%).`,
+        purchaseDate: `${currentPlan.targetDate || '2027-06'}-01`,
+        notes: `Achat prévu pour ${currentPlan.targetDate || '2027-06'}. Apport global: ${calculations.totalContribution.toLocaleString('fr-FR')} €. Quote-part notariée: ${currentPlan.buyerAName} (${calculations.officialRatioA}%) / ${currentPlan.buyerBName} (${calculations.officialRatioB}%).`,
       });
 
-      // 2. Add Main Mortgage in Dettes
       if (calculations.mainLoanPrincipal > 0) {
         await addDebt({
           name: `Prêt Immo Principal - ${currentPlan.name}`,
@@ -324,12 +410,11 @@ const RealEstatePlanner: React.FC = () => {
           interestRate: currentPlan.mainLoanInterestRate,
           minimumPayment: Math.round(calculations.mainLoanMonthlyTotal * 100) / 100,
           type: 'mortgage',
-          dueDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-          description: `Prêt immobilier amortissable sur ${currentPlan.mainLoanDurationYears} ans (${currentPlan.mainLoanInterestRate}% + ${currentPlan.mainLoanInsuranceRate}% assurance). Mensualité: ${calculations.mainLoanMonthlyTotal.toFixed(2)} €/mois.`,
+          dueDate: `${currentPlan.targetDate || '2027-06'}-01`,
+          description: `Prêt immobilier sur ${currentPlan.mainLoanDurationYears} ans (${currentPlan.mainLoanInterestRate}% + assurance). Mensualité: ${calculations.mainLoanMonthlyTotal.toFixed(2)} €/mois.`,
         });
       }
 
-      // 3. Add PTZ in Dettes (if applicable)
       if (currentPlan.hasPtz && calculations.ptzPrincipal > 0) {
         await addDebt({
           name: `Prêt à Taux Zéro (PTZ) - ${currentPlan.name}`,
@@ -338,8 +423,8 @@ const RealEstatePlanner: React.FC = () => {
           interestRate: 0,
           minimumPayment: Math.round(calculations.ptzMonthlyAfterDeferral * 100) / 100,
           type: 'mortgage',
-          dueDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-          description: `PTZ 0% sur ${currentPlan.ptzDurationYears} ans avec ${currentPlan.ptzDeferredYears} ans de différé. Mensualité pleine: ${calculations.ptzMonthlyAfterDeferral.toFixed(2)} €/mois (assurance incluse).`,
+          dueDate: `${currentPlan.targetDate || '2027-06'}-01`,
+          description: `PTZ 0% sur ${currentPlan.ptzDurationYears} ans (${currentPlan.ptzDeferredYears} ans de différé). Mensualité: ${calculations.ptzMonthlyAfterDeferral.toFixed(2)} €/mois.`,
         });
       }
 
@@ -365,10 +450,10 @@ const RealEstatePlanner: React.FC = () => {
             </div>
             <div>
               <h1 className="text-2xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                Projet Immobilier & Financement PTZ
+                Projet Immobilier
               </h1>
               <p className="text-sm text-slate-500 dark:text-slate-400">
-                Planifiez votre achat de maison à deux : apport de chacun, PTZ, prêt principal et clé notariée équitable.
+                Planifiez votre achat de maison à deux : date cible, évolution future des salaires, apports et clés notariées.
               </p>
             </div>
           </div>
@@ -421,6 +506,47 @@ const RealEstatePlanner: React.FC = () => {
         </div>
       </div>
 
+      {/* Target Date & Future Salary Banner Alert */}
+      <div className="bg-gradient-to-r from-blue-500/10 via-indigo-500/10 to-purple-500/10 border border-indigo-200/80 dark:border-indigo-800/60 rounded-2xl p-5 flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div className="flex items-center space-x-3.5">
+          <div className="p-3 bg-indigo-600 text-white rounded-xl shadow-md shrink-0">
+            <Calendar className="h-5 w-5" />
+          </div>
+          <div>
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-xs font-bold uppercase tracking-wider text-indigo-600 dark:text-indigo-400">
+                Date cible de l'acquisition
+              </span>
+              <span className="text-xs font-extrabold px-2.5 py-0.5 rounded-full bg-indigo-600 text-white">
+                {currentPlan.targetDate || '2027-06'}
+              </span>
+            </div>
+            <p className="text-xs text-slate-600 dark:text-slate-300 mt-1">
+              Revenus effectifs pris en compte à cette date : <strong>{currentPlan.buyerAName} ({calculations.effectiveIncomeA.toLocaleString('fr-FR')} €)</strong>
+              {calculations.hasIncomeChangedA && <span className="text-emerald-600 dark:text-emerald-400 font-semibold ml-1">(Revalorisé)</span>}
+              &nbsp;+ <strong>{currentPlan.buyerBName} ({calculations.effectiveIncomeB.toLocaleString('fr-FR')} €)</strong>
+              {calculations.hasIncomeChangedB && <span className="text-emerald-600 dark:text-emerald-400 font-semibold ml-1">(Revalorisé)</span>}
+              &nbsp;= Total <strong>{calculations.totalEffectiveIncome.toLocaleString('fr-FR')} €/mois</strong>.
+            </p>
+          </div>
+        </div>
+
+        <div className="flex items-center space-x-3 shrink-0">
+          <div className="text-right">
+            <label htmlFor="target-date-input" className="block text-[11px] font-semibold text-slate-500 dark:text-slate-400">
+              Modifier la date cible
+            </label>
+            <input
+              id="target-date-input"
+              type="month"
+              value={currentPlan.targetDate || '2027-06'}
+              onChange={e => updateCurrentPlan({ targetDate: e.target.value })}
+              className="px-3 py-1.5 text-xs font-bold bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-xl focus:ring-2 focus:ring-indigo-500 text-slate-800 dark:text-slate-100 shadow-sm"
+            />
+          </div>
+        </div>
+      </div>
+
       {/* KPI Overview Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {/* Total Cost */}
@@ -433,8 +559,8 @@ const RealEstatePlanner: React.FC = () => {
             {calculations.totalCost.toLocaleString('fr-FR')} €
           </div>
           <div className="mt-2 text-xs text-slate-500 dark:text-slate-400 flex items-center justify-between">
-            <span>Bien: {currentPlan.propertyPrice.toLocaleString('fr-FR')} €</span>
-            <span className="font-semibold text-slate-600 dark:text-slate-300">Notaire: {calculations.finalNotaryFees.toLocaleString('fr-FR')} €</span>
+            <span>Bien : {currentPlan.propertyPrice.toLocaleString('fr-FR')} €</span>
+            <span className="font-semibold text-slate-600 dark:text-slate-300">Notaire : {calculations.finalNotaryFees.toLocaleString('fr-FR')} €</span>
           </div>
         </div>
 
@@ -448,15 +574,15 @@ const RealEstatePlanner: React.FC = () => {
             {calculations.totalContribution.toLocaleString('fr-FR')} €
           </div>
           <div className="mt-2 text-xs text-slate-500 dark:text-slate-400 flex items-center justify-between">
-            <span>{currentPlan.buyerAName}: {currentPlan.buyerAContribution.toLocaleString('fr-FR')} €</span>
-            <span>{currentPlan.buyerBName}: {currentPlan.buyerBContribution.toLocaleString('fr-FR')} €</span>
+            <span>{currentPlan.buyerAName} : {currentPlan.buyerAContribution.toLocaleString('fr-FR')} €</span>
+            <span>{currentPlan.buyerBName} : {currentPlan.buyerBContribution.toLocaleString('fr-FR')} €</span>
           </div>
         </div>
 
         {/* Monthly Payment */}
         <div className="bg-white dark:bg-slate-800 p-5 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm">
           <div className="flex items-center justify-between text-slate-500 dark:text-slate-400 text-xs font-medium mb-2">
-            <span>Mensualité globale crédit</span>
+            <span>Mensualité globale</span>
             <Landmark className="h-4 w-4 text-purple-500" />
           </div>
           <div className="text-2xl font-black text-purple-600 dark:text-purple-400">
@@ -465,18 +591,18 @@ const RealEstatePlanner: React.FC = () => {
           <div className="mt-2 text-xs text-slate-500 dark:text-slate-400">
             {currentPlan.hasPtz && currentPlan.ptzDeferredYears > 0 ? (
               <span className="text-purple-600 dark:text-purple-300 font-medium">
-                Phase 1 (différé): {Math.round(calculations.totalMonthlyPhase1)} € puis {Math.round(calculations.totalMonthlyPhase2)} €
+                Phase 1 : {Math.round(calculations.totalMonthlyPhase1)} € puis {Math.round(calculations.totalMonthlyPhase2)} €
               </span>
             ) : (
-              <span>Prêt: {Math.round(calculations.mainLoanMonthlyTotal)} € {currentPlan.hasPtz ? `+ PTZ: ${Math.round(calculations.ptzMonthlyAfterDeferral)} €` : ''}</span>
+              <span>Prêt : {Math.round(calculations.mainLoanMonthlyTotal)} € {currentPlan.hasPtz ? `+ PTZ : ${Math.round(calculations.ptzMonthlyAfterDeferral)} €` : ''}</span>
             )}
           </div>
         </div>
 
-        {/* Debt Ratio (Endettement) */}
+        {/* Debt Ratio (Endettement calculé sur salaires à la date cible) */}
         <div className="bg-white dark:bg-slate-800 p-5 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm">
           <div className="flex items-center justify-between text-slate-500 dark:text-slate-400 text-xs font-medium mb-2">
-            <span>Taux d'endettement global</span>
+            <span>Taux d'endettement à terme</span>
             <Percent className="h-4 w-4 text-slate-400" />
           </div>
           <div className="flex items-baseline space-x-2">
@@ -498,7 +624,7 @@ const RealEstatePlanner: React.FC = () => {
             </span>
           </div>
           <div className="mt-2 text-xs text-slate-500 dark:text-slate-400">
-            Reste à vivre couple: <strong>{Math.round(calculations.leftToLiveHousehold).toLocaleString('fr-FR')} €</strong>
+            Reste à vivre : <strong>{Math.round(calculations.leftToLiveHousehold).toLocaleString('fr-FR')} €</strong>
           </div>
         </div>
       </div>
@@ -525,7 +651,7 @@ const RealEstatePlanner: React.FC = () => {
           }`}
         >
           <Users className="h-4 w-4" />
-          <span>2. Co-Emprunteurs & Apports</span>
+          <span>2. Co-Emprunteurs, Apports & Évolution des Salaires</span>
         </button>
         <button
           onClick={() => setActiveTab('loans')}
@@ -562,18 +688,32 @@ const RealEstatePlanner: React.FC = () => {
               <span>Paramètres du Bien Immobilier</span>
             </h3>
 
-            {/* Scenario Name */}
-            <div>
-              <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">
-                Nom du scénario / du projet
-              </label>
-              <input
-                type="text"
-                value={currentPlan.name}
-                onChange={e => updateCurrentPlan({ name: e.target.value })}
-                className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-900/50 border border-slate-300 dark:border-slate-600 rounded-xl text-sm font-semibold focus:ring-2 focus:ring-indigo-500 focus:border-transparent dark:text-white"
-                placeholder="Ex: Maison rénovée, Pavillon 4 pièces..."
-              />
+            {/* Scenario Name & Target Date */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">
+                  Nom du scénario / du projet
+                </label>
+                <input
+                  type="text"
+                  value={currentPlan.name}
+                  onChange={e => updateCurrentPlan({ name: e.target.value })}
+                  className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-900/50 border border-slate-300 dark:border-slate-600 rounded-xl text-sm font-semibold focus:ring-2 focus:ring-indigo-500 focus:border-transparent dark:text-white"
+                  placeholder="Ex: Maison rénovée, Pavillon 4 pièces..."
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">
+                  Date cible du projet (Mois / Année) *
+                </label>
+                <input
+                  type="month"
+                  value={currentPlan.targetDate || '2027-06'}
+                  onChange={e => updateCurrentPlan({ targetDate: e.target.value })}
+                  className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-900/50 border border-slate-300 dark:border-slate-600 rounded-xl text-sm font-semibold focus:ring-2 focus:ring-indigo-500 focus:border-transparent dark:text-white"
+                />
+              </div>
             </div>
 
             {/* Property Type */}
@@ -770,7 +910,7 @@ const RealEstatePlanner: React.FC = () => {
               onClick={() => setActiveTab('borrowers')}
               className="w-full mt-4 py-2.5 bg-indigo-600 hover:bg-indigo-500 rounded-xl text-xs font-bold transition-colors flex items-center justify-center space-x-2"
             >
-              <span>Étape suivante : Apports des co-emprunteurs</span>
+              <span>Étape suivante : Co-emprunteurs & Salaires</span>
               <ArrowRight className="h-4 w-4" />
             </button>
           </div>
@@ -778,179 +918,332 @@ const RealEstatePlanner: React.FC = () => {
       )}
 
       {/* ======================================================== */}
-      {/* TAB 2: CO-EMPRUNTEURS & APPORTS */}
+      {/* TAB 2: CO-EMPRUNTEURS, APPORTS & ÉVOLUTION DES SALAIRES */}
       {/* ======================================================== */}
       {activeTab === 'borrowers' && (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Buyer A */}
-          <div className="bg-white dark:bg-slate-800 p-6 rounded-2xl border-2 border-indigo-500/40 dark:border-indigo-500/30 shadow-sm space-y-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-2.5">
-                <div className="w-8 h-8 rounded-full bg-indigo-100 dark:bg-indigo-900/60 text-indigo-600 dark:text-indigo-300 flex items-center justify-center font-black text-sm">
-                  1
+        <div className="space-y-6">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Buyer A */}
+            <div className="bg-white dark:bg-slate-800 p-6 rounded-2xl border-2 border-indigo-500/40 dark:border-indigo-500/30 shadow-sm space-y-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-2.5">
+                  <div className="w-8 h-8 rounded-full bg-indigo-100 dark:bg-indigo-900/60 text-indigo-600 dark:text-indigo-300 flex items-center justify-center font-black text-sm">
+                    1
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-slate-900 dark:text-white">Co-emprunteur 1</h3>
+                    <p className="text-xs text-slate-500">Moi / Premier signataire</p>
+                  </div>
                 </div>
+                <span className="text-xs font-bold px-2.5 py-1 bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 rounded-full">
+                  {calculations.contributionRatioA.toFixed(1)}% de l'apport
+                </span>
+              </div>
+
+              <div className="space-y-3 pt-2">
                 <div>
-                  <h3 className="font-bold text-slate-900 dark:text-white">Co-emprunteur 1</h3>
-                  <p className="text-xs text-slate-500">Moi / Premier signataire</p>
+                  <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">
+                    Prénom / Nom
+                  </label>
+                  <input
+                    type="text"
+                    value={currentPlan.buyerAName}
+                    onChange={e => updateCurrentPlan({ buyerAName: e.target.value })}
+                    className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-900/50 border border-slate-300 dark:border-slate-600 rounded-xl text-sm font-semibold focus:ring-2 focus:ring-indigo-500 dark:text-white"
+                  />
+                </div>
+
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="text-xs font-medium text-slate-600 dark:text-slate-400">
+                      Salaire net mensuel de base (€ / mois) *
+                    </label>
+                    {calculations.hasIncomeChangedA && (
+                      <span className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400">
+                        Pris en compte au projet : {calculations.effectiveIncomeA.toLocaleString('fr-FR')} €
+                      </span>
+                    )}
+                  </div>
+                  <div className="relative">
+                    <input
+                      type="number"
+                      step="50"
+                      min="0"
+                      value={currentPlan.buyerAIncome || ''}
+                      onChange={e => updateCurrentPlan({ buyerAIncome: parseFloat(e.target.value) || 0 })}
+                      className="w-full pl-3.5 pr-8 py-2.5 bg-slate-50 dark:bg-slate-900/50 border border-slate-300 dark:border-slate-600 rounded-xl text-sm font-semibold focus:ring-2 focus:ring-indigo-500 dark:text-white"
+                    />
+                    <span className="absolute right-3 top-2.5 text-slate-400 text-sm">€</span>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">
+                    Apport personnel injecté (€) *
+                  </label>
+                  <div className="relative">
+                    <input
+                      type="number"
+                      step="500"
+                      min="0"
+                      value={currentPlan.buyerAContribution || ''}
+                      onChange={e => updateCurrentPlan({ buyerAContribution: parseFloat(e.target.value) || 0 })}
+                      className="w-full pl-3.5 pr-8 py-2.5 bg-slate-50 dark:bg-slate-900/50 border border-slate-300 dark:border-slate-600 rounded-xl text-sm font-black text-indigo-600 dark:text-indigo-400 focus:ring-2 focus:ring-indigo-500"
+                    />
+                    <span className="absolute right-3 top-2.5 text-slate-400 text-sm">€</span>
+                  </div>
                 </div>
               </div>
-              <span className="text-xs font-bold px-2.5 py-1 bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 rounded-full">
-                {calculations.contributionRatioA.toFixed(1)}% de l'apport
-              </span>
             </div>
 
-            <div className="space-y-3 pt-2">
-              <div>
-                <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">
-                  Prénom / Nom
-                </label>
-                <input
-                  type="text"
-                  value={currentPlan.buyerAName}
-                  onChange={e => updateCurrentPlan({ buyerAName: e.target.value })}
-                  className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-900/50 border border-slate-300 dark:border-slate-600 rounded-xl text-sm font-semibold focus:ring-2 focus:ring-indigo-500 dark:text-white"
-                />
+            {/* Buyer B */}
+            <div className="bg-white dark:bg-slate-800 p-6 rounded-2xl border-2 border-purple-500/40 dark:border-purple-500/30 shadow-sm space-y-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-2.5">
+                  <div className="w-8 h-8 rounded-full bg-purple-100 dark:bg-purple-900/60 text-purple-600 dark:text-purple-300 flex items-center justify-center font-black text-sm">
+                    2
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-slate-900 dark:text-white">Co-emprunteur 2</h3>
+                    <p className="text-xs text-slate-500">Conjoint(e) / Deuxième signataire</p>
+                  </div>
+                </div>
+                <span className="text-xs font-bold px-2.5 py-1 bg-purple-50 dark:bg-purple-950/40 text-purple-600 dark:text-purple-400 rounded-full">
+                  {calculations.contributionRatioB.toFixed(1)}% de l'apport
+                </span>
               </div>
 
-              <div>
-                <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">
-                  Revenu net mensuel (€ / mois) *
-                </label>
-                <div className="relative">
+              <div className="space-y-3 pt-2">
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">
+                    Prénom / Nom
+                  </label>
                   <input
-                    type="number"
-                    step="50"
-                    min="0"
-                    value={currentPlan.buyerAIncome || ''}
-                    onChange={e => updateCurrentPlan({ buyerAIncome: parseFloat(e.target.value) || 0 })}
-                    className="w-full pl-3.5 pr-8 py-2.5 bg-slate-50 dark:bg-slate-900/50 border border-slate-300 dark:border-slate-600 rounded-xl text-sm font-semibold focus:ring-2 focus:ring-indigo-500 dark:text-white"
+                    type="text"
+                    value={currentPlan.buyerBName}
+                    onChange={e => updateCurrentPlan({ buyerBName: e.target.value })}
+                    className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-900/50 border border-slate-300 dark:border-slate-600 rounded-xl text-sm font-semibold focus:ring-2 focus:ring-purple-500 dark:text-white"
                   />
-                  <span className="absolute right-3 top-2.5 text-slate-400 text-sm">€</span>
                 </div>
-              </div>
 
-              <div>
-                <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">
-                  Apport personnel personnel (€) *
-                </label>
-                <div className="relative">
-                  <input
-                    type="number"
-                    step="500"
-                    min="0"
-                    value={currentPlan.buyerAContribution || ''}
-                    onChange={e => updateCurrentPlan({ buyerAContribution: parseFloat(e.target.value) || 0 })}
-                    className="w-full pl-3.5 pr-8 py-2.5 bg-slate-50 dark:bg-slate-900/50 border border-slate-300 dark:border-slate-600 rounded-xl text-sm font-black text-indigo-600 dark:text-indigo-400 focus:ring-2 focus:ring-indigo-500"
-                  />
-                  <span className="absolute right-3 top-2.5 text-slate-400 text-sm">€</span>
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="text-xs font-medium text-slate-600 dark:text-slate-400">
+                      Salaire net mensuel de base (€ / mois) *
+                    </label>
+                    {calculations.hasIncomeChangedB && (
+                      <span className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400">
+                        Pris en compte au projet : {calculations.effectiveIncomeB.toLocaleString('fr-FR')} €
+                      </span>
+                    )}
+                  </div>
+                  <div className="relative">
+                    <input
+                      type="number"
+                      step="50"
+                      min="0"
+                      value={currentPlan.buyerBIncome || ''}
+                      onChange={e => updateCurrentPlan({ buyerBIncome: parseFloat(e.target.value) || 0 })}
+                      className="w-full pl-3.5 pr-8 py-2.5 bg-slate-50 dark:bg-slate-900/50 border border-slate-300 dark:border-slate-600 rounded-xl text-sm font-semibold focus:ring-2 focus:ring-purple-500 dark:text-white"
+                    />
+                    <span className="absolute right-3 top-2.5 text-slate-400 text-sm">€</span>
+                  </div>
                 </div>
-                <p className="text-[11px] text-slate-400 mt-1">
-                  Épargne personnelle injectée dans le projet immobilier.
-                </p>
+
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">
+                    Apport personnel injecté (€) *
+                  </label>
+                  <div className="relative">
+                    <input
+                      type="number"
+                      step="500"
+                      min="0"
+                      value={currentPlan.buyerBContribution || ''}
+                      onChange={e => updateCurrentPlan({ buyerBContribution: parseFloat(e.target.value) || 0 })}
+                      className="w-full pl-3.5 pr-8 py-2.5 bg-slate-50 dark:bg-slate-900/50 border border-slate-300 dark:border-slate-600 rounded-xl text-sm font-black text-purple-600 dark:text-purple-400 focus:ring-2 focus:ring-purple-500"
+                    />
+                    <span className="absolute right-3 top-2.5 text-slate-400 text-sm">€</span>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
 
-          {/* Buyer B */}
-          <div className="bg-white dark:bg-slate-800 p-6 rounded-2xl border-2 border-purple-500/40 dark:border-purple-500/30 shadow-sm space-y-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-2.5">
-                <div className="w-8 h-8 rounded-full bg-purple-100 dark:bg-purple-900/60 text-purple-600 dark:text-purple-300 flex items-center justify-center font-black text-sm">
-                  2
-                </div>
-                <div>
-                  <h3 className="font-bold text-slate-900 dark:text-white">Co-emprunteur 2</h3>
-                  <p className="text-xs text-slate-500">Conjoint(e) / Deuxième signataire</p>
-                </div>
-              </div>
-              <span className="text-xs font-bold px-2.5 py-1 bg-purple-50 dark:bg-purple-950/40 text-purple-600 dark:text-purple-400 rounded-full">
-                {calculations.contributionRatioB.toFixed(1)}% de l'apport
-              </span>
-            </div>
-
-            <div className="space-y-3 pt-2">
+          {/* Planned Future Salary Changes Section */}
+          <div className="bg-white dark:bg-slate-800 p-6 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
               <div>
-                <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">
-                  Prénom / Nom
-                </label>
-                <input
-                  type="text"
-                  value={currentPlan.buyerBName}
-                  onChange={e => updateCurrentPlan({ buyerBName: e.target.value })}
-                  className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-900/50 border border-slate-300 dark:border-slate-600 rounded-xl text-sm font-semibold focus:ring-2 focus:ring-purple-500 dark:text-white"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">
-                  Revenu net mensuel (€ / mois) *
-                </label>
-                <div className="relative">
-                  <input
-                    type="number"
-                    step="50"
-                    min="0"
-                    value={currentPlan.buyerBIncome || ''}
-                    onChange={e => updateCurrentPlan({ buyerBIncome: parseFloat(e.target.value) || 0 })}
-                    className="w-full pl-3.5 pr-8 py-2.5 bg-slate-50 dark:bg-slate-900/50 border border-slate-300 dark:border-slate-600 rounded-xl text-sm font-semibold focus:ring-2 focus:ring-purple-500 dark:text-white"
-                  />
-                  <span className="absolute right-3 top-2.5 text-slate-400 text-sm">€</span>
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">
-                  Apport personnel (€) *
-                </label>
-                <div className="relative">
-                  <input
-                    type="number"
-                    step="500"
-                    min="0"
-                    value={currentPlan.buyerBContribution || ''}
-                    onChange={e => updateCurrentPlan({ buyerBContribution: parseFloat(e.target.value) || 0 })}
-                    className="w-full pl-3.5 pr-8 py-2.5 bg-slate-50 dark:bg-slate-900/50 border border-slate-300 dark:border-slate-600 rounded-xl text-sm font-black text-purple-600 dark:text-purple-400 focus:ring-2 focus:ring-purple-500"
-                  />
-                  <span className="absolute right-3 top-2.5 text-slate-400 text-sm">€</span>
-                </div>
-                <p className="text-[11px] text-slate-400 mt-1">
-                  Épargne personnelle injectée par le/la conjoint(e).
+                <h4 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                  <TrendingUp className="h-5 w-5 text-indigo-500" />
+                  <span>Évolutions & Changements de Salaire Programmés</span>
+                </h4>
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  Planifiez les augmentations ou changements de poste futurs. Seuls les salaires effectifs à la date du projet (<strong>{currentPlan.targetDate || '2027-06'}</strong>) sont retenus pour le taux d'endettement.
                 </p>
               </div>
-            </div>
-          </div>
 
-          {/* Combined Equity Summary Card */}
-          <div className="lg:col-span-2 bg-slate-50 dark:bg-slate-900/40 p-5 rounded-2xl border border-slate-200 dark:border-slate-700 flex flex-col md:flex-row items-center justify-between gap-4">
-            <div className="space-y-1">
-              <h4 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                <Scale className="h-4 w-4 text-indigo-500" />
-                <span>Bilan des apports pour le crédit</span>
-              </h4>
-              <p className="text-xs text-slate-500 dark:text-slate-400">
-                Sur un projet total de <strong>{calculations.totalCost.toLocaleString('fr-FR')} €</strong>, vos apports couvrent <strong>{((calculations.totalContribution / (calculations.totalCost || 1)) * 100).toFixed(1)}%</strong> du budget.
-              </p>
-            </div>
-
-            <div className="flex items-center space-x-6 text-sm">
-              <div className="text-right">
-                <span className="block text-xs text-slate-400">Apport global</span>
-                <span className="text-lg font-black text-slate-900 dark:text-white">
-                  {calculations.totalContribution.toLocaleString('fr-FR')} €
-                </span>
-              </div>
-              <div className="text-right">
-                <span className="block text-xs text-slate-400">Reste à emprunter</span>
-                <span className="text-lg font-black text-indigo-600 dark:text-indigo-400">
-                  {calculations.totalBorrowing.toLocaleString('fr-FR')} €
-                </span>
-              </div>
               <button
-                onClick={() => setActiveTab('loans')}
-                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition-colors"
+                type="button"
+                onClick={() => setShowAddEvoForm(!showAddEvoForm)}
+                className="inline-flex items-center space-x-1.5 px-3 py-1.5 bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-100 rounded-xl text-xs font-bold transition shrink-0"
               >
-                Configurer le PTZ & Crédit
+                <Plus className="h-3.5 w-3.5" />
+                <span>Planifier un changement de salaire</span>
               </button>
+            </div>
+
+            {/* Add Salary Evolution Form */}
+            {showAddEvoForm && (
+              <form onSubmit={handleAddSalaryEvolution} className="p-4 bg-slate-50 dark:bg-slate-900/60 rounded-xl border border-slate-200 dark:border-slate-700 space-y-3">
+                <div className="text-xs font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wide">
+                  Nouveau changement de salaire
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
+                  <div>
+                    <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">
+                      Co-emprunteur concerné
+                    </label>
+                    <select
+                      value={newEvoBorrower}
+                      onChange={e => setNewEvoBorrower(e.target.value as any)}
+                      className="w-full px-3 py-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-xl text-xs font-semibold dark:text-white"
+                    >
+                      <option value="buyerA">{currentPlan.buyerAName} (Emprunteur 1)</option>
+                      <option value="buyerB">{currentPlan.buyerBName} (Emprunteur 2)</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">
+                      Date d'effet (Mois / Année) *
+                    </label>
+                    <input
+                      type="month"
+                      value={newEvoDate}
+                      onChange={e => setNewEvoDate(e.target.value)}
+                      className="w-full px-3 py-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-xl text-xs font-semibold dark:text-white"
+                      required
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">
+                      Nouveau salaire net (€ / mois) *
+                    </label>
+                    <input
+                      type="number"
+                      step="50"
+                      min="0"
+                      value={newEvoIncome}
+                      onChange={e => setNewEvoIncome(e.target.value)}
+                      className="w-full px-3 py-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-xl text-xs font-semibold dark:text-white"
+                      placeholder="Ex: 2500"
+                      required
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">
+                      Motif / Note (optionnel)
+                    </label>
+                    <input
+                      type="text"
+                      value={newEvoNote}
+                      onChange={e => setNewEvoNote(e.target.value)}
+                      className="w-full px-3 py-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-xl text-xs font-semibold dark:text-white"
+                      placeholder="Ex: Promotion, grille..."
+                    />
+                  </div>
+                </div>
+
+                <div className="flex justify-end space-x-2 pt-1">
+                  <button
+                    type="button"
+                    onClick={() => setShowAddEvoForm(false)}
+                    className="px-3 py-1.5 text-xs text-slate-500 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-lg transition"
+                  >
+                    Annuler
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-4 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-bold transition shadow-sm"
+                  >
+                    Enregistrer l'évolution
+                  </button>
+                </div>
+              </form>
+            )}
+
+            {/* List of Evolutions */}
+            <div className="space-y-2">
+              {(currentPlan.salaryEvolutions || []).length > 0 ? (
+                (currentPlan.salaryEvolutions || []).map(evo => {
+                  const isEffectiveAtTargetDate = evo.date <= (currentPlan.targetDate || '2027-06');
+                  const borrowerName = evo.borrower === 'buyerA' ? currentPlan.buyerAName : currentPlan.buyerBName;
+
+                  return (
+                    <div
+                      key={evo.id}
+                      className={`flex flex-col sm:flex-row sm:items-center justify-between p-3 rounded-xl border transition-all ${
+                        isEffectiveAtTargetDate
+                          ? 'bg-emerald-50/50 dark:bg-emerald-950/20 border-emerald-200 dark:border-emerald-800/60'
+                          : 'bg-slate-50 dark:bg-slate-900/40 border-slate-200 dark:border-slate-700 opacity-75'
+                      }`}
+                    >
+                      <div className="flex items-center space-x-3">
+                        <div className={`p-2 rounded-lg text-xs font-bold ${
+                          evo.borrower === 'buyerA'
+                            ? 'bg-indigo-100 dark:bg-indigo-900/60 text-indigo-700 dark:text-indigo-300'
+                            : 'bg-purple-100 dark:bg-purple-900/60 text-purple-700 dark:text-purple-300'
+                        }`}>
+                          {borrowerName}
+                        </div>
+                        <div>
+                          <div className="flex items-center space-x-2">
+                            <span className="text-sm font-bold text-slate-900 dark:text-white">
+                              {evo.newIncome.toLocaleString('fr-FR')} € / mois
+                            </span>
+                            <span className="text-xs text-slate-500 dark:text-slate-400">
+                              à partir de {evo.date}
+                            </span>
+                            {isEffectiveAtTargetDate ? (
+                              <span className="inline-flex items-center space-x-1 text-[11px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300">
+                                <CheckCircle2 className="h-3 w-3" />
+                                <span>Actif à la date du projet</span>
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center space-x-1 text-[11px] font-semibold px-2 py-0.5 rounded-full bg-slate-200 text-slate-600 dark:bg-slate-700 dark:text-slate-300">
+                                <Clock className="h-3 w-3" />
+                                <span>Postérieur à la date cible</span>
+                              </span>
+                            )}
+                          </div>
+                          {evo.note && (
+                            <p className="text-xs text-slate-500 italic mt-0.5">
+                              {evo.note}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteSalaryEvolution(evo.id)}
+                        className="p-1.5 text-slate-400 hover:text-red-600 transition self-end sm:self-center mt-2 sm:mt-0"
+                        title="Supprimer cette évolution"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </div>
+                  );
+                })
+              ) : (
+                <div className="p-4 text-center text-xs text-slate-400 dark:text-slate-500 border border-dashed border-slate-200 dark:border-slate-700 rounded-xl">
+                  Aucune évolution de salaire programmée. Les salaires de base actuels sont utilisés.
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -1190,7 +1483,7 @@ const RealEstatePlanner: React.FC = () => {
               </label>
               <div className="space-y-2">
                 {[
-                  { id: 'pro_rata_income', label: 'Au prorata des revenus nets', desc: `Selon vos salaires (${calculations.ratioMonthlyA}% / ${calculations.ratioMonthlyB}%)` },
+                  { id: 'pro_rata_income', label: 'Au prorata des revenus (à date cible)', desc: `Selon vos salaires futurs (${calculations.ratioMonthlyA}% / ${calculations.ratioMonthlyB}%)` },
                   { id: '50_50', label: '50% / 50% (À parts égales)', desc: 'Chacun paie exactement la moitié de l\'échéance' },
                   { id: 'custom', label: 'Personnalisé', desc: 'Réglez vous-mêmes les pourcentages mensuels' }
                 ].map(opt => (
@@ -1213,8 +1506,8 @@ const RealEstatePlanner: React.FC = () => {
               {currentPlan.monthlySplitMode === 'custom' && (
                 <div className="mt-4 p-3 bg-slate-50 dark:bg-slate-900/50 rounded-xl border border-slate-200 dark:border-slate-700">
                   <div className="flex justify-between text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                    <span>Part de {currentPlan.buyerAName}: {currentPlan.customMonthlyRatioA}%</span>
-                    <span>Part de {currentPlan.buyerBName}: {100 - currentPlan.customMonthlyRatioA}%</span>
+                    <span>Part de {currentPlan.buyerAName} : {currentPlan.customMonthlyRatioA}%</span>
+                    <span>Part de {currentPlan.buyerBName} : {100 - currentPlan.customMonthlyRatioA}%</span>
                   </div>
                   <input
                     type="range"
@@ -1270,8 +1563,8 @@ const RealEstatePlanner: React.FC = () => {
               {currentPlan.ownershipSplitMode === 'custom' && (
                 <div className="mt-4 p-3 bg-slate-50 dark:bg-slate-900/50 rounded-xl border border-slate-200 dark:border-slate-700">
                   <div className="flex justify-between text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                    <span>Propriété {currentPlan.buyerAName}: {currentPlan.customOwnershipRatioA}%</span>
-                    <span>Propriété {currentPlan.buyerBName}: {100 - currentPlan.customOwnershipRatioA}%</span>
+                    <span>Propriété {currentPlan.buyerAName} : {currentPlan.customOwnershipRatioA}%</span>
+                    <span>Propriété {currentPlan.buyerBName} : {100 - currentPlan.customOwnershipRatioA}%</span>
                   </div>
                   <input
                     type="range"
@@ -1309,9 +1602,14 @@ const RealEstatePlanner: React.FC = () => {
                 </div>
 
                 <div className="flex justify-between items-center">
-                  <span className="text-slate-500">Taux d'endettement individuel</span>
+                  <div>
+                    <span className="text-slate-500 block">Taux d'endettement</span>
+                    <span className="text-[11px] text-slate-400 block">
+                      Basé sur {calculations.effectiveIncomeA.toLocaleString('fr-FR')} €/m à date
+                    </span>
+                  </div>
                   <div className="flex items-center space-x-2">
-                    <span className={`font-bold ${calculations.debtRatioA <= 35 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                    <span className={`font-bold text-base ${calculations.debtRatioA <= 35 ? 'text-emerald-600' : 'text-rose-600'}`}>
                       {calculations.debtRatioA.toFixed(1)}%
                     </span>
                     <span className="text-[10px] text-slate-400">(max 35%)</span>
@@ -1355,9 +1653,14 @@ const RealEstatePlanner: React.FC = () => {
                 </div>
 
                 <div className="flex justify-between items-center">
-                  <span className="text-slate-500">Taux d'endettement individuel</span>
+                  <div>
+                    <span className="text-slate-500 block">Taux d'endettement</span>
+                    <span className="text-[11px] text-slate-400 block">
+                      Basé sur {calculations.effectiveIncomeB.toLocaleString('fr-FR')} €/m à date
+                    </span>
+                  </div>
                   <div className="flex items-center space-x-2">
-                    <span className={`font-bold ${calculations.debtRatioB <= 35 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                    <span className={`font-bold text-base ${calculations.debtRatioB <= 35 ? 'text-emerald-600' : 'text-rose-600'}`}>
                       {calculations.debtRatioB.toFixed(1)}%
                     </span>
                     <span className="text-[10px] text-slate-400">(max 35%)</span>

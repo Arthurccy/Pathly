@@ -361,10 +361,10 @@ const AddTransaction: React.FC = () => {
                     )}
                   </div>
                   <p className="text-xs text-indigo-700 dark:text-indigo-300 mt-1">
-                    Répartition dynamique : {householdConfig.userA?.name || 'Arthur'} ({ratioA}%) / {householdConfig.userB?.name || 'Alicia'} ({ratioB}%)
+                    Répartition dynamique : {householdConfig.userA?.name || 'Moi'} ({ratioA}%) / {householdConfig.userB?.name || 'Conjoint(e)'} ({ratioB}%)
                     {formData.amount && !isNaN(parseFloat(formData.amount)) && (
                       <span className="block font-medium mt-1 text-indigo-800 dark:text-indigo-200">
-                        Part de {householdConfig.userB?.name || 'Alicia'} : {(parseFloat(formData.amount) * (ratioB / 100)).toFixed(2)} €
+                        Part de {householdConfig.userB?.name || 'Conjoint(e)'} : {(parseFloat(formData.amount) * (ratioB / 100)).toFixed(2)} €
                       </span>
                     )}
                   </p>
@@ -389,10 +389,10 @@ const AddTransaction: React.FC = () => {
                 <div className="flex-1">
                   <label htmlFor="isHouseholdContribution" className="text-sm font-semibold text-emerald-900 dark:text-emerald-200 cursor-pointer flex items-center gap-1.5">
                     <LucideIcons.HeartHandshake className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
-                    Provision / Virement Foyer (de {householdConfig.userB?.name || 'Alicia'})
+                    Provision / Virement Foyer (de {householdConfig.userB?.name || 'Conjoint(e)'})
                   </label>
                   <p className="text-xs text-emerald-700 dark:text-emerald-300 mt-0.5">
-                    Cette rentrée compense les dépenses communes avancées et sera déduite de ce qu'elle te doit.
+                    Cette rentrée compense les dépenses communes avancées et sera déduite de ce qui est dû.
                   </p>
                 </div>
               </div>

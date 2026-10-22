@@ -20,11 +20,13 @@ import {
   ShieldCheck, 
   Sparkles,
   ArrowRight,
-  PieChart
+  PieChart,
+  Home
 } from 'lucide-react';
 import { format, differenceInMonths, parseISO, isValid } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { useBudget } from '../contexts/BudgetContext';
+import { useAuth } from '../contexts/AuthContext';
 import { PhysicalAsset, Debt } from '../types';
 
 const money = (val: number) =>
@@ -79,12 +81,30 @@ const getCategoryBadgeColor = (category: PhysicalAsset['category']) => {
   }
 };
 
-const AssetManager: React.FC = () => {
+interface AssetManagerProps {
+  onViewChange?: (view: string) => void;
+}
+
+const AssetManager: React.FC<AssetManagerProps> = ({ onViewChange }) => {
   const { assets, addAsset, updateAsset, deleteAsset, debts, accounts, addDebt } = useBudget();
+  const { user } = useAuth();
 
   const [activeCategoryFilter, setActiveCategoryFilter] = useState<string>('all');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingAsset, setEditingAsset] = useState<PhysicalAsset | null>(null);
+
+  // Real estate project in progress (from RealEstatePlanner)
+  const plannedRealEstatePlan = useMemo(() => {
+    try {
+      const storageKey = `pathly_real_estate_plans_${user?.id || 'guest'}`;
+      const saved = localStorage.getItem(storageKey);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed[0];
+      }
+    } catch {}
+    return null;
+  }, [user?.id]);
 
   // Form State
   const [formData, setFormData] = useState({
@@ -374,6 +394,43 @@ const AssetManager: React.FC = () => {
           </p>
         </div>
       </div>
+
+      {/* Real Estate Project in progress banner */}
+      {plannedRealEstatePlan && (
+        <div className="bg-gradient-to-r from-indigo-500/10 via-purple-500/10 to-blue-500/10 border border-indigo-200 dark:border-indigo-800/60 rounded-2xl p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="flex items-center space-x-3.5">
+            <div className="p-3 bg-indigo-600 text-white rounded-xl shadow-md shrink-0">
+              <Home className="h-5 w-5" />
+            </div>
+            <div>
+              <div className="flex items-center space-x-2">
+                <span className="text-xs font-bold uppercase tracking-wider text-indigo-600 dark:text-indigo-400">
+                  Projet Immobilier en préparation
+                </span>
+                {plannedRealEstatePlan.targetDate && (
+                  <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-800 dark:bg-indigo-950/60 dark:text-indigo-300">
+                    Cible : {plannedRealEstatePlan.targetDate}
+                  </span>
+                )}
+              </div>
+              <h4 className="text-sm sm:text-base font-bold text-slate-900 dark:text-white mt-0.5">
+                {plannedRealEstatePlan.name} • {plannedRealEstatePlan.propertyPrice?.toLocaleString('fr-FR')} €
+              </h4>
+              <p className="text-xs text-slate-500 dark:text-slate-400">
+                Financement prévu : {((plannedRealEstatePlan.buyerAContribution || 0) + (plannedRealEstatePlan.buyerBContribution || 0)).toLocaleString('fr-FR')} € d'apport personnel
+              </p>
+            </div>
+          </div>
+
+          <button
+            onClick={() => onViewChange?.('real-estate-project')}
+            className="inline-flex items-center justify-center space-x-1.5 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition shadow-sm shrink-0"
+          >
+            <span>Accéder au projet immo</span>
+            <ArrowRight className="h-3.5 w-3.5" />
+          </button>
+        </div>
+      )}
 
       {/* Category filter pills */}
       <div className="flex items-center gap-2 overflow-x-auto pb-1 text-sm">

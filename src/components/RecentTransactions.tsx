@@ -652,7 +652,7 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({
                       Dépense commune (Foyer & Couple)
                     </label>
                     <p className="text-xs text-indigo-700 dark:text-indigo-300 mt-0.5">
-                      Partagé à {ratioA}% ({householdConfig.userA?.name || 'Arthur'}) et {ratioB}% ({householdConfig.userB?.name || 'Alicia'}).
+                      Partagé à {ratioA}% ({householdConfig.userA?.name || 'Moi'}) et {ratioB}% ({householdConfig.userB?.name || 'Conjoint(e)'}).
                     </p>
                   </div>
                 </div>
@@ -670,7 +670,7 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({
                   <div>
                     <label htmlFor="edit-isHouseholdContribution" className="text-sm font-semibold text-emerald-900 dark:text-emerald-200 cursor-pointer flex items-center gap-1.5">
                       <LucideIcons.HeartHandshake className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
-                      Provision / Remboursement Foyer (d'{householdConfig.userB?.name || 'Alicia'})
+                      Provision / Remboursement Foyer (de {householdConfig.userB?.name || 'Conjoint(e)'})
                     </label>
                     <p className="text-xs text-emerald-700 dark:text-emerald-300 mt-0.5">
                       Déduit du solde que votre partenaire vous doit ce mois-ci.

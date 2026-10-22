@@ -292,7 +292,7 @@ const CategoryManager: React.FC = () => {
                     Budget commun du foyer (Partagé {ratioA}% / {ratioB}%)
                   </span>
                   <span className="mt-1 block text-xs text-rose-700 dark:text-rose-300">
-                    Toutes les dépenses dans cette catégorie seront automatiquement réparties entre {householdConfig.userA?.name || 'Arthur'} et {householdConfig.userB?.name || 'Alicia'}.
+                    Toutes les dépenses dans cette catégorie seront automatiquement réparties entre {householdConfig.userA?.name || 'Moi'} et {householdConfig.userB?.name || 'Conjoint(e)'}.
                   </span>
                 </span>
               </label>

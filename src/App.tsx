@@ -101,9 +101,9 @@ const AppContent: React.FC = () => {
       case 'household':
         return <HouseholdManager />;
       case 'assets':
-        return <AssetManager />;
+        return <AssetManager onViewChange={setCurrentView} />;
       case 'real-estate-project':
-        return <RealEstatePlanner />;
+        return <RealEstatePlanner onViewChange={setCurrentView} />;
       case 'wealth-simulator':
         return <WealthSimulator />;
       case 'budget-simulator':
