@@ -89,8 +89,44 @@ const AssetManager: React.FC<AssetManagerProps> = ({ onViewChange }) => {
   const { assets, addAsset, updateAsset, deleteAsset, debts, accounts, addDebt, realEstatePlans } = useBudget();
 
   const [activeCategoryFilter, setActiveCategoryFilter] = useState<string>('all');
+  const [scopeFilter, setScopeFilter] = useState<'current' | 'all'>('current');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingAsset, setEditingAsset] = useState<PhysicalAsset | null>(null);
+
+  // Helper to detect if an asset is an acquisition in the future
+  const isFutureAsset = (asset: PhysicalAsset): boolean => {
+    if (asset.isPlanned) return true;
+    if (!asset.purchaseDate) return false;
+    try {
+      const pDate = new Date(asset.purchaseDate);
+      const now = new Date();
+      return (pDate.getFullYear() > now.getFullYear()) || 
+             (pDate.getFullYear() === now.getFullYear() && pDate.getMonth() > now.getMonth());
+    } catch {
+      return false;
+    }
+  };
+
+  // Helper to find all debts linked to an asset
+  const getAssetDebts = (asset: PhysicalAsset): any[] => {
+    const ids = asset.debtIds || (asset.debtId ? [asset.debtId] : []);
+    if (ids.length > 0) {
+      const matched = debts.filter(d => ids.includes(d.id));
+      if (matched.length > 0) return matched;
+    }
+    const assetNameClean = asset.name.toLowerCase().replace(/^(mon|ma|le|la|les|un|une)\s+/i, '').trim();
+    if (assetNameClean.length >= 3) {
+      const autoMatched = debts.filter(d => {
+        const dLower = d.name.toLowerCase();
+        return (
+          dLower.includes(assetNameClean) ||
+          (asset.notes && asset.notes.toLowerCase().includes(dLower))
+        );
+      });
+      if (autoMatched.length > 0) return autoMatched;
+    }
+    return [];
+  };
 
   // Active real estate project in progress (only if configured and propertyPrice > 0)
   const plannedRealEstatePlan = useMemo(() => {
@@ -247,34 +283,46 @@ const AssetManager: React.FC<AssetManagerProps> = ({ onViewChange }) => {
     }
   };
 
-  // Filtered Assets
-  const filteredAssets = useMemo(() => {
-    if (activeCategoryFilter === 'all') return assets;
-    return assets.filter(a => a.category === activeCategoryFilter);
-  }, [assets, activeCategoryFilter]);
+  // Scope assets: Current vs All
+  const scopeAssets = useMemo(() => {
+    if (scopeFilter === 'current') {
+      return assets.filter(a => !isFutureAsset(a));
+    }
+    return assets;
+  }, [assets, scopeFilter]);
 
-  // Global KPIs
-  const totalGrossValue = useMemo(() => {
-    return assets.reduce((sum, a) => sum + (Number(a.currentValue) || 0), 0);
+  // Filtered Assets based on category
+  const filteredAssets = useMemo(() => {
+    if (activeCategoryFilter === 'all') return scopeAssets;
+    return scopeAssets.filter(a => a.category === activeCategoryFilter);
+  }, [scopeAssets, activeCategoryFilter]);
+
+  const futureAssets = useMemo(() => {
+    return assets.filter(a => isFutureAsset(a));
   }, [assets]);
+
+  // Global KPIs computed strictly on the selected scope
+  const totalGrossValue = useMemo(() => {
+    return scopeAssets.reduce((sum, a) => sum + (Number(a.currentValue) || 0), 0);
+  }, [scopeAssets]);
 
   const totalPurchaseCost = useMemo(() => {
-    return assets.reduce((sum, a) => sum + (Number(a.purchasePrice) || 0), 0);
-  }, [assets]);
+    return scopeAssets.reduce((sum, a) => sum + (Number(a.purchasePrice) || 0), 0);
+  }, [scopeAssets]);
 
   const totalCapitalGain = totalGrossValue - totalPurchaseCost;
   const capitalGainPercent = totalPurchaseCost > 0 ? (totalCapitalGain / totalPurchaseCost) * 100 : 0;
 
-  // Associated remaining loans
+  // Associated remaining loans (taking into account all linked debts or auto-detected ones)
   const totalAssociatedDebt = useMemo(() => {
-    return assets.reduce((sum, asset) => {
-      if (asset.debtId) {
-        const debt = debts.find(d => d.id === asset.debtId);
-        if (debt) return sum + debt.remainingAmount;
+    return scopeAssets.reduce((sum, asset) => {
+      const linkedDebts = getAssetDebts(asset);
+      if (linkedDebts.length > 0) {
+        return sum + linkedDebts.reduce((s: number, d: any) => s + (d.remainingAmount || 0), 0);
       }
-      return sum;
+      return sum + (asset.loanDetails?.originalLoanAmount || 0);
     }, 0);
-  }, [assets, debts]);
+  }, [scopeAssets, debts]);
 
   const netEquity = totalGrossValue - totalAssociatedDebt;
 
@@ -299,13 +347,42 @@ const AssetManager: React.FC<AssetManagerProps> = ({ onViewChange }) => {
           </div>
         </div>
 
-        <button
-          onClick={openAddModal}
-          className="inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-blue-700 transition"
-        >
-          <Plus className="h-4 w-4" />
-          <span>Ajouter un bien</span>
-        </button>
+        <div className="flex flex-wrap items-center gap-2">
+          {futureAssets.length > 0 && (
+            <div className="flex items-center bg-slate-100 dark:bg-slate-800 p-1 rounded-xl text-xs font-semibold">
+              <button
+                type="button"
+                onClick={() => setScopeFilter('current')}
+                className={`px-3 py-1.5 rounded-lg transition-all ${
+                  scopeFilter === 'current'
+                    ? 'bg-white dark:bg-slate-700 text-blue-600 dark:text-blue-400 shadow-sm'
+                    : 'text-slate-500 hover:text-slate-900 dark:text-slate-400'
+                }`}
+              >
+                Patrimoine Actuel ({assets.filter(a => !isFutureAsset(a)).length})
+              </button>
+              <button
+                type="button"
+                onClick={() => setScopeFilter('all')}
+                className={`px-3 py-1.5 rounded-lg transition-all ${
+                  scopeFilter === 'all'
+                    ? 'bg-white dark:bg-slate-700 text-blue-600 dark:text-blue-400 shadow-sm'
+                    : 'text-slate-500 hover:text-slate-900 dark:text-slate-400'
+                }`}
+              >
+                Tout (avec projets futurs) ({assets.length})
+              </button>
+            </div>
+          )}
+
+          <button
+            onClick={openAddModal}
+            className="inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-blue-700 transition"
+          >
+            <Plus className="h-4 w-4" />
+            <span>Ajouter un bien</span>
+          </button>
+        </div>
       </div>
 
       {/* KPI Cards */}
@@ -468,12 +545,17 @@ const AssetManager: React.FC<AssetManagerProps> = ({ onViewChange }) => {
             const gain = asset.currentValue - asset.purchasePrice;
             const gainPercent = asset.purchasePrice > 0 ? (gain / asset.purchasePrice) * 100 : 0;
             
-            // Check linked debt
-            const linkedDebt = debts.find(d => d.id === asset.debtId);
+            // Check linked debts (supporting multiple debts e.g. main loan + PTZ)
+            const linkedDebts = getAssetDebts(asset);
             const loanDetails = asset.loanDetails;
+            const isFuture = isFutureAsset(asset);
             
-            const remainingLoan = linkedDebt ? linkedDebt.remainingAmount : 0;
-            const originalLoan = linkedDebt ? linkedDebt.totalAmount : loanDetails?.originalLoanAmount || 0;
+            const remainingLoan = linkedDebts.length > 0
+              ? linkedDebts.reduce((sum: number, d: any) => sum + (d.remainingAmount || 0), 0)
+              : (loanDetails?.originalLoanAmount || 0);
+            const originalLoan = linkedDebts.length > 0
+              ? linkedDebts.reduce((sum: number, d: any) => sum + (d.totalAmount || 0), 0)
+              : (loanDetails?.originalLoanAmount || 0);
             const assetEquity = asset.currentValue - remainingLoan;
             
             // Loan progress
@@ -503,6 +585,11 @@ const AssetManager: React.FC<AssetManagerProps> = ({ onViewChange }) => {
                           {asset.location && (
                             <span className="text-xs text-slate-400 dark:text-slate-500">
                               • {asset.location}
+                            </span>
+                          )}
+                          {isFuture && (
+                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-purple-100 text-purple-800 dark:bg-purple-950/60 dark:text-purple-300 border border-purple-200 dark:border-purple-800">
+                              Achat prévu {asset.purchaseDate ? format(new Date(asset.purchaseDate), 'MMM yyyy', { locale: fr }) : ''}
                             </span>
                           )}
                         </div>

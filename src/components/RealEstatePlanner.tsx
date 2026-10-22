@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   Home,
   Calculator,
@@ -25,7 +25,9 @@ import {
   Calendar,
   Clock,
   TrendingUp,
-  Tag
+  Tag,
+  Copy,
+  RefreshCw
 } from 'lucide-react';
 import { useBudget } from '../contexts/BudgetContext';
 import { useAuth } from '../contexts/AuthContext';
@@ -77,7 +79,7 @@ const createBlankPlan = (id: string, name: string, buyerAName: string, buyerAInc
 };
 
 const RealEstatePlanner: React.FC<RealEstatePlannerProps> = ({ onViewChange }) => {
-  const { householdConfig, addAsset, addDebt, accounts, realEstatePlans, saveRealEstatePlans } = useBudget();
+  const { householdConfig, assets, addAsset, updateAsset, deleteAsset, debts, addDebt, updateDebt, deleteDebt, accounts, realEstatePlans, saveRealEstatePlans } = useBudget();
   const { user } = useAuth();
 
   const [activePlanId, setActivePlanId] = useState<string>(() => {
@@ -94,15 +96,72 @@ const RealEstatePlanner: React.FC<RealEstatePlannerProps> = ({ onViewChange }) =
   const [newEvoNote, setNewEvoNote] = useState<string>('');
   const [showAddEvoForm, setShowAddEvoForm] = useState(false);
 
+  // Always ensure activePlanId points to a valid plan when plans are loaded or modified
+  useEffect(() => {
+    if (realEstatePlans && realEstatePlans.length > 0) {
+      if (!activePlanId || !realEstatePlans.some(p => p.id === activePlanId)) {
+        setActivePlanId(realEstatePlans[0].id);
+      }
+    }
+  }, [realEstatePlans, activePlanId]);
+
   const currentPlan = useMemo(() => {
     if (!realEstatePlans || realEstatePlans.length === 0) return null;
     return realEstatePlans.find(p => p.id === activePlanId) || realEstatePlans[0];
   }, [realEstatePlans, activePlanId]);
 
+  // Find linked asset in Pathly if already integrated
+  const linkedAsset = useMemo(() => {
+    if (!currentPlan) return null;
+    return assets.find(a => 
+      (currentPlan.assetId && a.id === currentPlan.assetId) ||
+      a.realEstatePlanId === currentPlan.id ||
+      (a.category === 'real_estate' && a.name === currentPlan.name)
+    ) || null;
+  }, [assets, currentPlan]);
+
   const updateCurrentPlan = async (updates: Partial<RealEstatePlan>) => {
     if (!currentPlan) return;
     const updated = realEstatePlans.map(p => p.id === currentPlan.id ? { ...p, ...updates } : p);
     await saveRealEstatePlans(updated);
+  };
+
+  const handleDuplicatePlan = async (sourcePlan: RealEstatePlan) => {
+    const defaultNameA = householdConfig?.userA?.name || 'Moi';
+    const defaultNameB = householdConfig?.userB?.name || 'Conjoint(e)';
+    const newId = `plan-${Date.now()}`;
+    const duplicated: RealEstatePlan = {
+      ...sourcePlan,
+      id: newId,
+      name: `${sourcePlan.name} (Variante)`,
+      assetId: undefined,
+      mainLoanDebtId: undefined,
+      ptzDebtId: undefined,
+    };
+    await saveRealEstatePlans([...realEstatePlans, duplicated]);
+    setActivePlanId(newId);
+  };
+
+  const handleUnlinkFromPathly = async () => {
+    if (!linkedAsset) return;
+    if (confirm(`Voulez-vous retirer le bien "${linkedAsset.name}" et ses prêts associés de votre patrimoine ?`)) {
+      await deleteAsset(linkedAsset.id);
+      const debtsToDelete = debts.filter(d => 
+        (linkedAsset.debtIds && linkedAsset.debtIds.includes(d.id)) ||
+        d.id === linkedAsset.debtId ||
+        d.id === currentPlan?.mainLoanDebtId ||
+        d.id === currentPlan?.ptzDebtId
+      );
+      for (const d of debtsToDelete) {
+        await deleteDebt(d.id);
+      }
+      await updateCurrentPlan({
+        assetId: undefined,
+        mainLoanDebtId: undefined,
+        ptzDebtId: undefined,
+      });
+      setShowIntegrateModal(false);
+    }
   };
 
   const handleCreateFirstPlan = async () => {
@@ -358,7 +417,7 @@ const RealEstatePlanner: React.FC<RealEstatePlannerProps> = ({ onViewChange }) =
     };
   }, [currentPlan]);
 
-  // Integration into Pathly
+  // Integration / Synchronization with Pathly (prevents duplicates)
   const handleIntegrateIntoPathly = async () => {
     if (!currentPlan || !calculations) return;
 
@@ -368,63 +427,125 @@ const RealEstatePlanner: React.FC<RealEstatePlannerProps> = ({ onViewChange }) =
       const targetDateStr = currentPlan.targetDate || '2027-06';
       const startDate = new Date(`${targetDateStr}-01`);
 
-      await addAsset({
-        name: currentPlan.name || 'Maison principale',
-        category: 'real_estate',
-        purchasePrice: currentPlan.propertyPrice || 0,
-        currentValue: currentPlan.propertyPrice || 0,
-        purchaseDate: `${targetDateStr}-01`,
-        notes: `Achat prévu pour ${targetDateStr}. Apport global: ${calculations.totalContribution.toLocaleString('fr-FR')} €. Quote-part notariée: ${currentPlan.buyerAName} (${calculations.officialRatioA}%) / ${currentPlan.buyerBName} (${calculations.officialRatioB}%).`,
-      });
+      const existingMainDebt = debts.find(d => 
+        (currentPlan.mainLoanDebtId && d.id === currentPlan.mainLoanDebtId) ||
+        d.name === `Prêt Immo Principal - ${currentPlan.name}`
+      );
 
+      const existingPtzDebt = debts.find(d => 
+        (currentPlan.ptzDebtId && d.id === currentPlan.ptzDebtId) ||
+        d.name === `Prêt à Taux Zéro (PTZ) - ${currentPlan.name}`
+      );
+
+      let mainDebtId = existingMainDebt?.id;
+      let ptzDebtId = existingPtzDebt?.id;
+
+      // 1. Main Loan
       if (calculations.mainLoanPrincipal > 0) {
         const mainEndDate = new Date(startDate);
         mainEndDate.setFullYear(mainEndDate.getFullYear() + (currentPlan.mainLoanDurationYears || 25));
 
-        await addDebt({
+        const mainDebtData = {
           name: `Prêt Immo Principal - ${currentPlan.name}`,
           totalAmount: calculations.mainLoanPrincipal,
           remainingAmount: calculations.mainLoanPrincipal,
           interestRate: currentPlan.mainLoanInterestRate || 3.4,
           minimumPayment: Math.round(calculations.mainLoanMonthlyTotal * 100) / 100,
-          type: 'mortgage',
+          type: 'mortgage' as const,
           dueDate: startDate,
           endDate: mainEndDate,
           accountId: defaultAccountId,
           isActive: true,
           creditor: 'Banque',
           description: `Prêt immobilier sur ${currentPlan.mainLoanDurationYears || 25} ans (${currentPlan.mainLoanInterestRate}% + assurance). Mensualité: ${calculations.mainLoanMonthlyTotal.toFixed(2)} €/mois.`,
-        });
+        };
+
+        if (existingMainDebt) {
+          await updateDebt(existingMainDebt.id, mainDebtData);
+        } else {
+          const created = await addDebt(mainDebtData);
+          mainDebtId = created?.id;
+        }
+      } else if (existingMainDebt) {
+        await deleteDebt(existingMainDebt.id);
+        mainDebtId = undefined;
       }
 
+      // 2. PTZ Loan
       if (currentPlan.hasPtz && calculations.ptzPrincipal > 0) {
         const ptzEndDate = new Date(startDate);
         ptzEndDate.setFullYear(ptzEndDate.getFullYear() + (currentPlan.ptzDurationYears || 20));
 
-        await addDebt({
+        const ptzDebtData = {
           name: `Prêt à Taux Zéro (PTZ) - ${currentPlan.name}`,
           totalAmount: calculations.ptzPrincipal,
           remainingAmount: calculations.ptzPrincipal,
           interestRate: 0,
           minimumPayment: Math.round(calculations.ptzMonthlyAfterDeferral * 100) / 100,
-          type: 'mortgage',
+          type: 'mortgage' as const,
           dueDate: startDate,
           endDate: ptzEndDate,
           accountId: defaultAccountId,
           isActive: true,
           creditor: 'Banque (PTZ)',
           description: `PTZ 0% sur ${currentPlan.ptzDurationYears || 20} ans (${currentPlan.ptzDeferredYears || 0} ans de différé). Mensualité: ${calculations.ptzMonthlyAfterDeferral.toFixed(2)} €/mois.`,
-        });
+        };
+
+        if (existingPtzDebt) {
+          await updateDebt(existingPtzDebt.id, ptzDebtData);
+        } else {
+          const created = await addDebt(ptzDebtData);
+          ptzDebtId = created?.id;
+        }
+      } else if (existingPtzDebt) {
+        await deleteDebt(existingPtzDebt.id);
+        ptzDebtId = undefined;
       }
+
+      // 3. Asset (with linked debts)
+      const debtIdsList = [mainDebtId, ptzDebtId].filter(Boolean) as string[];
+      const assetData = {
+        name: currentPlan.name || 'Maison principale',
+        category: 'real_estate' as const,
+        purchasePrice: currentPlan.propertyPrice || 0,
+        currentValue: currentPlan.propertyPrice || 0,
+        purchaseDate: `${targetDateStr}-01`,
+        realEstatePlanId: currentPlan.id,
+        isPlanned: true,
+        debtId: mainDebtId,
+        debtIds: debtIdsList,
+        loanDetails: {
+          originalLoanAmount: calculations.mainLoanPrincipal + (currentPlan.hasPtz ? calculations.ptzPrincipal : 0),
+          startDate: `${targetDateStr}-01`,
+          endDate: `${new Date(startDate.getFullYear() + (currentPlan.mainLoanDurationYears || 25), startDate.getMonth()).toISOString().split('T')[0]}`,
+          monthlyPayment: calculations.monthlyTotalPayment,
+        },
+        notes: `Achat prévu pour ${targetDateStr}. Apport global: ${calculations.totalContribution.toLocaleString('fr-FR')} €. Quote-part notariée: ${currentPlan.buyerAName} (${calculations.officialRatioA}%) / ${currentPlan.buyerBName} (${calculations.officialRatioB}%).`,
+      };
+
+      let assetId = linkedAsset?.id;
+      if (linkedAsset) {
+        await updateAsset(linkedAsset.id, assetData);
+      } else {
+        const created = await addAsset(assetData);
+        assetId = created?.id;
+      }
+
+      // Save references back onto currentPlan
+      await updateCurrentPlan({
+        assetId,
+        mainLoanDebtId: mainDebtId,
+        ptzDebtId: ptzDebtId,
+      });
 
       setIntegratedSuccess(true);
       setTimeout(() => {
         setIntegratedSuccess(false);
         setShowIntegrateModal(false);
-      }, 2000);
+      }, 1500);
     } catch (err) {
       console.error('Error integrating real estate plan:', err);
-      alert('Une erreur est survenue lors de la création du bien et des crédits.');
+      alert('Une erreur est survenue lors de la synchronisation du projet avec Pathly.');
     }
   };
 
@@ -478,35 +599,52 @@ const RealEstatePlanner: React.FC<RealEstatePlannerProps> = ({ onViewChange }) =
         {/* Scenarios switcher */}
         <div className="flex flex-wrap items-center gap-2">
           <div className="flex items-center space-x-1.5 bg-slate-100 dark:bg-slate-700/60 p-1 rounded-xl">
-            {realEstatePlans.map(p => (
-              <button
-                key={p.id}
-                onClick={() => setActivePlanId(p.id)}
-                className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-                  p.id === activePlanId
-                    ? 'bg-white dark:bg-slate-800 text-indigo-600 dark:text-indigo-400 shadow-sm'
-                    : 'text-slate-600 dark:text-slate-300 hover:text-slate-900'
-                }`}
-              >
-                {p.name}
-              </button>
-            ))}
+            {realEstatePlans.map(p => {
+              const isSelected = p.id === currentPlan.id;
+              const hasAsset = Boolean(p.assetId || assets.some(a => a.realEstatePlanId === p.id || (a.category === 'real_estate' && a.name === p.name)));
+              return (
+                <button
+                  key={p.id}
+                  onClick={() => setActivePlanId(p.id)}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 ${
+                    isSelected
+                      ? 'bg-white dark:bg-slate-800 text-indigo-600 dark:text-indigo-400 shadow-sm font-bold'
+                      : 'text-slate-600 dark:text-slate-300 hover:text-slate-900'
+                  }`}
+                >
+                  <Home className="h-3 w-3" />
+                  <span>{p.name}</span>
+                  {hasAsset && (
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" title="Intégré au patrimoine" />
+                  )}
+                </button>
+              );
+            })}
           </div>
 
           <button
             onClick={handleAddNewPlan}
             className="flex items-center space-x-1 px-3 py-1.5 rounded-lg bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-300 hover:bg-indigo-100 dark:hover:bg-indigo-900/40 text-xs font-semibold transition-colors"
-            title="Nouveau scénario"
+            title="Créer un nouveau projet immobilier distinct"
           >
             <Plus className="h-3.5 w-3.5" />
-            <span>Nouveau</span>
+            <span>Nouveau projet</span>
+          </button>
+
+          <button
+            onClick={() => handleDuplicatePlan(currentPlan)}
+            className="flex items-center space-x-1 px-3 py-1.5 rounded-lg bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600 text-xs font-semibold transition-colors"
+            title="Dupliquer ce projet pour tester un scénario alternatif"
+          >
+            <Copy className="h-3.5 w-3.5" />
+            <span>Dupliquer</span>
           </button>
 
           {realEstatePlans.length > 1 && (
             <button
               onClick={() => handleDeletePlan(currentPlan.id)}
               className="p-1.5 text-slate-400 hover:text-red-600 dark:hover:text-red-400 transition-colors"
-              title="Supprimer ce scénario"
+              title="Supprimer ce projet"
             >
               <Trash2 className="h-4 w-4" />
             </button>
@@ -515,10 +653,14 @@ const RealEstatePlanner: React.FC<RealEstatePlannerProps> = ({ onViewChange }) =
           {calculations.totalCost > 0 && (
             <button
               onClick={() => setShowIntegrateModal(true)}
-              className="flex items-center space-x-1.5 px-3.5 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white rounded-xl text-xs font-bold shadow-md transition-all hover:scale-[1.02]"
+              className={`flex items-center space-x-1.5 px-3.5 py-2 text-white rounded-xl text-xs font-bold shadow-md transition-all hover:scale-[1.02] ${
+                linkedAsset
+                  ? 'bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700'
+                  : 'bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700'
+              }`}
             >
-              <Building2 className="h-3.5 w-3.5" />
-              <span>Intégrer à Pathly</span>
+              {linkedAsset ? <RefreshCw className="h-3.5 w-3.5" /> : <Building2 className="h-3.5 w-3.5" />}
+              <span>{linkedAsset ? 'Mettre à jour dans Pathly' : 'Intégrer à Pathly'}</span>
             </button>
           )}
         </div>
@@ -1766,26 +1908,45 @@ const RealEstatePlanner: React.FC<RealEstatePlannerProps> = ({ onViewChange }) =
               )}
             </div>
 
+            {linkedAsset && (
+              <div className="p-3 rounded-xl bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-900/60 text-xs text-blue-800 dark:text-blue-300">
+                ℹ️ Ce projet est déjà lié au bien <strong>"{linkedAsset.name}"</strong> dans votre patrimoine. Confirmez pour synchroniser les montants et crédits <strong>sans créer de doublon</strong>.
+              </div>
+            )}
+
             {integratedSuccess ? (
               <div className="p-3 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 rounded-xl text-center font-bold text-xs">
-                Projet et crédits ajoutés avec succès à votre Pathly !
+                ✓ Synchronisation effectuée avec succès !
               </div>
             ) : (
-              <div className="flex justify-end space-x-3">
-                <button
-                  type="button"
-                  onClick={() => setShowIntegrateModal(false)}
-                  className="px-4 py-2 text-xs font-semibold text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-xl transition-colors"
-                >
-                  Annuler
-                </button>
-                <button
-                  type="button"
-                  onClick={handleIntegrateIntoPathly}
-                  className="px-5 py-2.5 text-xs font-bold bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white rounded-xl shadow-md transition-all"
-                >
-                  Confirmer et créer dans Pathly
-                </button>
+              <div className="flex items-center justify-between pt-2">
+                <div>
+                  {linkedAsset && (
+                    <button
+                      type="button"
+                      onClick={handleUnlinkFromPathly}
+                      className="text-xs text-red-600 hover:text-red-700 font-semibold"
+                    >
+                      Retirer du patrimoine
+                    </button>
+                  )}
+                </div>
+                <div className="flex items-center space-x-3">
+                  <button
+                    type="button"
+                    onClick={() => setShowIntegrateModal(false)}
+                    className="px-4 py-2 text-xs font-semibold text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-xl transition-colors"
+                  >
+                    Annuler
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleIntegrateIntoPathly}
+                    className="px-5 py-2.5 text-xs font-bold bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white rounded-xl shadow-md transition-all"
+                  >
+                    {linkedAsset ? 'Mettre à jour dans Pathly' : 'Confirmer et créer dans Pathly'}
+                  </button>
+                </div>
               </div>
             )}
           </div>

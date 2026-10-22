@@ -290,7 +290,7 @@ export interface BudgetContextType {
   contributeToGoal: (goalId: string, amount: number, accountId: string) => void;
   
   // Debts
-  addDebt: (debt: Omit<Debt, 'id' | 'userId'>) => void;
+  addDebt: (debt: Omit<Debt, 'id' | 'userId'>) => Promise<Debt | undefined>;
   updateDebt: (id: string, debt: Partial<Debt>) => void;
   deleteDebt: (id: string) => void;
   addDebtPayment: (payment: Omit<DebtPayment, 'id'>) => void;
@@ -324,7 +324,7 @@ export interface BudgetContextType {
 
   // Physical Assets / Patrimoine matériel
   assets: PhysicalAsset[];
-  addAsset: (asset: Omit<PhysicalAsset, 'id'>) => Promise<void>;
+  addAsset: (asset: Omit<PhysicalAsset, 'id'>) => Promise<PhysicalAsset>;
   updateAsset: (id: string, updates: Partial<PhysicalAsset>) => Promise<void>;
   deleteAsset: (id: string) => Promise<void>;
   totalAssetsValue: number;
@@ -346,6 +346,9 @@ export interface PhysicalAsset {
   currentValue: number;
   purchaseDate: string;
   debtId?: string; // ID of linked credit/debt in Pathly
+  debtIds?: string[]; // IDs of multiple linked credits/debts (e.g. main loan + PTZ)
+  isPlanned?: boolean; // If this is a future planned project
+  realEstatePlanId?: string; // ID of the linked RealEstatePlan if created from planner
   loanDetails?: {
     originalLoanAmount?: number;
     startDate?: string;
@@ -431,6 +434,11 @@ export interface RealEstatePlan {
   // Monthly Repayment Split
   monthlySplitMode: '50_50' | 'pro_rata_income' | 'ownership_ratio' | 'custom';
   customMonthlyRatioA: number; // %
+
+  // Linked Pathly items
+  assetId?: string;
+  mainLoanDebtId?: string;
+  ptzDebtId?: string;
 }
 
 // Legacy types for backward compatibility

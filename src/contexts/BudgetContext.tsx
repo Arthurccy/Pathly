@@ -394,13 +394,14 @@ export const BudgetProvider: React.FC<BudgetProviderProps> = ({ children }) => {
     }
   };
 
-  const addAsset = async (assetData: Omit<PhysicalAsset, 'id'>) => {
+  const addAsset = async (assetData: Omit<PhysicalAsset, 'id'>): Promise<PhysicalAsset> => {
     const newAsset: PhysicalAsset = {
       ...assetData,
       id: `asset-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
       userId: user?.id,
     };
     await saveAssets([newAsset, ...assets]);
+    return newAsset;
   };
 
   const updateAsset = async (id: string, updates: Partial<PhysicalAsset>) => {
@@ -437,6 +438,7 @@ export const BudgetProvider: React.FC<BudgetProviderProps> = ({ children }) => {
     }
   }, [user?.id, user?.user_metadata?.pathly_real_estate_plans]);
 
+  const saveRealEstatePlansTimeout = useRef<NodeJS.Timeout | null>(null);
   const saveRealEstatePlans = async (newPlans: RealEstatePlan[]) => {
     setRealEstatePlansState(newPlans);
     try {
@@ -445,13 +447,18 @@ export const BudgetProvider: React.FC<BudgetProviderProps> = ({ children }) => {
       console.error('Failed to save real estate plans to localStorage:', e);
     }
     if (user) {
-      try {
-        await supabase.auth.updateUser({
-          data: { pathly_real_estate_plans: newPlans }
-        });
-      } catch (err) {
-        console.error('Failed to save real estate plans to Supabase:', err);
+      if (saveRealEstatePlansTimeout.current) {
+        clearTimeout(saveRealEstatePlansTimeout.current);
       }
+      saveRealEstatePlansTimeout.current = setTimeout(async () => {
+        try {
+          await supabase.auth.updateUser({
+            data: { pathly_real_estate_plans: newPlans }
+          });
+        } catch (err) {
+          console.error('Failed to save real estate plans to Supabase:', err);
+        }
+      }, 500);
     }
   };
 
@@ -1396,8 +1403,8 @@ export const BudgetProvider: React.FC<BudgetProviderProps> = ({ children }) => {
   };
 
   // Debt functions
-  const addDebt = async (debt: Omit<Debt, 'id' | 'userId'>) => {
-    if (!user) return;
+  const addDebt = async (debt: Omit<Debt, 'id' | 'userId'>): Promise<Debt | undefined> => {
+    if (!user) return undefined;
     
     try {
       const newDebt = await supabaseService.createDebt({
@@ -1406,6 +1413,7 @@ export const BudgetProvider: React.FC<BudgetProviderProps> = ({ children }) => {
       });
       
       setDebts(prev => [newDebt, ...prev]);
+      return newDebt;
     } catch (error) {
       console.error('Error adding debt:', error);
       throw error;
