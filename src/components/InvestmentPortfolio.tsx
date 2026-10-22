@@ -14,6 +14,7 @@ import {
   Sparkles,
   CheckCircle2,
   AlertCircle,
+  AlertTriangle,
   ArrowUpRight,
   ArrowDownRight,
   Filter,
@@ -180,6 +181,21 @@ export const InvestmentPortfolio: React.FC<InvestmentPortfolioProps> = ({ onView
         if (!formBuyPrice) {
           setFormBuyPrice(q.price.toString());
         }
+      }
+    } catch {}
+  };
+
+  // Auto-fetch price & currency when user leaves the symbol input
+  const handleSymbolBlur = async () => {
+    if (!formSymbol.trim()) return;
+    const sym = formSymbol.trim().toUpperCase();
+    try {
+      const quotes = await fetchStockQuotes([sym]);
+      const q = quotes[sym];
+      if (q && q.price) {
+        if (!formCurrentPrice) setFormCurrentPrice(q.price.toString());
+        if (!formName && q.name) setFormName(q.name);
+        if (q.currency) setFormCurrency(q.currency);
       }
     } catch {}
   };
@@ -1249,13 +1265,26 @@ export const InvestmentPortfolio: React.FC<InvestmentPortfolioProps> = ({ onView
                         key={`${item.symbol}-${idx}`}
                         type="button"
                         onClick={() => handleSelectAsset(item)}
-                        className="w-full p-2 text-left hover:bg-indigo-50 dark:hover:bg-slate-700/60 rounded-lg flex items-center justify-between text-xs transition"
+                        className="w-full p-2.5 text-left hover:bg-indigo-50 dark:hover:bg-slate-700/60 rounded-xl flex items-center justify-between text-xs transition border border-transparent hover:border-indigo-200 dark:hover:border-indigo-800"
                       >
-                        <div>
-                          <span className="font-bold text-slate-900 dark:text-white">{item.name}</span>
-                          <span className="ml-2 font-mono font-bold text-indigo-600 dark:text-indigo-400 text-[11px]">{item.symbol}</span>
+                        <div className="flex-1 min-w-0 pr-2">
+                          <div className="flex items-center space-x-2">
+                            <span className="font-bold text-slate-900 dark:text-white truncate">{item.name}</span>
+                            <span className="font-mono font-bold text-indigo-600 dark:text-indigo-400 text-[11px] bg-indigo-50 dark:bg-indigo-950/60 px-1.5 py-0.5 rounded flex-shrink-0">
+                              {item.symbol}
+                            </span>
+                          </div>
                         </div>
-                        <span className="text-[10px] text-slate-400">{item.exchange}</span>
+                        <div className="flex items-center space-x-2 flex-shrink-0">
+                          <span className="text-[10px] text-slate-400">{item.exchange}</span>
+                          <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
+                            item.currency === 'USD'
+                              ? 'bg-emerald-100 dark:bg-emerald-950/80 text-emerald-700 dark:text-emerald-300'
+                              : 'bg-blue-100 dark:bg-blue-950/80 text-blue-700 dark:text-blue-300'
+                          }`}>
+                            {item.currency || 'EUR'}
+                          </span>
+                        </div>
                       </button>
                     ))}
                   </div>
@@ -1291,7 +1320,8 @@ export const InvestmentPortfolio: React.FC<InvestmentPortfolioProps> = ({ onView
                     value={formSymbol}
                     onChange={e => setFormSymbol(e.target.value.toUpperCase())}
                     className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900/50 border border-slate-300 dark:border-slate-600 rounded-xl text-xs font-mono font-bold dark:text-white"
-                    placeholder="Ex: CW8.PA"
+                    onBlur={handleSymbolBlur}
+                    placeholder="Ex: GOOG, CW8.PA, NVDA..."
                   />
                 </div>
 
@@ -1327,37 +1357,100 @@ export const InvestmentPortfolio: React.FC<InvestmentPortfolioProps> = ({ onView
                 />
               </div>
 
-              {/* Account Selection */}
-              <div>
-                <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">
-                  Compte de détention (PEA / CTO) *
-                </label>
-                {investmentAccounts.length > 0 ? (
-                  <select
-                    required
-                    value={formAccountId}
-                    onChange={e => setFormAccountId(e.target.value)}
-                    className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900/50 border border-slate-300 dark:border-slate-600 rounded-xl text-xs font-bold text-slate-800 dark:text-slate-200"
-                  >
-                    {investmentAccounts.map(acc => (
-                      <option key={acc.id} value={acc.id}>
-                        {acc.name} ({acc.subType?.toUpperCase() || acc.type.toUpperCase()})
-                      </option>
-                    ))}
-                  </select>
-                ) : (
-                  <div className="p-3 bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-700 rounded-xl text-xs text-amber-900 dark:text-amber-200 flex justify-between items-center">
-                    <span>Aucun compte d'investissement configuré.</span>
+              {/* Account Selection and Currency Toggle */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div className="sm:col-span-2">
+                  <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">
+                    Compte de détention (PEA / CTO) *
+                  </label>
+                  {investmentAccounts.length > 0 ? (
+                    <select
+                      required
+                      value={formAccountId}
+                      onChange={e => setFormAccountId(e.target.value)}
+                      className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900/50 border border-slate-300 dark:border-slate-600 rounded-xl text-xs font-bold text-slate-800 dark:text-slate-200"
+                    >
+                      {investmentAccounts.map(acc => (
+                        <option key={acc.id} value={acc.id}>
+                          {acc.name} ({acc.subType?.toUpperCase() || acc.type.toUpperCase()})
+                        </option>
+                      ))}
+                    </select>
+                  ) : (
+                    <div className="p-2 bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-700 rounded-xl text-xs text-amber-900 dark:text-amber-200 flex justify-between items-center">
+                      <span>Aucun compte</span>
+                      <button
+                        type="button"
+                        onClick={() => setShowAddAccountModal(true)}
+                        className="font-bold underline"
+                      >
+                        + Créer
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">
+                    Devise de cotation
+                  </label>
+                  <div className="grid grid-cols-2 gap-1 p-1 bg-slate-100 dark:bg-slate-900/60 rounded-xl border border-slate-300 dark:border-slate-600">
                     <button
                       type="button"
-                      onClick={() => setShowAddAccountModal(true)}
-                      className="font-bold underline"
+                      onClick={() => setFormCurrency('EUR')}
+                      className={`py-1.5 text-xs font-bold rounded-lg transition ${
+                        formCurrency === 'EUR'
+                          ? 'bg-indigo-600 text-white shadow-sm'
+                          : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                      }`}
                     >
-                      + Créer un PEA / CTO
+                      EUR (€)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setFormCurrency('USD')}
+                      className={`py-1.5 text-xs font-bold rounded-lg transition ${
+                        formCurrency === 'USD'
+                          ? 'bg-indigo-600 text-white shadow-sm'
+                          : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                      }`}
+                    >
+                      USD ($)
                     </button>
                   </div>
-                )}
+                </div>
               </div>
+
+              {/* PEA Eligibility Warning if US equity selected on PEA */}
+              {(() => {
+                const acc = accounts.find(a => a.id === formAccountId);
+                const isPea = acc?.subType === 'pea' || acc?.name.toLowerCase().includes('pea');
+                const sym = formSymbol.toUpperCase();
+                const isUsDirectStock = formAssetType === 'stock' && (
+                  formCurrency === 'USD' ||
+                  ['GOOG', 'GOOGL', 'AAPL', 'MSFT', 'NVDA', 'AMZN', 'META', 'TSLA', 'NFLX', '4G00G', 'ABEC'].some(t => sym.includes(t)) ||
+                  ['alphabet', 'google', 'apple', 'microsoft', 'nvidia', 'amazon', 'tesla'].some(n => formName.toLowerCase().includes(n)) ||
+                  (!sym.endsWith('.PA') && !sym.endsWith('.AS') && !sym.endsWith('.DE'))
+                );
+                if (isPea && isUsDirectStock) {
+                  return (
+                    <div className="p-3 bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-700/70 rounded-xl text-xs space-y-1.5">
+                      <div className="flex items-center space-x-1.5 font-bold text-amber-800 dark:text-amber-300">
+                        <AlertTriangle className="h-4 w-4 flex-shrink-0 text-amber-600 dark:text-amber-400" />
+                        <span>Rappel réglementaire : Action américaine & PEA</span>
+                      </div>
+                      <p className="text-amber-800/90 dark:text-amber-300/90 text-[11px] leading-relaxed">
+                        Les actions américaines en direct (Alphabet/Google, Apple, Microsoft...) ne sont <strong>pas éligibles au PEA</strong> en droit fiscal français.
+                      </p>
+                      <div className="text-[11px] text-amber-900 dark:text-amber-200 space-y-0.5 pl-1 border-l-2 border-amber-300 dark:border-amber-700">
+                        <p>• <strong>Sur CTO :</strong> Vous pouvez acheter cette action en direct (en USD ou EUR).</p>
+                        <p>• <strong>Sur PEA :</strong> Privilégiez un ETF synthétique éligible (ex: <strong>PE500</strong>, <strong>ESE</strong> ou <strong>PUST</strong>).</p>
+                      </div>
+                    </div>
+                  );
+                }
+                return null;
+              })()}
 
               {/* Numbers: Shares, BuyPrice, CurrentPrice */}
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -1391,6 +1484,14 @@ export const InvestmentPortfolio: React.FC<InvestmentPortfolioProps> = ({ onView
                     className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900/50 border border-slate-300 dark:border-slate-600 rounded-xl text-xs font-bold dark:text-white"
                     placeholder="Prix moyen d'achat"
                   />
+                  {parseFloat(formBuyPrice) > 0 && (
+                    <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-1">
+                      {formCurrency === 'USD'
+                        ? `≈ ${(parseFloat(formBuyPrice) / (usdRate || 1.08)).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`
+                        : `≈ ${(parseFloat(formBuyPrice) * (usdRate || 1.08)).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} $`
+                      }
+                    </p>
+                  )}
                 </div>
 
                 <div>
@@ -1406,23 +1507,41 @@ export const InvestmentPortfolio: React.FC<InvestmentPortfolioProps> = ({ onView
                     className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900/50 border border-slate-300 dark:border-slate-600 rounded-xl text-xs font-bold text-indigo-600 dark:text-indigo-400"
                     placeholder="Cours temps réel"
                   />
+                  {parseFloat(formCurrentPrice) > 0 && (
+                    <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-1">
+                      {formCurrency === 'USD'
+                        ? `≈ ${(parseFloat(formCurrentPrice) / (usdRate || 1.08)).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} € (1€ = ${(usdRate || 1.08).toFixed(2)}$)`
+                        : `≈ ${(parseFloat(formCurrentPrice) * (usdRate || 1.08)).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} $ (1€ = ${(usdRate || 1.08).toFixed(2)}$)`
+                      }
+                    </p>
+                  )}
                 </div>
               </div>
 
               {/* Real-time Calculation Summary inside modal */}
               {parseFloat(formShares) > 0 && parseFloat(formBuyPrice) > 0 && (
-                <div className="p-3 bg-slate-50 dark:bg-slate-900/50 rounded-xl border border-slate-200 dark:border-slate-700 text-xs space-y-1">
-                  <div className="flex justify-between text-slate-500">
+                <div className="p-3 bg-slate-50 dark:bg-slate-900/50 rounded-xl border border-slate-200 dark:border-slate-700 text-xs space-y-1.5">
+                  <div className="flex justify-between items-center text-slate-600 dark:text-slate-400">
                     <span>Montant total investi :</span>
                     <span className="font-bold text-slate-900 dark:text-white">
                       {(parseFloat(formShares) * parseFloat(formBuyPrice)).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {formCurrency}
+                      {formCurrency === 'USD' && (
+                        <span className="text-slate-400 dark:text-slate-500 font-normal ml-1">
+                          (≈ {((parseFloat(formShares) * parseFloat(formBuyPrice)) / (usdRate || 1.08)).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €)
+                        </span>
+                      )}
                     </span>
                   </div>
                   {parseFloat(formCurrentPrice) > 0 && (
-                    <div className="flex justify-between text-slate-500">
+                    <div className="flex justify-between items-center text-slate-600 dark:text-slate-400">
                       <span>Valeur actuelle :</span>
-                      <span className="font-bold text-slate-900 dark:text-white">
+                      <span className="font-bold text-indigo-600 dark:text-indigo-400">
                         {(parseFloat(formShares) * parseFloat(formCurrentPrice)).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {formCurrency}
+                        {formCurrency === 'USD' && (
+                          <span className="text-slate-400 dark:text-slate-500 font-normal ml-1">
+                            (≈ {((parseFloat(formShares) * parseFloat(formCurrentPrice)) / (usdRate || 1.08)).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €)
+                          </span>
+                        )}
                       </span>
                     </div>
                   )}

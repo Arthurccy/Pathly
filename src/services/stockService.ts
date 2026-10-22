@@ -31,7 +31,8 @@ export const POPULAR_FRENCH_ASSETS: PopularAsset[] = [
   { symbol: 'NVDA', name: 'NVIDIA Corporation', type: 'stock', envelope: 'cto', category: 'Tech US' },
   { symbol: 'AAPL', name: 'Apple Inc.', type: 'stock', envelope: 'cto', category: 'Tech US' },
   { symbol: 'MSFT', name: 'Microsoft Corporation', type: 'stock', envelope: 'cto', category: 'Tech US' },
-  { symbol: 'GOOGL', name: 'Alphabet Inc. (Google)', type: 'stock', envelope: 'cto', category: 'Tech US' },
+  { symbol: 'GOOGL', name: 'Alphabet Inc. - Classe A (Google)', type: 'stock', envelope: 'cto', category: 'Tech US' },
+  { symbol: 'GOOG', name: 'Alphabet Inc. - Classe C (Google)', type: 'stock', envelope: 'cto', category: 'Tech US' },
   { symbol: 'AMZN', name: 'Amazon.com Inc.', type: 'stock', envelope: 'cto', category: 'E-Commerce' },
   { symbol: 'TSLA', name: 'Tesla Inc.', type: 'stock', envelope: 'cto', category: 'Automobile' },
 

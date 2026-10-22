@@ -1,3 +1,22 @@
+function inferCurrency(item: any): string {
+  if (item.currency) return item.currency;
+  const sym = (item.symbol || '').toUpperCase();
+  const exch = (item.exchDisp || item.exchange || '').toUpperCase();
+  if (sym.endsWith('.PA') || sym.endsWith('.AS') || sym.endsWith('.DE') || sym.endsWith('.MI') || sym.endsWith('.MC') || sym.endsWith('.TI') || sym.endsWith('-EUR')) {
+    return 'EUR';
+  }
+  if (sym.endsWith('.L')) return 'GBP';
+  if (sym.endsWith('.TO')) return 'CAD';
+  if (sym.endsWith('.SW')) return 'CHF';
+  if (['NASDAQ', 'NYSE', 'AMEX', 'NMS', 'NYQ', 'NCM', 'NGM', 'BATS', 'OTC'].some((e: string) => exch.includes(e))) {
+    return 'USD';
+  }
+  if (!sym.includes('.')) {
+    return 'USD';
+  }
+  return 'EUR';
+}
+
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 
@@ -25,8 +44,17 @@ function stockApiPlugin() {
                 name: item.shortname || item.longname || item.symbol,
                 type: item.quoteType === 'EQUITY' ? 'stock' : item.quoteType === 'ETF' ? 'etf' : item.quoteType === 'CRYPTOCURRENCY' ? 'crypto' : 'other',
                 exchange: item.exchDisp || item.exchange || '',
-                currency: item.currency || 'EUR'
+                currency: inferCurrency(item)
               }));
+            // Sort: exact matches & primary US / Euronext Paris first
+            results.sort((a: any, b: any) => {
+              const qLower = q.toLowerCase();
+              if (a.symbol.toLowerCase() === qLower) return -1;
+              if (b.symbol.toLowerCase() === qLower) return 1;
+              const aMain = (!a.symbol.includes('.') || a.symbol.endsWith('.PA')) ? 1 : 0;
+              const bMain = (!b.symbol.includes('.') || b.symbol.endsWith('.PA')) ? 1 : 0;
+              return bMain - aMain;
+            });
             res.setHeader('Content-Type', 'application/json');
             return res.end(JSON.stringify({ results }));
           } catch (e) {
