@@ -27,7 +27,10 @@ import {
   TrendingUp,
   Tag,
   Copy,
-  RefreshCw
+  RefreshCw,
+  Layers,
+  Zap,
+  Award
 } from 'lucide-react';
 import { useBudget } from '../contexts/BudgetContext';
 import { useAuth } from '../contexts/AuthContext';
@@ -64,6 +67,7 @@ const createBlankPlan = (id: string, name: string, buyerAName: string, buyerAInc
     customOwnershipRatioA: 50,
 
     hasPtz: false,
+    useLoanSmoothing: true,
     ptzAmount: 0,
     ptzDurationYears: 20,
     ptzDeferredYears: 0,
@@ -306,10 +310,83 @@ const RealEstatePlanner: React.FC<RealEstatePlannerProps> = ({ onViewChange }) =
 
     const mainLoanMonthlyTotal = mainLoanMonthlyCapitalInterest + mainLoanMonthlyInsurance;
 
-    // 8. Global monthly payment
+    // 8. Global monthly payment & Banking Loan Smoothing (Lissage)
     const totalMonthlyPhase1 = mainLoanMonthlyTotal + (p.hasPtz ? ((p.ptzDeferredYears || 0) > 0 ? ptzMonthlyDuringDeferral : ptzMonthlyAfterDeferral) : 0);
     const totalMonthlyPhase2 = mainLoanMonthlyTotal + (p.hasPtz ? ptzMonthlyAfterDeferral : 0);
-    const representativeMonthly = p.hasPtz && (p.ptzDeferredYears || 0) > 0 ? totalMonthlyPhase2 : totalMonthlyPhase1;
+
+    // Dynamic target year and N-2 reference year for PTZ fiscal check
+    const targetYear = parseInt((projectTargetDate || '2029-03').split('-')[0], 10) || 2029;
+    const nMinus2Year = targetYear - 2;
+
+    // PTZ 25% renovation condition in the old property stock (Ancien)
+    const minTravauxForPtzInOld = Math.round(((p.propertyPrice || 0) + (p.renovationBudget || 0)) * 0.25);
+    const isPtzOldEligible = p.propertyType !== 'old' || !p.hasPtz || (p.renovationBudget || 0) >= minTravauxForPtzInOld;
+    const ptzTravauxDeficit = Math.max(0, minTravauxForPtzInOld - (p.renovationBudget || 0));
+
+    // Loan smoothing calculation (Lissage de prêt bancaire à mensualité constante)
+    let smoothedMonthlyTotal = 0;
+    let isSmoothedActive = false;
+    const useSmoothing = p.useLoanSmoothing !== false;
+
+    if (p.hasPtz && ptzPrincipal > 0 && useSmoothing && (p.ptzDeferredYears || 0) > 0) {
+      const D = mainLoanDurationMonths;
+      const dDef = ptzDeferredMonths;
+      const dPtz = ptzDurationMonths;
+      const r = monthlyRate;
+      const insMain = mainLoanMonthlyInsurance;
+      const P1 = ptzMonthlyDuringDeferral;
+      const P2 = ptzMonthlyAfterDeferral;
+
+      const pvFactor = (n: number, rate: number) => {
+        if (rate === 0) return n;
+        return (1 - Math.pow(1 + rate, -n)) / rate;
+      };
+
+      const pvfTotal = pvFactor(D, r);
+      if (pvfTotal > 0) {
+        const pvPtz1 = P1 * pvFactor(dDef, r);
+        const pvPtz2 = P2 * (pvFactor(Math.min(dPtz, D), r) - pvFactor(dDef, r));
+        const pvPtzTotal = pvPtz1 + pvPtz2;
+
+        const smoothedCapInt = (mainLoanPrincipal + pvPtzTotal) / pvfTotal;
+        smoothedMonthlyTotal = smoothedCapInt + insMain;
+        isSmoothedActive = true;
+      }
+    }
+
+    const representativeMonthly = (isSmoothedActive && smoothedMonthlyTotal > 0)
+      ? smoothedMonthlyTotal
+      : (p.hasPtz && (p.ptzDeferredYears || 0) > 0 ? totalMonthlyPhase2 : totalMonthlyPhase1);
+
+    // Comparatif financier : Neuf RE2020 vs Ancien
+    const propertyPrice = p.propertyPrice || 0;
+    const notaireNeuf = Math.round(propertyPrice * 0.025);
+    const notaireAncien = Math.round(propertyPrice * 0.075);
+    const notaireSavingsWithNeuf = notaireAncien - notaireNeuf;
+
+    const totalCostNeuf = propertyPrice + notaireNeuf + (p.agencyFees || 0) + (p.renovationBudget || 0) + (p.bankGuaranteeFees || 0);
+    const totalCostAncien = propertyPrice + notaireAncien + (p.agencyFees || 0) + (p.renovationBudget || 0) + (p.bankGuaranteeFees || 0);
+
+    const borrowNeuf = Math.max(0, totalCostNeuf - totalContribution);
+    const mainPrincipalNeuf = Math.max(0, borrowNeuf - ptzPrincipal);
+    const mainMonthlyNeuf = mainPrincipalNeuf > 0
+      ? (monthlyRate > 0
+        ? (mainPrincipalNeuf * (monthlyRate / (1 - Math.pow(1 + monthlyRate, -mainLoanDurationMonths))))
+        : (mainPrincipalNeuf / mainLoanDurationMonths)) + ((mainPrincipalNeuf * ((p.mainLoanInsuranceRate || 0.34) / 100)) / 12)
+      : 0;
+    const ptzMonthlyNeuf = p.hasPtz ? (ptzDurationMonths > 0 ? (ptzPrincipal / ptzDurationMonths) + ptzMonthlyInsurance : 0) : 0;
+    const monthlyNeuf = mainMonthlyNeuf + ptzMonthlyNeuf;
+    const debtRatioNeuf = totalEffectiveIncome > 0 ? (monthlyNeuf / totalEffectiveIncome) * 100 : 0;
+    const leftToLiveNeuf = totalEffectiveIncome - monthlyNeuf;
+
+    const borrowAncienNoPtz = Math.max(0, totalCostAncien - totalContribution);
+    const monthlyAncienNoPtz = borrowAncienNoPtz > 0
+      ? (monthlyRate > 0
+        ? (borrowAncienNoPtz * (monthlyRate / (1 - Math.pow(1 + monthlyRate, -mainLoanDurationMonths))))
+        : (borrowAncienNoPtz / mainLoanDurationMonths)) + ((borrowAncienNoPtz * ((p.mainLoanInsuranceRate || 0.34) / 100)) / 12)
+      : 0;
+    const debtRatioAncien = totalEffectiveIncome > 0 ? (monthlyAncienNoPtz / totalEffectiveIncome) * 100 : 0;
+    const leftToLiveAncien = totalEffectiveIncome - monthlyAncienNoPtz;
 
     // 9. Total cost of credit
     const totalMainLoanInterests = (mainLoanMonthlyCapitalInterest * mainLoanDurationMonths) - mainLoanPrincipal;
@@ -414,6 +491,25 @@ const RealEstatePlanner: React.FC<RealEstatePlannerProps> = ({ onViewChange }) =
       equitableRatioB,
       officialRatioA,
       officialRatioB,
+      targetYear,
+      nMinus2Year,
+      minTravauxForPtzInOld,
+      isPtzOldEligible,
+      ptzTravauxDeficit,
+      smoothedMonthlyTotal,
+      isSmoothedActive,
+      useSmoothing,
+      notaireNeuf,
+      notaireAncien,
+      notaireSavingsWithNeuf,
+      totalCostNeuf,
+      totalCostAncien,
+      monthlyNeuf,
+      monthlyAncienNoPtz,
+      debtRatioNeuf,
+      debtRatioAncien,
+      leftToLiveNeuf,
+      leftToLiveAncien,
     };
   }, [currentPlan]);
 
@@ -877,22 +973,34 @@ const RealEstatePlanner: React.FC<RealEstatePlannerProps> = ({ onViewChange }) =
             </div>
 
             {/* Property Type */}
-            <div>
-              <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-2">
-                Type de projet immobilier
-              </label>
-              <div className="grid grid-cols-3 gap-3">
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <label className="block text-xs font-medium text-slate-600 dark:text-slate-400">
+                  Type de projet immobilier & Réglementation
+                </label>
+                {currentPlan.propertyType === 'old' && currentPlan.hasPtz && !calculations.isPtzOldEligible && (
+                  <span className="inline-flex items-center gap-1 text-[11px] font-bold text-amber-600 dark:text-amber-400">
+                    <AlertTriangle className="h-3.5 w-3.5" />
+                    <span>Alerte PTZ ancien actif</span>
+                  </span>
+                )}
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <button
                   type="button"
                   onClick={() => updateCurrentPlan({ propertyType: 'old', notaryFeesRate: 7.5 })}
                   className={`p-3 rounded-xl border-2 text-left transition-all ${
                     currentPlan.propertyType === 'old'
-                      ? 'border-indigo-600 bg-indigo-50/50 dark:bg-indigo-950/40 text-indigo-900 dark:text-indigo-200'
+                      ? 'border-indigo-600 bg-indigo-50/50 dark:bg-indigo-950/40 text-indigo-900 dark:text-indigo-200 shadow-sm'
                       : 'border-slate-200 dark:border-slate-700 hover:border-slate-300 text-slate-700 dark:text-slate-300'
                   }`}
                 >
                   <div className="font-bold text-sm">Ancien</div>
                   <div className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Frais notaire ~7.5%</div>
+                  <div className="text-[10px] text-amber-600 dark:text-amber-400 font-medium mt-1">
+                    PTZ si ≥ 25% travaux
+                  </div>
                 </button>
 
                 <button
@@ -900,12 +1008,20 @@ const RealEstatePlanner: React.FC<RealEstatePlannerProps> = ({ onViewChange }) =
                   onClick={() => updateCurrentPlan({ propertyType: 'new', notaryFeesRate: 2.5 })}
                   className={`p-3 rounded-xl border-2 text-left transition-all ${
                     currentPlan.propertyType === 'new'
-                      ? 'border-indigo-600 bg-indigo-50/50 dark:bg-indigo-950/40 text-indigo-900 dark:text-indigo-200'
+                      ? 'border-emerald-600 bg-emerald-50/50 dark:bg-emerald-950/40 text-emerald-900 dark:text-emerald-200 shadow-sm'
                       : 'border-slate-200 dark:border-slate-700 hover:border-slate-300 text-slate-700 dark:text-slate-300'
                   }`}
                 >
-                  <div className="font-bold text-sm">Neuf / VEFA</div>
+                  <div className="flex items-center justify-between">
+                    <span className="font-bold text-sm">Neuf / RE2020 / VEFA</span>
+                    <span className="text-[9px] font-black uppercase px-1.5 py-0.5 rounded bg-emerald-100 dark:bg-emerald-900 text-emerald-800 dark:text-emerald-300">
+                      Top PTZ
+                    </span>
+                  </div>
                   <div className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Frais réduits ~2.5%</div>
+                  <div className="text-[10px] text-emerald-600 dark:text-emerald-400 font-medium mt-1">
+                    0 travaux exigés pour PTZ
+                  </div>
                 </button>
 
                 <button
@@ -913,14 +1029,57 @@ const RealEstatePlanner: React.FC<RealEstatePlannerProps> = ({ onViewChange }) =
                   onClick={() => updateCurrentPlan({ propertyType: 'construction', notaryFeesRate: 4.5 })}
                   className={`p-3 rounded-xl border-2 text-left transition-all ${
                     currentPlan.propertyType === 'construction'
-                      ? 'border-indigo-600 bg-indigo-50/50 dark:bg-indigo-950/40 text-indigo-900 dark:text-indigo-200'
+                      ? 'border-indigo-600 bg-indigo-50/50 dark:bg-indigo-950/40 text-indigo-900 dark:text-indigo-200 shadow-sm'
                       : 'border-slate-200 dark:border-slate-700 hover:border-slate-300 text-slate-700 dark:text-slate-300'
                   }`}
                 >
-                  <div className="font-bold text-sm">Terrain + Constr.</div>
-                  <div className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Notaire terrain seul</div>
+                  <div className="font-bold text-sm">Terrain + Constr. RE2020</div>
+                  <div className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Notaire terrain seul (~4.5%)</div>
+                  <div className="text-[10px] text-emerald-600 dark:text-emerald-400 font-medium mt-1">
+                    Éligible PTZ neuf
+                  </div>
                 </button>
               </div>
+
+              {/* Smart Regulatory Banner for PTZ in Ancien */}
+              {currentPlan.propertyType === 'old' && currentPlan.hasPtz && !calculations.isPtzOldEligible && (
+                <div className="p-4 bg-amber-50 dark:bg-amber-950/40 border-2 border-amber-400/80 dark:border-amber-600/60 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 animate-fade-in shadow-sm">
+                  <div className="flex items-start space-x-3">
+                    <AlertTriangle className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
+                    <div>
+                      <div className="font-bold text-xs text-amber-900 dark:text-amber-200">
+                        Attention : Règle bancaire des 25% de travaux pour le PTZ dans l'Ancien
+                      </div>
+                      <p className="text-[11px] text-amber-800 dark:text-amber-300 mt-0.5 leading-relaxed">
+                        Dans l'ancien, le PTZ exige obligatoirement <strong>au moins 25% de travaux</strong> de rénovation énergétique (soit <strong>{calculations.minTravauxForPtzInOld.toLocaleString('fr-FR')} €</strong> minimum pour ce montant, or vous avez saisi {(currentPlan.renovationBudget || 0).toLocaleString('fr-FR')} €).
+                        <br />
+                        💡 <strong>Vous visez une maison neuve RE2020 (sur plan, VEFA ou construction) ?</strong> Basculez sur « Neuf / RE2020 » : 0 travaux requis et vos frais de notaire chutent immédiatement de <strong>{calculations.finalNotaryFees.toLocaleString('fr-FR')} € à ~{calculations.notaireNeuf.toLocaleString('fr-FR')} €</strong> (-{calculations.notaireSavingsWithNeuf.toLocaleString('fr-FR')} €) !
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => updateCurrentPlan({ propertyType: 'new', notaryFeesRate: 2.5 })}
+                    className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold shrink-0 shadow-md transition-all flex items-center justify-center gap-1.5 self-start sm:self-center"
+                  >
+                    <Sparkles className="h-3.5 w-3.5" />
+                    <span>Passer en Neuf RE2020</span>
+                  </button>
+                </div>
+              )}
+
+              {/* Reassurance Banner for Neuf RE2020 */}
+              {currentPlan.propertyType === 'new' && (
+                <div className="p-3 bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-300 dark:border-emerald-700/60 rounded-xl flex items-start gap-2.5 text-xs text-emerald-900 dark:text-emerald-200">
+                  <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0 mt-0.5" />
+                  <div>
+                    <strong>Maison RE2020 / Neuf validée :</strong> Frais de notaire réduits à ~2,5% (économie de ~{calculations.notaireSavingsWithNeuf.toLocaleString('fr-FR')} €) et PTZ <strong>100% accordé sans aucune condition de travaux</strong> !
+                    <span className="text-[11px] text-emerald-700 dark:text-emerald-400 block mt-0.5">
+                      (Important : si vous achetez une maison déjà habitée revendue par un particulier, même récente de 2024, elle devient juridiquement de l'Ancien).
+                    </span>
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Prices & Fees */}
@@ -1413,6 +1572,75 @@ const RealEstatePlanner: React.FC<RealEstatePlannerProps> = ({ onViewChange }) =
               )}
             </div>
           </div>
+
+          {/* Rétroplanning & Conditions d'Octroi Bancaire */}
+          <div className="bg-gradient-to-br from-indigo-900/5 to-purple-900/5 dark:from-indigo-950/30 dark:to-purple-950/30 p-6 rounded-2xl border border-indigo-200/80 dark:border-indigo-800/60 shadow-sm space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <div className="flex items-center space-x-2.5">
+                <div className="p-2 bg-indigo-600 text-white rounded-xl shadow-sm">
+                  <Calendar className="h-5 w-5" />
+                </div>
+                <div>
+                  <h4 className="text-base font-bold text-slate-900 dark:text-white">
+                    Rétroplanning Bancaire & Validation des CDI (Horizon {calculations.targetYear})
+                  </h4>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    Conditions d'éligibilité pour obtenir l'accord de prêt et le PTZ maximal
+                  </p>
+                </div>
+              </div>
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-emerald-100 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 text-xs font-bold rounded-full self-start sm:self-center">
+                <CheckCircle2 className="h-3.5 w-3.5" />
+                <span>Alignement optimal</span>
+              </span>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-3.5 pt-1">
+              <div className="p-4 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 space-y-1.5 shadow-sm">
+                <div className="flex items-center justify-between text-xs font-black text-indigo-600 dark:text-indigo-400">
+                  <span>1. Arthur</span>
+                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-indigo-50 dark:bg-indigo-950/60">Diplôme sept. 2027</span>
+                </div>
+                <div className="font-bold text-sm text-slate-900 dark:text-white">CDI validé fin 2027</div>
+                <p className="text-xs text-slate-500 leading-relaxed">
+                  À la date cible de {currentPlan.targetDate || '2029-03'}, plus de <strong>18 mois d'ancienneté</strong> en CDI. Profil 100% sécurisé et prioritaire auprès des comités de crédit.
+                </p>
+              </div>
+
+              <div className="p-4 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 space-y-1.5 shadow-sm">
+                <div className="flex items-center justify-between text-xs font-black text-purple-600 dark:text-purple-400">
+                  <span>2. Alicia</span>
+                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-purple-50 dark:bg-purple-950/60">Diplôme août 2028</span>
+                </div>
+                <div className="font-bold text-sm text-slate-900 dark:text-white">Période d'essai validée</div>
+                <p className="text-xs text-slate-500 leading-relaxed">
+                  CDI signé en sept. 2028. Période d'essai (3-4 mois) validée entre <strong>déc. 2028 et fév. 2029</strong> (ou 0 jour de période d'essai si embauchée dans sa boîte d'alternance).
+                </p>
+              </div>
+
+              <div className="p-4 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 space-y-1.5 shadow-sm">
+                <div className="flex items-center justify-between text-xs font-black text-emerald-600 dark:text-emerald-400">
+                  <span>3. Montage Banque</span>
+                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-50 dark:bg-emerald-950/60">Début {calculations.targetYear}</span>
+                </div>
+                <div className="font-bold text-sm text-slate-900 dark:text-white">Dépôt du Prêt & PTZ</div>
+                <p className="text-xs text-slate-500 leading-relaxed">
+                  Basé sur l'avis d'impôt N-2 ({calculations.nMinus2Year}) : statut étudiant/apprenti exonéré d'impôt = <strong>Tranche 1 du PTZ garantie</strong> (aide max et différé 10-15 ans).
+                </p>
+              </div>
+
+              <div className="p-4 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 space-y-1.5 shadow-sm">
+                <div className="flex items-center justify-between text-xs font-black text-teal-600 dark:text-teal-400">
+                  <span>4. Projet Concrétisé</span>
+                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-teal-50 dark:bg-teal-950/60">Printemps / Été</span>
+                </div>
+                <div className="font-bold text-sm text-slate-900 dark:text-white">Signature & Clés</div>
+                <p className="text-xs text-slate-500 leading-relaxed">
+                  Signature chez le notaire avec frais réduits à ~2,5% (Neuf RE2020), déblocage des fonds et emménagement ou lancement de chantier avant l'été {calculations.targetYear}.
+                </p>
+              </div>
+            </div>
+          </div>
         </div>
       )}
 
@@ -1455,6 +1683,7 @@ const RealEstatePlanner: React.FC<RealEstatePlannerProps> = ({ onViewChange }) =
             </div>
 
             {currentPlan.hasPtz && (
+              <>
               <div className="grid grid-cols-1 md:grid-cols-4 gap-4 pt-3 border-t border-slate-100 dark:border-slate-700">
                 <div>
                   <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">
@@ -1505,7 +1734,8 @@ const RealEstatePlanner: React.FC<RealEstatePlannerProps> = ({ onViewChange }) =
                     <option value={0}>Aucun différé (0 an)</option>
                     <option value={5}>5 ans de différé total</option>
                     <option value={8}>8 ans de différé total</option>
-                    <option value={10}>10 ans de différé total</option>
+                    <option value={10}>10 ans de différé (Tranche 1)</option>
+                    <option value={15}>15 ans de différé (Tranche 1 max)</option>
                   </select>
                   <span className="text-[11px] text-slate-400 mt-1 block">
                     Pendant le différé, seul l'assurance est due
@@ -1533,6 +1763,68 @@ const RealEstatePlanner: React.FC<RealEstatePlannerProps> = ({ onViewChange }) =
                   </span>
                 </div>
               </div>
+
+              {/* Loan Smoothing & Banking Optimization */}
+              <div className="pt-3 border-t border-slate-100 dark:border-slate-700 space-y-3">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between p-3.5 bg-slate-50 dark:bg-slate-900/40 rounded-xl border border-slate-200 dark:border-slate-700 gap-3">
+                  <div className="flex items-center space-x-2.5">
+                    <div className="p-2 bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 rounded-lg">
+                      <Layers className="h-4 w-4" />
+                    </div>
+                    <div>
+                      <span className="text-xs font-bold text-slate-800 dark:text-slate-200">
+                        Lissage bancaire du crédit (Mensualité constante sur 25 ans)
+                      </span>
+                      <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                        {calculations.isSmoothedActive
+                          ? `Actif : Mensualité unique lissée de ${Math.round(calculations.smoothedMonthlyTotal).toLocaleString('fr-FR')} €/m (Phase 1 différé et Phase 2 harmonisées)`
+                          : 'Recommandé en banque : nivelle l\'échéance principale pour garder le même prélèvement avant et après la fin du différé'}
+                      </p>
+                    </div>
+                  </div>
+                  <label className="relative inline-flex items-center cursor-pointer shrink-0 self-start sm:self-center">
+                    <input
+                      type="checkbox"
+                      checked={currentPlan.useLoanSmoothing !== false}
+                      onChange={e => updateCurrentPlan({ useLoanSmoothing: e.target.checked })}
+                      className="sr-only peer"
+                    />
+                    <div className="w-9 h-5 bg-slate-200 peer-focus:outline-none rounded-full peer dark:bg-slate-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-emerald-600"></div>
+                  </label>
+                </div>
+
+                {/* Fiscal Bonus N-2 Card */}
+                <div className="p-4 bg-gradient-to-r from-emerald-500/10 to-teal-500/10 border border-emerald-300 dark:border-emerald-800/60 rounded-xl flex items-start gap-3">
+                  <Sparkles className="h-5 w-5 text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5" />
+                  <div className="space-y-1 text-xs text-emerald-950 dark:text-emerald-200">
+                    <div className="font-bold">
+                      💡 Super-bonus fiscal des fins d'études (Avis d'imposition N-2 : Année {calculations.nMinus2Year})
+                    </div>
+                    <p className="leading-relaxed text-emerald-800 dark:text-emerald-300">
+                      Pour un emprunt en <strong>{calculations.targetYear}</strong>, l'administration bancaire examine votre Revenu Fiscal de Référence (RFR) de l'année <strong>{calculations.nMinus2Year}</strong>.
+                      Grâce aux statuts étudiants et apprentis en {calculations.nMinus2Year} (exonération fiscale de ~21 000 € pour l'apprentissage), votre RFR est minime : vous êtes <strong>garantis d'accéder à la Tranche 1 du PTZ</strong>, soit le différé maximal de remboursement (10 à 15 ans sans capital) et l'aide d'État maximale !
+                    </p>
+                  </div>
+                </div>
+
+                {/* Old Property PTZ Alert in Step 3 */}
+                {currentPlan.propertyType === 'old' && !calculations.isPtzOldEligible && (
+                  <div className="p-3.5 bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-700 rounded-xl flex items-start gap-2.5 text-xs text-amber-900 dark:text-amber-200">
+                    <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
+                    <div>
+                      <strong>Condition des 25% de travaux dans l'ancien :</strong> En restant sur "Ancien", la banque refusera le PTZ car vous prévoyez {(currentPlan.renovationBudget || 0).toLocaleString('fr-FR')} € de travaux (au lieu des {calculations.minTravauxForPtzInOld.toLocaleString('fr-FR')} € légaux).
+                      <button
+                        type="button"
+                        onClick={() => updateCurrentPlan({ propertyType: 'new', notaryFeesRate: 2.5 })}
+                        className="ml-2 font-bold underline hover:text-amber-950 dark:hover:text-amber-100"
+                      >
+                        Basculez sur "Neuf / RE2020" pour valider le PTZ sans condition de travaux →
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+              </>
             )}
           </div>
 
@@ -1645,6 +1937,94 @@ const RealEstatePlanner: React.FC<RealEstatePlannerProps> = ({ onViewChange }) =
       {/* ======================================================== */}
       {activeTab === 'analysis' && (
         <div className="space-y-6">
+          {/* COMPARATEUR DIRECT MAISON RE2020 (NEUF) VS ANCIEN */}
+          <div className="bg-white dark:bg-slate-800 p-6 rounded-2xl border-2 border-indigo-500/40 dark:border-indigo-500/30 shadow-sm space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <div className="flex items-center space-x-2.5">
+                <div className="p-2 bg-gradient-to-r from-emerald-600 to-teal-600 text-white rounded-xl shadow-sm">
+                  <Award className="h-5 w-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                    <span>Audit Comparatif : Maison RE2020 (Neuf) vs Logement Ancien</span>
+                    <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300">
+                      Économie directe ~{calculations.notaireSavingsWithNeuf.toLocaleString('fr-FR')} €
+                    </span>
+                  </h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    Simulation comparative sur une base d'achat de {(currentPlan.propertyPrice || 0).toLocaleString('fr-FR')} € à l'horizon {currentPlan.targetDate || '2029-03'}
+                  </p>
+                </div>
+              </div>
+
+              {currentPlan.propertyType === 'old' && (
+                <button
+                  type="button"
+                  onClick={() => updateCurrentPlan({ propertyType: 'new', notaryFeesRate: 2.5 })}
+                  className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-sm self-start sm:self-center"
+                >
+                  <Sparkles className="h-3.5 w-3.5" />
+                  <span>Passer en Neuf RE2020</span>
+                </button>
+              )}
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs text-left">
+                <thead>
+                  <tr className="border-b border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 font-bold uppercase tracking-wider">
+                    <th className="py-2.5 pr-4">Poste Financier</th>
+                    <th className="py-2.5 px-3 bg-slate-50 dark:bg-slate-900/50 rounded-l-lg">Scénario Ancien</th>
+                    <th className="py-2.5 px-3 bg-emerald-50 dark:bg-emerald-950/30 text-emerald-900 dark:text-emerald-200 font-black">Scénario Maison RE2020 (Neuf)</th>
+                    <th className="py-2.5 pl-3 text-right">Gain / Avantage RE2020</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-800 font-medium">
+                  <tr>
+                    <td className="py-2.5 pr-4 text-slate-700 dark:text-slate-300 font-semibold">Frais de notaire</td>
+                    <td className="py-2.5 px-3 bg-slate-50 dark:bg-slate-900/50 text-slate-600 dark:text-slate-400">~{calculations.notaireAncien.toLocaleString('fr-FR')} € (7,5%)</td>
+                    <td className="py-2.5 px-3 bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-300 font-bold">~{calculations.notaireNeuf.toLocaleString('fr-FR')} € (2,5%)</td>
+                    <td className="py-2.5 pl-3 text-right font-black text-emerald-600">-{calculations.notaireSavingsWithNeuf.toLocaleString('fr-FR')} € d'économies</td>
+                  </tr>
+
+                  <tr>
+                    <td className="py-2.5 pr-4 text-slate-700 dark:text-slate-300 font-semibold">Éligibilité PTZ ({currentPlan.hasPtz ? (currentPlan.ptzAmount || 60000).toLocaleString('fr-FR') : '60 000'} €)</td>
+                    <td className="py-2.5 px-3 bg-slate-50 dark:bg-slate-900/50 text-rose-600 dark:text-rose-400">Bloqué (travaux &lt; 25%)</td>
+                    <td className="py-2.5 px-3 bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-300 font-bold">100% Validé (0 € travaux requis)</td>
+                    <td className="py-2.5 pl-3 text-right font-bold text-emerald-600">Taux Zéro débloqué</td>
+                  </tr>
+
+                  <tr>
+                    <td className="py-2.5 pr-4 text-slate-700 dark:text-slate-300 font-semibold">Coût total à financer</td>
+                    <td className="py-2.5 px-3 bg-slate-50 dark:bg-slate-900/50 text-slate-600 dark:text-slate-400">{calculations.totalCostAncien.toLocaleString('fr-FR')} €</td>
+                    <td className="py-2.5 px-3 bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-300 font-bold">{calculations.totalCostNeuf.toLocaleString('fr-FR')} €</td>
+                    <td className="py-2.5 pl-3 text-right font-bold text-emerald-600">-{calculations.notaireSavingsWithNeuf.toLocaleString('fr-FR')} €</td>
+                  </tr>
+
+                  <tr>
+                    <td className="py-2.5 pr-4 text-slate-700 dark:text-slate-300 font-semibold">Mensualité globale estimée</td>
+                    <td className="py-2.5 px-3 bg-slate-50 dark:bg-slate-900/50 text-slate-600 dark:text-slate-400">~{Math.round(calculations.monthlyAncienNoPtz).toLocaleString('fr-FR')} € / mois</td>
+                    <td className="py-2.5 px-3 bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-300 font-black text-sm">~{Math.round(calculations.monthlyNeuf).toLocaleString('fr-FR')} € / mois</td>
+                    <td className="py-2.5 pl-3 text-right font-bold text-emerald-600">-{Math.round(calculations.monthlyAncienNoPtz - calculations.monthlyNeuf).toLocaleString('fr-FR')} € / mois</td>
+                  </tr>
+
+                  <tr>
+                    <td className="py-2.5 pr-4 text-slate-700 dark:text-slate-300 font-semibold">Taux d'endettement du couple</td>
+                    <td className="py-2.5 px-3 bg-slate-50 dark:bg-slate-900/50 text-slate-600 dark:text-slate-400">{calculations.debtRatioAncien.toFixed(1)} %</td>
+                    <td className="py-2.5 px-3 bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-300 font-bold">{calculations.debtRatioNeuf.toFixed(1)} %</td>
+                    <td className="py-2.5 pl-3 text-right font-bold text-emerald-600">-{(calculations.debtRatioAncien - calculations.debtRatioNeuf).toFixed(1)} points</td>
+                  </tr>
+
+                  <tr>
+                    <td className="py-2.5 pr-4 text-slate-700 dark:text-slate-300 font-semibold">Reste à vivre mensuel</td>
+                    <td className="py-2.5 px-3 bg-slate-50 dark:bg-slate-900/50 text-slate-600 dark:text-slate-400">~{Math.round(calculations.leftToLiveAncien).toLocaleString('fr-FR')} €</td>
+                    <td className="py-2.5 px-3 bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-300 font-bold">~{Math.round(calculations.leftToLiveNeuf).toLocaleString('fr-FR')} €</td>
+                    <td className="py-2.5 pl-3 text-right font-bold text-emerald-600">+{Math.round(calculations.leftToLiveNeuf - calculations.leftToLiveAncien).toLocaleString('fr-FR')} € / mois</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
           {/* Controls for Monthly Split & Ownership Split */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-white dark:bg-slate-800 p-6 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm">
             {/* Monthly split rule */}

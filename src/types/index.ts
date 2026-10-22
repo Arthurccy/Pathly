@@ -421,6 +421,7 @@ export interface RealEstatePlan {
 
   // PTZ (Prêt à Taux Zéro)
   hasPtz: boolean;
+  useLoanSmoothing?: boolean;
   ptzAmount: number;
   ptzDurationYears: number;
   ptzDeferredYears: number; // Différé de remboursement en années (0, 5, 8, 10...)
