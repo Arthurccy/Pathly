@@ -547,6 +547,7 @@ const AssetManager: React.FC<AssetManagerProps> = ({ onViewChange }) => {
             
             // Check linked debts (supporting multiple debts e.g. main loan + PTZ)
             const linkedDebts = getAssetDebts(asset);
+            const linkedDebt = linkedDebts[0];
             const loanDetails = asset.loanDetails;
             const isFuture = isFutureAsset(asset);
             
@@ -645,23 +646,35 @@ const AssetManager: React.FC<AssetManagerProps> = ({ onViewChange }) => {
                   </div>
 
                   {/* Credit / Mortgage Section if present */}
-                  {(linkedDebt || loanDetails) && (
+                  {(linkedDebts.length > 0 || loanDetails) && (
                     <div className="mt-3 p-3.5 rounded-xl border border-blue-100 bg-blue-50/40 dark:border-blue-900/40 dark:bg-blue-950/20 space-y-2.5">
                       <div className="flex items-center justify-between">
                         <span className="text-xs font-semibold text-blue-900 dark:text-blue-200 flex items-center gap-1.5">
                           <CreditCard className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400" />
-                          {linkedDebt ? linkedDebt.name : 'Crédit associé'}
+                          {linkedDebts.length > 1
+                            ? `${linkedDebts.length} crédits associés`
+                            : (linkedDebt ? linkedDebt.name : 'Crédit associé')}
                         </span>
-                        {linkedDebt && (
-                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                            linkedDebt.remainingAmount <= 0
-                              ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300'
-                              : 'bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300'
-                          }`}>
-                            {linkedDebt.remainingAmount <= 0 ? 'Crédit soldé' : 'En cours'}
-                          </span>
-                        )}
+                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                          remainingLoan <= 0
+                            ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300'
+                            : 'bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300'
+                        }`}>
+                          {remainingLoan <= 0 ? 'Crédit soldé' : 'En cours'}
+                        </span>
                       </div>
+
+                      {/* Detail per loan if multiple */}
+                      {linkedDebts.length > 1 && (
+                        <div className="space-y-1 pt-1 border-t border-blue-200/40 dark:border-blue-800/40">
+                          {linkedDebts.map((d: any) => (
+                            <div key={d.id} className="flex items-center justify-between text-[11px] text-slate-600 dark:text-slate-300">
+                              <span className="truncate max-w-[180px]">{d.name}</span>
+                              <span className="font-semibold text-rose-600 dark:text-rose-400">-{money(d.remainingAmount)}</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
 
                       {/* Dates */}
                       {(loanDetails?.startDate || linkedDebt?.dueDate || loanDetails?.endDate || linkedDebt?.endDate) && (
