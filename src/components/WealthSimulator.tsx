@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { TrendingUp, Calculator, Target, DollarSign, Percent, Calendar, CalendarClock } from 'lucide-react';
+import { TrendingUp, Calculator, Target, DollarSign, Percent, Calendar, CalendarClock, Home, RefreshCw, CheckCircle2 } from 'lucide-react';
 import { Line } from 'react-chartjs-2';
 import { useBudget } from '../contexts/BudgetContext';
 import { useAuth } from '../contexts/AuthContext';
@@ -40,15 +40,78 @@ const parseEventValue = (input: string, currentValue: number): number => {
 };
 
 const WealthSimulator: React.FC = () => {
-  const { accounts, savingsGoals, simulatedEvents, totalAssetsValue } = useBudget();
+  const { accounts, savingsGoals, simulatedEvents, totalAssetsValue, assets, debts, realEstatePlans } = useBudget();
   const { user } = useAuth();
   
+  // Helper to detect if an asset is a future planned acquisition
+  const isFutureAsset = (asset: any): boolean => {
+    if (asset?.isPlanned) return true;
+    if (!asset?.purchaseDate) return false;
+    try {
+      const pDate = new Date(asset.purchaseDate);
+      const now = new Date();
+      return (pDate.getFullYear() > now.getFullYear()) || 
+             (pDate.getFullYear() === now.getFullYear() && pDate.getMonth() > now.getMonth());
+    } catch {
+      return false;
+    }
+  };
+
+  // Helper to detect if a debt starts in the future (like planned 2029 mortgage)
+  const isFutureDebt = (debt: any): boolean => {
+    if (!debt?.dueDate) return false;
+    try {
+      const dDate = new Date(debt.dueDate);
+      const now = new Date();
+      return (dDate.getFullYear() > now.getFullYear()) || 
+             (dDate.getFullYear() === now.getFullYear() && dDate.getMonth() > now.getMonth());
+    } catch {
+      return false;
+    }
+  };
+
+  // Current owned physical assets (excluding future planned house)
+  const currentOwnedAssets = useMemo(() => {
+    return (assets || []).filter(a => !isFutureAsset(a));
+  }, [assets]);
+
+  const currentOwnedAssetsValue = useMemo(() => {
+    return currentOwnedAssets.reduce((sum, a) => sum + (Number(a.currentValue) || 0), 0);
+  }, [currentOwnedAssets]);
+
+  // Current liquid accounts (checking + savings + PEA/CTO investments)
+  const currentLiquidWealth = useMemo(() => {
+    return (accounts || []).filter(a => a.isActive).reduce((sum, a) => sum + (Number(a.balance) || 0), 0);
+  }, [accounts]);
+
+  // Current active debts (excluding 2029 mortgage)
+  const currentActiveDebtsTotal = useMemo(() => {
+    return (debts || [])
+      .filter(d => d.isActive && !isFutureDebt(d))
+      .reduce((sum, d) => sum + (Number(d.remainingAmount) || 0), 0);
+  }, [debts]);
+
+  // True live net worth right now:
+  const liveNetWorth = useMemo(() => {
+    return Math.round((currentLiquidWealth + currentOwnedAssetsValue - currentActiveDebtsTotal) * 100) / 100;
+  }, [currentLiquidWealth, currentOwnedAssetsValue, currentActiveDebtsTotal]);
+
+  // Planned real estate project
+  const plannedRealEstate = useMemo(() => {
+    if (realEstatePlans && realEstatePlans.length > 0 && realEstatePlans[0].propertyPrice > 0) {
+      return realEstatePlans[0];
+    }
+    return null;
+  }, [realEstatePlans]);
+
+  const [includeRealEstate, setIncludeRealEstate] = useState<boolean>(true);
+
   const storageKey = `pathly_wealth_scenarios_${user?.id || 'guest'}`;
 
   const defaultScenario: SimulationScenario = {
     id: 'scenario-1',
     name: 'Scénario conservateur',
-    currentWealth: accounts.reduce((sum, acc) => sum + acc.balance, 0) + totalAssetsValue,
+    currentWealth: liveNetWorth > 0 ? liveNetWorth : (accounts.reduce((sum, acc) => sum + acc.balance, 0) + currentOwnedAssetsValue),
     monthlyContribution: 500,
     years: 30,
     returnRate: 4,
@@ -87,24 +150,55 @@ const WealthSimulator: React.FC = () => {
     withdrawalRate: '',
   });
 
+  const syncWithLiveNetWorth = () => {
+    const updatedScenario = {
+      ...activeScenario,
+      currentWealth: liveNetWorth
+    };
+    setActiveScenario(updatedScenario);
+    setScenarios(scenarios.map(s => s.id === updatedScenario.id ? updatedScenario : s));
+  };
+
   const calculateProjection = (scenario: SimulationScenario) => {
     const { currentWealth, monthlyContribution, years, returnRate, inflationRate } = scenario;
     const monthlyRate = returnRate / 100 / 12;
     const months = years * 12;
     
-    const projections = [];
-    let currentValue = currentWealth;
+    const projections: any[] = [];
+    const now = new Date();
+
+    // Planned real estate setup
+    const hasRealEstate = Boolean(includeRealEstate && plannedRealEstate);
+    const targetDateStr = plannedRealEstate?.targetDate || '2029-03';
+    const propertyPrice = plannedRealEstate?.propertyPrice || 0;
+    const totalApport = (plannedRealEstate?.buyerAContribution || 0) + (plannedRealEstate?.buyerBContribution || 0);
+    const arthurApport = plannedRealEstate?.buyerAContribution || totalApport || 0;
+    const totalCost = propertyPrice + (plannedRealEstate?.notaryFeesAmount || 0) + (plannedRealEstate?.renovationBudget || 0) + (plannedRealEstate?.bankGuaranteeFees || 0);
+    const initialMortgage = Math.max(0, totalCost - totalApport);
+
+    const loanMonths = (plannedRealEstate?.mainLoanDurationYears || 25) * 12;
+    const loanRate = plannedRealEstate?.mainLoanInterestRate || 3.5;
+    const loanMonthlyRate = loanRate / 100 / 12;
+    const standardMonthlyMortgage = loanMonths > 0 && initialMortgage > 0
+      ? (loanMonthlyRate > 0
+          ? (initialMortgage * (loanMonthlyRate * Math.pow(1 + loanMonthlyRate, loanMonths))) / (Math.pow(1 + loanMonthlyRate, loanMonths) - 1)
+          : initialMortgage / loanMonths)
+      : 0;
+
+    // Liquid part of initial wealth
+    let liquidCapital = Math.max(0, currentWealth - currentOwnedAssetsValue);
     let runningContribution = monthlyContribution;
     let totalInvested = currentWealth;
-    const now = new Date();
-    
-    for (let month = 0; month <= months; month++) {
-      if (month > 0) {
-        // Calculate date of this month to check for future simulated events
-        const monthDate = new Date(now.getFullYear(), now.getMonth() + month, 1);
-        const monthKey = monthDate.toISOString().substring(0, 7);
+    let housePurchased = false;
+    let remainingMortgage = 0;
+    let cumulatedPrincipalRepaid = 0;
 
-        // Check if any simulated events take effect on this month
+    for (let month = 0; month <= months; month++) {
+      const monthDate = new Date(now.getFullYear(), now.getMonth() + month, 1);
+      const monthKey = monthDate.toISOString().substring(0, 7);
+
+      if (month > 0) {
+        // Simulated events (future savings adjustments)
         simulatedEvents.forEach(e => {
           if (e.date === monthKey) {
             if (e.type === 'savings') {
@@ -113,23 +207,41 @@ const WealthSimulator: React.FC = () => {
           }
         });
 
-        // Add monthly contribution
-        currentValue += runningContribution;
+        // Real estate trigger at target date
+        if (hasRealEstate && !housePurchased && monthKey >= targetDateStr) {
+          housePurchased = true;
+          liquidCapital = Math.max(0, liquidCapital - arthurApport);
+          remainingMortgage = initialMortgage;
+        }
+
+        // Monthly mortgage amortization: principal builds real estate equity
+        if (housePurchased && remainingMortgage > 0) {
+          const monthlyInterest = remainingMortgage * loanMonthlyRate;
+          const principalPaid = Math.max(0, standardMonthlyMortgage - monthlyInterest);
+          remainingMortgage = Math.max(0, remainingMortgage - principalPaid);
+          cumulatedPrincipalRepaid += principalPaid;
+        }
+
+        // Liquid investment growth
+        liquidCapital += runningContribution;
         totalInvested += runningContribution;
-        // Apply monthly return
-        currentValue *= (1 + monthlyRate);
+        liquidCapital *= (1 + monthlyRate);
       }
-      
-      // Calculate real value (adjusted for inflation)
-      const inflationAdjusted = currentValue / Math.pow(1 + inflationRate / 100, month / 12);
-      
+
+      const homeEquity = housePurchased ? Math.max(0, propertyPrice - remainingMortgage) : 0;
+      const nominalValue = liquidCapital + homeEquity + currentOwnedAssetsValue;
+      const inflationAdjusted = nominalValue / Math.pow(1 + inflationRate / 100, month / 12);
+
       projections.push({
         month,
         year: month / 12,
-        nominalValue: currentValue,
+        nominalValue,
         realValue: inflationAdjusted,
-        totalContributions: totalInvested,
-        gains: currentValue - totalInvested,
+        liquidValue: liquidCapital,
+        homeEquity,
+        totalContributions: totalInvested + (housePurchased ? arthurApport + cumulatedPrincipalRepaid : 0),
+        gains: Math.max(0, nominalValue - (totalInvested + (housePurchased ? arthurApport + cumulatedPrincipalRepaid : 0))),
+        housePurchased
       });
     }
     
@@ -140,7 +252,8 @@ const WealthSimulator: React.FC = () => {
     const projections = calculateProjection(scenario);
     const finalValue = projections[projections.length - 1];
     
-    const grossAnnualIncome = finalValue.nominalValue * (scenario.withdrawalRate / 100);
+    // 4% safe withdrawal rate is applied to liquid / invested wealth
+    const grossAnnualIncome = (finalValue.liquidValue || finalValue.nominalValue) * (scenario.withdrawalRate / 100);
     const netAnnualIncome = grossAnnualIncome * (1 - scenario.taxRate / 100);
     const monthlyIncome = netAnnualIncome / 12;
     
@@ -150,6 +263,8 @@ const WealthSimulator: React.FC = () => {
       monthly: monthlyIncome,
       finalWealth: finalValue.nominalValue,
       realFinalWealth: finalValue.realValue,
+      finalLiquid: finalValue.liquidValue,
+      finalRealEstateEquity: finalValue.homeEquity,
       totalContributions: finalValue.totalContributions,
       totalGains: finalValue.gains,
     };
@@ -157,37 +272,67 @@ const WealthSimulator: React.FC = () => {
 
   const chartData = useMemo(() => {
     const projections = calculateProjection(activeScenario);
+    const yearlySnaps = projections.filter((_, index) => index % 12 === 0);
+    
+    const datasets: any[] = [
+      {
+        label: 'Patrimoine Total (Nominal)',
+        data: yearlySnaps.map(p => p.nominalValue),
+        borderColor: '#3B82F6',
+        backgroundColor: 'rgba(59, 130, 246, 0.1)',
+        fill: false,
+        tension: 0.3,
+        borderWidth: 3,
+      },
+      {
+        label: 'Valeur réelle (inflation ajustée)',
+        data: yearlySnaps.map(p => p.realValue),
+        borderColor: '#10B981',
+        backgroundColor: 'rgba(16, 185, 129, 0.1)',
+        fill: false,
+        tension: 0.3,
+        borderWidth: 2,
+      },
+    ];
+
+    if (includeRealEstate && plannedRealEstate) {
+      datasets.push({
+        label: 'Part Immobilière Détenue (Equity nette)',
+        data: yearlySnaps.map(p => p.homeEquity),
+        borderColor: '#F59E0B',
+        backgroundColor: 'rgba(245, 158, 11, 0.1)',
+        fill: false,
+        tension: 0.3,
+        borderWidth: 2,
+      });
+      datasets.push({
+        label: 'Portefeuille Financier & Épargne',
+        data: yearlySnaps.map(p => p.liquidValue),
+        borderColor: '#8B5CF6',
+        backgroundColor: 'rgba(139, 92, 246, 0.1)',
+        fill: false,
+        tension: 0.3,
+        borderWidth: 2,
+        borderDash: [5, 5],
+      });
+    }
+
+    datasets.push({
+      label: 'Contributions & Apports totaux',
+      data: yearlySnaps.map(p => p.totalContributions),
+      borderColor: '#94A3B8',
+      backgroundColor: 'rgba(148, 163, 184, 0.1)',
+      fill: false,
+      tension: 0.3,
+      borderWidth: 1.5,
+      borderDash: [3, 3],
+    });
     
     return {
-      labels: projections.filter((_, index) => index % 12 === 0).map(p => `Année ${Math.floor(p.year)}`),
-      datasets: [
-        {
-          label: 'Valeur nominale',
-          data: projections.filter((_, index) => index % 12 === 0).map(p => p.nominalValue),
-          borderColor: '#3B82F6',
-          backgroundColor: 'rgba(59, 130, 246, 0.1)',
-          fill: false,
-          tension: 0.4,
-        },
-        {
-          label: 'Valeur réelle (inflation ajustée)',
-          data: projections.filter((_, index) => index % 12 === 0).map(p => p.realValue),
-          borderColor: '#10B981',
-          backgroundColor: 'rgba(16, 185, 129, 0.1)',
-          fill: false,
-          tension: 0.4,
-        },
-        {
-          label: 'Contributions totales',
-          data: projections.filter((_, index) => index % 12 === 0).map(p => p.totalContributions),
-          borderColor: '#F59E0B',
-          backgroundColor: 'rgba(245, 158, 11, 0.1)',
-          fill: false,
-          tension: 0.4,
-        },
-      ],
+      labels: yearlySnaps.map(p => `Année ${Math.floor(p.year)}`),
+      datasets,
     };
-  }, [activeScenario, simulatedEvents]);
+  }, [activeScenario, simulatedEvents, includeRealEstate, plannedRealEstate]);
 
   const chartOptions = {
     responsive: true,
@@ -493,6 +638,44 @@ const WealthSimulator: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* Real Estate Project Integration Card */}
+      {plannedRealEstate && (
+        <div className="bg-gradient-to-r from-blue-50/90 via-indigo-50/80 to-purple-50/70 dark:from-blue-950/40 dark:via-indigo-950/40 dark:to-purple-950/30 rounded-xl border border-blue-200 dark:border-blue-800/60 p-4 sm:p-5 shadow-sm">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="flex items-start sm:items-center gap-3">
+              <div className="p-2.5 bg-blue-600 text-white rounded-xl shadow-sm shrink-0">
+                <Home className="h-5 w-5" />
+              </div>
+              <div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <h3 className="text-base font-bold text-gray-900 dark:text-white">
+                    {plannedRealEstate.name || 'Projet Immobilier'}
+                  </h3>
+                  <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-blue-100 dark:bg-blue-900/60 text-blue-800 dark:text-blue-300 border border-blue-200 dark:border-blue-800">
+                    Achat prévu : {plannedRealEstate.targetDate || '2029-03'}
+                  </span>
+                </div>
+                <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">
+                  Bien de <strong>{plannedRealEstate.propertyPrice.toLocaleString('fr-FR')} €</strong> • Apport prévu de <strong>{((plannedRealEstate.buyerAContribution || 0) + (plannedRealEstate.buyerBContribution || 0)).toLocaleString('fr-FR')} €</strong> • Prêt amortissable sur {plannedRealEstate.mainLoanDurationYears || 25} ans à {plannedRealEstate.mainLoanInterestRate || 3.5}%
+                </p>
+              </div>
+            </div>
+
+            <label className="inline-flex items-center gap-2.5 cursor-pointer select-none bg-white dark:bg-gray-800 px-4 py-2.5 rounded-xl border border-blue-200 dark:border-blue-700 shadow-sm hover:border-blue-400 transition-colors shrink-0">
+              <input
+                type="checkbox"
+                checked={includeRealEstate}
+                onChange={e => setIncludeRealEstate(e.target.checked)}
+                className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500 cursor-pointer"
+              />
+              <span className="text-xs font-bold text-gray-800 dark:text-gray-200">
+                Intégrer le bien à la projection 30 ans
+              </span>
+            </label>
+          </div>
+        </div>
+      )}
 
       {/* Synchronized Future Events */}
       {simulatedEvents.length > 0 && (

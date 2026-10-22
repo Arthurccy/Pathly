@@ -12,7 +12,9 @@ const BudgetSimulator: React.FC = () => {
     categories, 
     transactions,
     simulatedEvents: events,
-    setSimulatedEvents
+    setSimulatedEvents,
+    assets,
+    realEstatePlans
   } = useBudget();
   
   // Calculate initial savings balance
@@ -74,20 +76,101 @@ const BudgetSimulator: React.FC = () => {
   const surplus = currentIncome - totalExpenses;
   const marginPercent = currentIncome > 0 ? (surplus / currentIncome) * 100 : 0;
   
-  // Calculate true projections using actual scheduled transactions
-  const yearlyProjections = useMemo(() => {
-    const projections = getCashFlowProjection(180); // 15 years
-    if (projections.length === 0) return [];
+  // Helper to detect if an asset is in the future (like planned house)
+  const isFutureAsset = (asset: any): boolean => {
+    if (asset?.isPlanned) return true;
+    if (!asset?.purchaseDate) return false;
+    try {
+      const pDate = new Date(asset.purchaseDate);
+      const now = new Date();
+      return (pDate.getFullYear() > now.getFullYear()) || 
+             (pDate.getFullYear() === now.getFullYear() && pDate.getMonth() > now.getMonth());
+    } catch {
+      return false;
+    }
+  };
 
-    let cumulativeDelta = 0;
+  // Helper to detect if a debt starts in the future (like planned mortgage)
+  const isFutureDebt = (debt: any): boolean => {
+    if (!debt?.dueDate) return false;
+    try {
+      const dDate = new Date(debt.dueDate);
+      const now = new Date();
+      return (dDate.getFullYear() > now.getFullYear()) || 
+             (dDate.getFullYear() === now.getFullYear() && dDate.getMonth() > now.getMonth());
+    } catch {
+      return false;
+    }
+  };
+
+  // Active planned real estate project
+  const activePlan = useMemo(() => {
+    if (realEstatePlans && realEstatePlans.length > 0 && realEstatePlans[0].propertyPrice > 0) {
+      return realEstatePlans[0];
+    }
+    return null;
+  }, [realEstatePlans]);
+
+  // Starting net equity for currently owned physical assets
+  const initialCurrentAssetsNet = useMemo(() => {
+    const currentAssetsVal = (assets || [])
+      .filter(a => !isFutureAsset(a))
+      .reduce((sum, a) => sum + (Number(a.currentValue) || 0), 0);
+    const currentDebtsVal = (debts || [])
+      .filter(d => d.isActive && !isFutureDebt(d))
+      .reduce((sum, d) => sum + (Number(d.remainingAmount) || 0), 0);
+    return Math.max(0, currentAssetsVal - currentDebtsVal);
+  }, [assets, debts]);
+
+  // Starting liquid accounts (checking + savings + investments)
+  const initialLiquidCash = useMemo(() => {
+    return (accounts || [])
+      .filter(a => a.isActive)
+      .reduce((sum, a) => sum + (Number(a.balance) || 0), 0);
+  }, [accounts]);
+
+  // Calculate true projections integrating realistic cash flows, future events & real estate equity
+  const yearlyProjections = useMemo(() => {
     const trueProjections: any[] = [];
-    
+    const now = new Date();
+
+    let runningLiquid = initialLiquidCash;
+    let runningCarEquity = initialCurrentAssetsNet;
+    let housePurchased = false;
+    let remainingMortgage = 0;
+
+    // Real estate parameters
+    const targetDateStr = activePlan?.targetDate || '2029-03';
+    const propertyPrice = activePlan?.propertyPrice || 0;
+    const totalApport = (activePlan?.buyerAContribution || 0) + (activePlan?.buyerBContribution || 0);
+    const arthurApport = activePlan?.buyerAContribution || totalApport || 0;
+    const totalProjectCost = propertyPrice + (activePlan?.notaryFeesAmount || 0) + (activePlan?.renovationBudget || 0) + (activePlan?.bankGuaranteeFees || 0);
+    const initialMortgageTotal = Math.max(0, totalProjectCost - totalApport);
+
+    // Compute standard monthly mortgage payment for loan duration
+    const loanDurationMonths = (activePlan?.mainLoanDurationYears || 25) * 12;
+    const loanInterestRate = activePlan?.mainLoanInterestRate || 3.5;
+    const monthlyRate = loanInterestRate / 100 / 12;
+    const standardMonthlyMortgage = loanDurationMonths > 0 && initialMortgageTotal > 0
+      ? (monthlyRate > 0 
+          ? (initialMortgageTotal * (monthlyRate * Math.pow(1 + monthlyRate, loanDurationMonths))) / (Math.pow(1 + monthlyRate, loanDurationMonths) - 1)
+          : initialMortgageTotal / loanDurationMonths)
+      : 0;
+
+    // Arthur's share of mortgage
+    const arthurRatio = activePlan?.customMonthlyRatioA 
+      ? activePlan.customMonthlyRatioA / 100 
+      : (activePlan && (activePlan.buyerAIncome + activePlan.buyerBIncome > 0)
+          ? activePlan.buyerAIncome / (activePlan.buyerAIncome + activePlan.buyerBIncome)
+          : 0.58);
+    const arthurMonthlyMortgage = Math.round(standardMonthlyMortgage * arthurRatio);
+
     let monthIncome = currentIncome;
     let monthFixed = currentFixed;
     let monthDebts = currentDebts;
     let monthBudgets = currentBudgets;
     let monthSavings = currentSavings;
-      
+
     const parseEventValue = (input: string, currentValue: number): number => {
       const trimmed = (input || '').trim();
       if (!trimmed) return currentValue; 
@@ -110,12 +193,14 @@ const BudgetSimulator: React.FC = () => {
       const absoluteVal = parseFloat(trimmed);
       return isNaN(absoluteVal) ? currentValue : absoluteVal;
     };
-    
-    projections.forEach((proj, i) => {
-      const projMonth = proj.date.toISOString().substring(0, 7);
-      
+
+    for (let i = 0; i < 180; i++) { // 15 years = 180 months
+      const monthDate = new Date(now.getFullYear(), now.getMonth() + i + 1, 1);
+      const monthKey = monthDate.toISOString().substring(0, 7);
+
+      // 1. Process simulated events for this exact month
       events.forEach(e => {
-        if (e.date === projMonth) { // Only trigger on exact month match to prevent re-applying
+        if (e.date === monthKey) {
           if (e.type === 'income') monthIncome = parseEventValue(e.newValue, monthIncome);
           if (e.type === 'fixed') monthFixed = parseEventValue(e.newValue, monthFixed);
           if (e.type === 'debts') monthDebts = parseEventValue(e.newValue, monthDebts);
@@ -123,27 +208,65 @@ const BudgetSimulator: React.FC = () => {
           if (e.type === 'savings') monthSavings = parseEventValue(e.newValue, monthSavings);
         }
       });
-      
-      const monthPatrimonySurplus = monthIncome - (monthFixed + monthDebts + monthBudgets);
-      const baselinePatrimonySurplus = baselineIncome - (baselineFixed + baselineDebts + baselineBudgets);
-      
-      cumulativeDelta += (monthPatrimonySurplus - baselinePatrimonySurplus);
-      
+
+      // 2. Real estate acquisition milestone
+      if (activePlan && !housePurchased && monthKey >= targetDateStr) {
+        housePurchased = true;
+        // Apport is paid from liquid cash
+        runningLiquid = Math.max(0, runningLiquid - arthurApport);
+        remainingMortgage = initialMortgageTotal;
+
+        // If debts is 0 (e.g. from the 2027 car loan payoff event), add the mortgage payment
+        if (monthDebts < arthurMonthlyMortgage) {
+          monthDebts = arthurMonthlyMortgage;
+        }
+      }
+
+      // 3. Mortgage amortization: principal repayment builds home equity
+      let monthlyPrincipalPaid = 0;
+      if (housePurchased && remainingMortgage > 0) {
+        const monthlyInterest = remainingMortgage * monthlyRate;
+        monthlyPrincipalPaid = Math.max(0, standardMonthlyMortgage - monthlyInterest);
+        remainingMortgage = Math.max(0, remainingMortgage - monthlyPrincipalPaid);
+      }
+      const homeEquity = housePurchased ? Math.max(0, propertyPrice - remainingMortgage) : 0;
+
+      // 4. Monthly cash flows
+      const monthExpenses = monthFixed + monthDebts + monthBudgets;
+      const margin = monthIncome - monthExpenses - monthSavings;
+
+      // Arthur accumulates his scheduled monthly savings, plus any positive unspent margin
+      const netCashAdded = monthSavings + (margin > 0 ? margin : margin);
+      // Modest 1.5% annual yield on liquid cash
+      runningLiquid = Math.max(0, (runningLiquid + netCashAdded) * (1 + 0.015 / 12));
+
+      // 5. Existing car debt payoff after 2 years
+      if (i >= 24) {
+        runningCarEquity = (assets || [])
+          .filter(a => !isFutureAsset(a))
+          .reduce((sum, a) => sum + (Number(a.currentValue) || 0), 0);
+      }
+
+      // Year snapshot (every 12 months)
       if ((i + 1) % 12 === 0) {
+        const totalPatrimony = Math.round(runningLiquid + homeEquity + runningCarEquity);
         trueProjections.push({
           yearOffset: (i + 1) / 12,
-          date: proj.date,
-          patrimony: proj.projectedTotalBalance + cumulativeDelta,
-          income: monthIncome,
-          expenses: monthFixed + monthDebts + monthBudgets,
-          savings: monthSavings,
-          margin: monthIncome - (monthFixed + monthDebts + monthBudgets) - monthSavings
+          date: monthDate,
+          patrimony: totalPatrimony,
+          liquidPatrimony: Math.round(runningLiquid),
+          realEstateEquity: Math.round(homeEquity),
+          income: Math.round(monthIncome),
+          expenses: Math.round(monthExpenses),
+          savings: Math.round(monthSavings),
+          margin: Math.round(margin),
+          housePurchased
         });
       }
-    });
+    }
 
     return trueProjections;
-  }, [getCashFlowProjection, currentIncome, currentFixed, currentDebts, currentBudgets, currentSavings, baselineIncome, baselineFixed, baselineDebts, baselineBudgets, baselineSavings, events]);
+  }, [accounts, assets, debts, realEstatePlans, activePlan, initialLiquidCash, initialCurrentAssetsNet, currentIncome, currentFixed, currentDebts, currentBudgets, currentSavings, events]);
 
   const getStatus = (balance: number) => {
     if (balance < 0) return { label: 'Déficit', Icon: AlertTriangle, color: 'text-red-600 dark:text-red-400', bg: 'bg-red-50 dark:bg-red-950/30' };
@@ -408,11 +531,16 @@ const BudgetSimulator: React.FC = () => {
                     <div className="absolute top-0 right-0 w-16 h-16 bg-blue-500/5 dark:bg-blue-400/5 rounded-bl-full"></div>
                     <p className="text-xs font-semibold text-blue-800/70 dark:text-blue-300/70 uppercase tracking-wider mb-2">Dans {proj.yearOffset} an{proj.yearOffset > 1 ? 's' : ''}</p>
                     <p className="text-xl font-bold text-blue-600 dark:text-blue-400">{proj.patrimony.toLocaleString('fr-FR', { maximumFractionDigits: 0 })} €</p>
+                    <span className="text-[10px] text-gray-500 dark:text-gray-400 mt-1">
+                      {proj.realEstateEquity > 0 
+                        ? `dont ${(proj.realEstateEquity / 1000).toFixed(0)}k€ immo` 
+                        : `Épargne & liquidités`}
+                    </span>
                   </div>
                 ))}
               </div>
             <p className="text-xs text-gray-500 mt-3 italic">
-              * Inclut la réalité de vos comptes (épargne + courant) et intègre vos futures transactions planifiées.
+              * Inclut vos comptes réels, vos épargnes mensuelles, l'amortissement du crédit immobilier et la marge budgétaire.
             </p>
           </div>
           
@@ -447,7 +575,16 @@ const BudgetSimulator: React.FC = () => {
                           {proj.margin > 0 ? '+' : ''}{proj.margin.toLocaleString('fr-FR', { maximumFractionDigits: 0 })} €
                         </td>
                         <td className="px-4 py-3 text-right font-bold text-gray-900 dark:text-white">
-                          {proj.patrimony.toLocaleString('fr-FR', { maximumFractionDigits: 0 })} €
+                          <div>{proj.patrimony.toLocaleString('fr-FR', { maximumFractionDigits: 0 })} €</div>
+                          {proj.realEstateEquity > 0 ? (
+                            <div className="text-[11px] font-normal text-indigo-600 dark:text-indigo-400">
+                              dont {proj.realEstateEquity.toLocaleString('fr-FR', { maximumFractionDigits: 0 })} € equity immo
+                            </div>
+                          ) : (
+                            <div className="text-[11px] font-normal text-gray-400">
+                              100% liquidités & épargne
+                            </div>
+                          )}
                         </td>
                       </tr>
                     ))}
