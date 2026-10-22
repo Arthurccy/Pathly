@@ -8,7 +8,6 @@ import {
   TrendingUp, 
   Wallet,
   Building,
-  Building2,
   Bitcoin,
   DollarSign,
   Eye,
@@ -345,14 +344,6 @@ const AccountManager: React.FC = () => {
         </div>
         
         <div className="flex items-center space-x-3">
-          <button
-            onClick={() => setIsBankSyncOpen(true)}
-            className="flex items-center space-x-2 bg-sky-600 hover:bg-sky-700 text-white px-4 py-2 rounded-lg transition-colors shadow-sm"
-          >
-            <Building2 className="h-5 w-5" />
-            <span>Synchro banque</span>
-          </button>
-
           <button
             onClick={() => openTransferModal()}
             disabled={accounts.filter(account => account.isActive).length < 2}
