@@ -374,5 +374,50 @@ export interface HouseholdConfig {
   accountIds?: string[]; // Comptes pris en compte dans la vue foyer (vide / absent = tous)
 }
 
+export interface RealEstatePlan {
+  id: string;
+  name: string;
+  createdAt?: string;
+  updatedAt?: string;
+
+  // Property Details
+  propertyType: 'old' | 'new' | 'construction';
+  propertyPrice: number;
+  notaryFeesRate: number; // e.g. 7.5 (%)
+  notaryFeesAmount: number; // e.g. 18750
+  useCustomNotaryFees: boolean;
+  agencyFees: number;
+  renovationBudget: number;
+  bankGuaranteeFees: number;
+
+  // Co-Borrowers
+  buyerAName: string;
+  buyerAIncome: number;
+  buyerAContribution: number;
+  buyerBName: string;
+  buyerBIncome: number;
+  buyerBContribution: number;
+
+  // Ownership split (clé notariée)
+  ownershipSplitMode: 'pro_rata_total' | '50_50' | 'custom';
+  customOwnershipRatioA: number; // %
+
+  // PTZ (Prêt à Taux Zéro)
+  hasPtz: boolean;
+  ptzAmount: number;
+  ptzDurationYears: number;
+  ptzDeferredYears: number; // Différé de remboursement en années (0, 5, 8, 10...)
+  ptzInsuranceRate: number; // % annuel sur capital
+
+  // Main Loan (Prêt amortissable classique)
+  mainLoanDurationYears: number;
+  mainLoanInterestRate: number; // % annuel
+  mainLoanInsuranceRate: number; // % annuel sur capital
+
+  // Monthly Repayment Split
+  monthlySplitMode: '50_50' | 'pro_rata_income' | 'ownership_ratio' | 'custom';
+  customMonthlyRatioA: number; // %
+}
+
 // Legacy types for backward compatibility
 export interface Goal extends SavingsGoal {}

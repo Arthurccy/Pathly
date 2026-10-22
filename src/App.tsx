@@ -29,6 +29,7 @@ import RulesManager from './components/RulesManager';
 import OnboardingTour from './components/OnboardingTour';
 import HouseholdManager from './components/HouseholdManager';
 import AssetManager from './components/AssetManager';
+import RealEstatePlanner from './components/RealEstatePlanner';
 import { getCustomMonthPeriod } from './utils/dateUtils';
 
 const AppContent: React.FC = () => {
@@ -101,6 +102,8 @@ const AppContent: React.FC = () => {
         return <HouseholdManager />;
       case 'assets':
         return <AssetManager />;
+      case 'real-estate-project':
+        return <RealEstatePlanner />;
       case 'wealth-simulator':
         return <WealthSimulator />;
       case 'budget-simulator':
