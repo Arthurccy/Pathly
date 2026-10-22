@@ -228,6 +228,7 @@ export const BudgetProvider: React.FC<BudgetProviderProps> = ({ children }) => {
         userB: { name: 'Conjoint(e)', income: 1639 },
         splitMode: 'prorata',
         customRatioA: 57,
+        sharedCategoryIds: [],
       };
     } catch {
       return {
@@ -236,6 +237,7 @@ export const BudgetProvider: React.FC<BudgetProviderProps> = ({ children }) => {
         userB: { name: 'Conjoint(e)', income: 1639 },
         splitMode: 'prorata',
         customRatioA: 57,
+        sharedCategoryIds: [],
       };
     }
   });
@@ -243,7 +245,11 @@ export const BudgetProvider: React.FC<BudgetProviderProps> = ({ children }) => {
   useEffect(() => {
     if (user?.user_metadata?.pathly_household_config) {
       const dbCfg = user.user_metadata.pathly_household_config;
-      setHouseholdConfigState(dbCfg);
+      setHouseholdConfigState(prev => ({
+        ...prev,
+        ...dbCfg,
+        sharedCategoryIds: dbCfg.sharedCategoryIds ?? prev.sharedCategoryIds ?? []
+      }));
       try {
         localStorage.setItem('pathly_household_config', JSON.stringify(dbCfg));
       } catch {}
@@ -281,8 +287,20 @@ export const BudgetProvider: React.FC<BudgetProviderProps> = ({ children }) => {
   const ratioB = 100 - ratioA;
 
   // Auto-initialize sharedCategoryIds if not set yet
+  const hasInitializedSharedCategories = useRef(false);
   useEffect(() => {
-    if (categories.length > 0 && householdConfig.sharedCategoryIds === undefined) {
+    if (categories.length > 0 && !hasInitializedSharedCategories.current && (!householdConfig.sharedCategoryIds || householdConfig.sharedCategoryIds.length === 0)) {
+      const saved = localStorage.getItem('pathly_household_config');
+      if (saved) {
+        try {
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed.sharedCategoryIds) && parsed.sharedCategoryIds.length > 0) {
+            hasInitializedSharedCategories.current = true;
+            return;
+          }
+        } catch {}
+      }
+      hasInitializedSharedCategories.current = true;
       const defaultShared = categories
         .filter(c => {
           if (c.type !== 'expense' && c.type !== 'bill') return false;
@@ -299,9 +317,11 @@ export const BudgetProvider: React.FC<BudgetProviderProps> = ({ children }) => {
         })
         .map(c => c.id);
 
-      updateHouseholdConfig({ sharedCategoryIds: defaultShared });
+      if (defaultShared.length > 0) {
+        updateHouseholdConfig({ sharedCategoryIds: defaultShared });
+      }
     }
-  }, [categories, householdConfig.sharedCategoryIds]);
+  }, [categories]);
 
   const isTransactionShared = (transaction: Transaction): boolean => {
     if (transaction.type !== 'expense' && transaction.type !== 'bill') return false;

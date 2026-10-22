@@ -126,6 +126,29 @@ const convertDatabaseToApp = {
   }),
 };
 
+// Helper functions to safely format dates
+const formatDateOnly = (d: any): string | undefined => {
+  if (!d) return undefined;
+  if (typeof d === 'string') return d.split('T')[0];
+  if (d instanceof Date && !isNaN(d.getTime())) return d.toISOString().split('T')[0];
+  try {
+    const parsed = new Date(d);
+    if (!isNaN(parsed.getTime())) return parsed.toISOString().split('T')[0];
+  } catch {}
+  return undefined;
+};
+
+const formatIsoDateTime = (d: any): string | undefined => {
+  if (!d) return undefined;
+  if (typeof d === 'string') return d;
+  if (d instanceof Date && !isNaN(d.getTime())) return d.toISOString();
+  try {
+    const parsed = new Date(d);
+    if (!isNaN(parsed.getTime())) return parsed.toISOString();
+  } catch {}
+  return undefined;
+};
+
 // Helper function to convert app format to database format
 const convertAppToDatabase = {
   account: (account: Omit<BankAccount, 'id'> | Partial<BankAccount>): any => ({
@@ -160,16 +183,16 @@ const convertAppToDatabase = {
     account_id: transaction.accountId,
     amount: transaction.amount,
     description: transaction.description,
-    date: transaction.date?.toISOString().split('T')[0],
+    date: formatDateOnly(transaction.date),
     category_id: transaction.categoryId,
     type: transaction.type,
     status: transaction.status,
     is_recurring: transaction.isRecurring,
     recurring_pattern: transaction.recurringPattern ? {
       ...transaction.recurringPattern,
-      nextDate: transaction.recurringPattern.nextDate.toISOString(),
-      endDate: transaction.recurringPattern.endDate?.toISOString(),
-      lastGenerated: transaction.recurringPattern.lastGenerated?.toISOString(),
+      nextDate: formatIsoDateTime(transaction.recurringPattern.nextDate) || '',
+      endDate: formatIsoDateTime(transaction.recurringPattern.endDate),
+      lastGenerated: formatIsoDateTime(transaction.recurringPattern.lastGenerated),
     } : null,
     memo: transaction.memo,
     tags: (transaction.tags !== undefined || transaction.isShared !== undefined || transaction.isHouseholdContribution !== undefined)
@@ -190,7 +213,7 @@ const convertAppToDatabase = {
     description: goal.description,
     target_amount: goal.targetAmount,
     current_amount: goal.currentAmount,
-    deadline: goal.deadline?.toISOString().split('T')[0],
+    deadline: formatDateOnly(goal.deadline),
     category_id: goal.categoryId,
     account_id: goal.accountId,
     priority: goal.priority,
@@ -206,7 +229,7 @@ const convertAppToDatabase = {
     remaining_amount: debt.remainingAmount,
     interest_rate: debt.interestRate,
     minimum_payment: debt.minimumPayment,
-    due_date: debt.dueDate?.toISOString().split('T')[0],
+    due_date: formatDateOnly(debt.dueDate),
     account_id: debt.accountId,
     category_id: debt.categoryId,
     type: debt.type,
@@ -214,13 +237,13 @@ const convertAppToDatabase = {
     creditor: debt.creditor,
     description: debt.description,
     payment_day: debt.paymentDay,
-    end_date: debt.endDate?.toISOString().split('T')[0],
+    end_date: formatDateOnly(debt.endDate),
   }),
 
   debtPayment: (payment: Omit<DebtPayment, 'id'>): any => ({
     debt_id: payment.debtId,
     amount: payment.amount,
-    date: payment.date.toISOString().split('T')[0],
+    date: formatDateOnly(payment.date) || new Date().toISOString().split('T')[0],
     principal: payment.principal,
     interest: payment.interest,
     transaction_id: payment.transactionId,
@@ -232,8 +255,8 @@ const convertAppToDatabase = {
     category_id: budget.categoryId,
     amount: budget.amount,
     period: budget.period,
-    start_date: budget.startDate?.toISOString().split('T')[0],
-    end_date: budget.endDate?.toISOString().split('T')[0],
+    start_date: formatDateOnly(budget.startDate),
+    end_date: formatDateOnly(budget.endDate),
     is_active: budget.isActive,
     alert_threshold: budget.alertThreshold,
     rollover: budget.rollover,

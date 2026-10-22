@@ -113,6 +113,15 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         return;
       }
 
+      if (event === 'USER_UPDATED' && userRef.current) {
+        setUser({
+          ...userRef.current,
+          ...session.user,
+          settings: userRef.current.settings,
+        });
+        return;
+      }
+
       const requestId = ++loadRequestId.current;
       setIsLoading(!userRef.current);
       setTimeout(() => {

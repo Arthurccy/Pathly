@@ -77,7 +77,7 @@ const createBlankPlan = (id: string, name: string, buyerAName: string, buyerAInc
 };
 
 const RealEstatePlanner: React.FC<RealEstatePlannerProps> = ({ onViewChange }) => {
-  const { householdConfig, addAsset, addDebt, realEstatePlans, saveRealEstatePlans } = useBudget();
+  const { householdConfig, addAsset, addDebt, accounts, realEstatePlans, saveRealEstatePlans } = useBudget();
   const { user } = useAuth();
 
   const [activePlanId, setActivePlanId] = useState<string>(() => {
@@ -363,16 +363,24 @@ const RealEstatePlanner: React.FC<RealEstatePlannerProps> = ({ onViewChange }) =
     if (!currentPlan || !calculations) return;
 
     try {
+      const defaultAccount = accounts.find(a => a.isActive && (a.type === 'checking' || a.type === 'savings')) || accounts[0];
+      const defaultAccountId = defaultAccount?.id || '';
+      const targetDateStr = currentPlan.targetDate || '2027-06';
+      const startDate = new Date(`${targetDateStr}-01`);
+
       await addAsset({
         name: currentPlan.name || 'Maison principale',
         category: 'real_estate',
         purchasePrice: currentPlan.propertyPrice || 0,
         currentValue: currentPlan.propertyPrice || 0,
-        purchaseDate: `${currentPlan.targetDate || '2027-06'}-01`,
-        notes: `Achat prévu pour ${currentPlan.targetDate || '2027-06'}. Apport global: ${calculations.totalContribution.toLocaleString('fr-FR')} €. Quote-part notariée: ${currentPlan.buyerAName} (${calculations.officialRatioA}%) / ${currentPlan.buyerBName} (${calculations.officialRatioB}%).`,
+        purchaseDate: `${targetDateStr}-01`,
+        notes: `Achat prévu pour ${targetDateStr}. Apport global: ${calculations.totalContribution.toLocaleString('fr-FR')} €. Quote-part notariée: ${currentPlan.buyerAName} (${calculations.officialRatioA}%) / ${currentPlan.buyerBName} (${calculations.officialRatioB}%).`,
       });
 
       if (calculations.mainLoanPrincipal > 0) {
+        const mainEndDate = new Date(startDate);
+        mainEndDate.setFullYear(mainEndDate.getFullYear() + (currentPlan.mainLoanDurationYears || 25));
+
         await addDebt({
           name: `Prêt Immo Principal - ${currentPlan.name}`,
           totalAmount: calculations.mainLoanPrincipal,
@@ -380,12 +388,19 @@ const RealEstatePlanner: React.FC<RealEstatePlannerProps> = ({ onViewChange }) =
           interestRate: currentPlan.mainLoanInterestRate || 3.4,
           minimumPayment: Math.round(calculations.mainLoanMonthlyTotal * 100) / 100,
           type: 'mortgage',
-          dueDate: `${currentPlan.targetDate || '2027-06'}-01`,
+          dueDate: startDate,
+          endDate: mainEndDate,
+          accountId: defaultAccountId,
+          isActive: true,
+          creditor: 'Banque',
           description: `Prêt immobilier sur ${currentPlan.mainLoanDurationYears || 25} ans (${currentPlan.mainLoanInterestRate}% + assurance). Mensualité: ${calculations.mainLoanMonthlyTotal.toFixed(2)} €/mois.`,
         });
       }
 
       if (currentPlan.hasPtz && calculations.ptzPrincipal > 0) {
+        const ptzEndDate = new Date(startDate);
+        ptzEndDate.setFullYear(ptzEndDate.getFullYear() + (currentPlan.ptzDurationYears || 20));
+
         await addDebt({
           name: `Prêt à Taux Zéro (PTZ) - ${currentPlan.name}`,
           totalAmount: calculations.ptzPrincipal,
@@ -393,7 +408,11 @@ const RealEstatePlanner: React.FC<RealEstatePlannerProps> = ({ onViewChange }) =
           interestRate: 0,
           minimumPayment: Math.round(calculations.ptzMonthlyAfterDeferral * 100) / 100,
           type: 'mortgage',
-          dueDate: `${currentPlan.targetDate || '2027-06'}-01`,
+          dueDate: startDate,
+          endDate: ptzEndDate,
+          accountId: defaultAccountId,
+          isActive: true,
+          creditor: 'Banque (PTZ)',
           description: `PTZ 0% sur ${currentPlan.ptzDurationYears || 20} ans (${currentPlan.ptzDeferredYears || 0} ans de différé). Mensualité: ${calculations.ptzMonthlyAfterDeferral.toFixed(2)} €/mois.`,
         });
       }
