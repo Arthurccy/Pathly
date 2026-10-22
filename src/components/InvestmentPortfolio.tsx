@@ -207,11 +207,20 @@ export const InvestmentPortfolio: React.FC<InvestmentPortfolioProps> = ({ onView
     setFormShares('');
     setFormBuyPrice('');
     setFormCurrentPrice('');
-    setFormAssetType('etf');
-    setFormCurrency('EUR');
+    setFormAssetType(activeTab === 'crypto' ? 'crypto' : activeTab === 'cto' ? 'stock' : 'etf');
+    setFormCurrency(activeTab === 'cto' ? 'USD' : 'EUR');
     setFormNotes('');
     setEditingPosition(null);
     setTickerSearchInput('');
+
+    if (activeTab === 'cto' && ctoAccount) {
+      setFormAccountId(ctoAccount.id);
+    } else if (activeTab === 'pea' && peaAccount) {
+      setFormAccountId(peaAccount.id);
+    } else if (activeTab === 'crypto') {
+      const cryptoAcc = investmentAccounts.find(a => a.subType === 'crypto' || a.name.toLowerCase().includes('crypto'));
+      if (cryptoAcc) setFormAccountId(cryptoAcc.id);
+    }
   };
 
   // Open edit modal
@@ -452,7 +461,9 @@ export const InvestmentPortfolio: React.FC<InvestmentPortfolioProps> = ({ onView
       totalDayChangeEur += dayChangePosEur;
 
       const account = accounts.find(a => a.id === pos.accountId);
-      const isPea = account?.subType === 'pea' || account?.name.toLowerCase().includes('pea');
+      const isCrypto = pos.assetType === 'crypto' || account?.subType === 'crypto' || account?.type === 'crypto' || (account?.name && account.name.toLowerCase().includes('crypto'));
+      const isPea = !isCrypto && (account?.subType === 'pea' || (account?.name && account.name.toLowerCase().includes('pea')));
+      const isCto = !isCrypto && !isPea;
 
       return {
         ...pos,
@@ -466,6 +477,8 @@ export const InvestmentPortfolio: React.FC<InvestmentPortfolioProps> = ({ onView
         dayChangePercent,
         accountName: account?.name || 'Compte Bourse',
         isPea,
+        isCto,
+        isCrypto,
       };
     });
 
@@ -504,15 +517,19 @@ export const InvestmentPortfolio: React.FC<InvestmentPortfolioProps> = ({ onView
     }
 
     // CTO specific metrics
-    const ctoPositions = enrichedPositions.filter(p => !p.isPea);
+    const ctoPositions = enrichedPositions.filter(p => p.isCto);
     const ctoValuation = ctoPositions.reduce((sum, p) => sum + p.currentValPos, 0);
     const ctoCash = ctoAccount?.balance || 0;
     const ctoTotal = ctoValuation + ctoCash;
 
+    // Crypto specific metrics
+    const cryptoPositions = enrichedPositions.filter(p => p.isCrypto);
+    const cryptoValuation = cryptoPositions.reduce((sum, p) => sum + p.currentValPos, 0);
+
     // Breakdown by asset type
     const etfVal = enrichedPositions.filter(p => p.assetType === 'etf').reduce((s, p) => s + p.currentValPos, 0);
     const stockVal = enrichedPositions.filter(p => p.assetType === 'stock').reduce((s, p) => s + p.currentValPos, 0);
-    const cryptoVal = enrichedPositions.filter(p => p.assetType === 'crypto').reduce((s, p) => s + p.currentValPos, 0);
+    const cryptoVal = cryptoPositions.reduce((s, p) => s + p.currentValPos, 0);
 
     return {
       totalInvestedEur,
@@ -539,6 +556,8 @@ export const InvestmentPortfolio: React.FC<InvestmentPortfolioProps> = ({ onView
       ctoValuation,
       ctoCash,
       ctoTotal,
+      cryptoPositions,
+      cryptoValuation,
       etfVal,
       stockVal,
       cryptoVal,
@@ -620,9 +639,9 @@ export const InvestmentPortfolio: React.FC<InvestmentPortfolioProps> = ({ onView
     if (activeTab === 'pea') {
       list = list.filter(p => p.isPea);
     } else if (activeTab === 'cto') {
-      list = list.filter(p => !p.isPea && p.assetType !== 'crypto');
+      list = list.filter(p => p.isCto);
     } else if (activeTab === 'crypto') {
-      list = list.filter(p => p.assetType === 'crypto');
+      list = list.filter(p => p.isCrypto);
     }
 
     if (selectedAssetType !== 'all') {
@@ -980,7 +999,7 @@ export const InvestmentPortfolio: React.FC<InvestmentPortfolioProps> = ({ onView
             { id: 'all', label: 'Toutes les positions', count: portfolioMetrics.enrichedPositions.length },
             { id: 'pea', label: 'Mon PEA', count: portfolioMetrics.peaPositions.length },
             { id: 'cto', label: 'Mon CTO', count: portfolioMetrics.ctoPositions.length },
-            { id: 'crypto', label: 'Cryptos', count: portfolioMetrics.enrichedPositions.filter(p => p.assetType === 'crypto').length },
+            { id: 'crypto', label: 'Cryptos', count: portfolioMetrics.cryptoPositions.length },
           ].map(tab => (
             <button
               key={tab.id}
@@ -1168,21 +1187,40 @@ export const InvestmentPortfolio: React.FC<InvestmentPortfolioProps> = ({ onView
           </div>
           <div>
             <h3 className="font-bold text-slate-900 dark:text-white text-base">
-              Aucune position boursière pour le moment
+              {activeTab === 'cto'
+                ? 'Aucune position sur votre Compte-Titres (CTO)'
+                : activeTab === 'crypto'
+                ? 'Aucune position crypto'
+                : activeTab === 'pea'
+                ? 'Aucune position sur votre PEA'
+                : 'Aucune position d\'investissement pour le moment'}
             </h3>
             <p className="text-xs text-slate-500 dark:text-slate-400 max-w-md mx-auto mt-1">
-              Commencez à suivre vos ETF, actions françaises ou internationales en ajoutant votre première ligne ou en sélectionnant un actif populaire ci-dessous :
+              {activeTab === 'cto'
+                ? 'Ajoutez vos actions américaines en direct, fractions d\'actions ou obligations non éligibles au PEA.'
+                : activeTab === 'crypto'
+                ? 'Suivez vos cryptomonnaies détenues sur vos comptes d\'échange ou portefeuilles.'
+                : activeTab === 'pea'
+                ? 'Commencez à suivre vos ETF indiciels (S&P 500, MSCI World) ou actions européennes éligibles au PEA.'
+                : 'Commencez à suivre vos investissements en ajoutant votre première position.'}
             </p>
           </div>
 
           {/* Quick presets chips */}
           <div className="flex flex-wrap items-center justify-center gap-2 pt-2 max-w-2xl mx-auto">
-            {POPULAR_FRENCH_ASSETS.slice(0, 6).map(preset => (
+            {(activeTab === 'cto'
+              ? POPULAR_FRENCH_ASSETS.filter(p => p.envelope === 'cto').slice(0, 6)
+              : activeTab === 'crypto'
+              ? POPULAR_FRENCH_ASSETS.filter(p => p.type === 'crypto')
+              : POPULAR_FRENCH_ASSETS.filter(p => p.envelope === 'pea').slice(0, 6)
+            ).map(preset => (
               <button
                 key={preset.symbol}
                 type="button"
                 onClick={() => {
                   resetForm();
+                  if (activeTab === 'cto' && ctoAccount) setFormAccountId(ctoAccount.id);
+                  else if (activeTab === 'pea' && peaAccount) setFormAccountId(peaAccount.id);
                   handleSelectAsset(preset);
                   setShowAddPositionModal(true);
                 }}
