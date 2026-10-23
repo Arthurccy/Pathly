@@ -488,14 +488,14 @@ export const InvestmentPortfolio: React.FC<InvestmentPortfolioProps> = ({ onView
       ? (totalDayChangeEur / (totalCurrentValueEur - totalDayChangeEur)) * 100
       : 0;
 
-    // Total cash in investment accounts
-    const totalCashEur = investmentAccounts.reduce((sum, a) => sum + (a.balance || 0), 0);
-    const grandTotalPortfolioEur = totalCurrentValueEur + totalCashEur;
-
     // PEA specific metrics
     const peaPositions = enrichedPositions.filter(p => p.isPea);
     const peaValuation = peaPositions.reduce((sum, p) => sum + p.currentValPos, 0);
-    const peaCash = peaAccount?.balance || 0;
+    const peaCash = peaAccount
+      ? (peaAccount.cashBalance !== undefined 
+          ? peaAccount.cashBalance 
+          : Math.max(0, (peaAccount.balance || 0) - peaValuation))
+      : 0;
     const peaTotal = peaValuation + peaCash;
     const peaDeposits = peaAccount?.totalDeposits || 0;
     const peaCeiling = 150000;
@@ -519,12 +519,29 @@ export const InvestmentPortfolio: React.FC<InvestmentPortfolioProps> = ({ onView
     // CTO specific metrics
     const ctoPositions = enrichedPositions.filter(p => p.isCto);
     const ctoValuation = ctoPositions.reduce((sum, p) => sum + p.currentValPos, 0);
-    const ctoCash = ctoAccount?.balance || 0;
+    const ctoCash = ctoAccount
+      ? (ctoAccount.cashBalance !== undefined 
+          ? ctoAccount.cashBalance 
+          : Math.max(0, (ctoAccount.balance || 0) - ctoValuation))
+      : 0;
     const ctoTotal = ctoValuation + ctoCash;
 
     // Crypto specific metrics
     const cryptoPositions = enrichedPositions.filter(p => p.isCrypto);
     const cryptoValuation = cryptoPositions.reduce((sum, p) => sum + p.currentValPos, 0);
+
+    // Total actual cash across all investment accounts (liquidities only, avoiding double-counting titles!)
+    const totalCashEur = investmentAccounts.reduce((sum, acc) => {
+      const accTitles = enrichedPositions
+        .filter(p => p.accountId === acc.id)
+        .reduce((s, p) => s + p.currentValPos, 0);
+      const accCash = acc.cashBalance !== undefined
+        ? acc.cashBalance
+        : Math.max(0, (acc.balance || 0) - accTitles);
+      return sum + accCash;
+    }, 0);
+
+    const grandTotalPortfolioEur = totalCurrentValueEur + totalCashEur;
 
     // Breakdown by asset type
     const etfVal = enrichedPositions.filter(p => p.assetType === 'etf').reduce((s, p) => s + p.currentValPos, 0);
