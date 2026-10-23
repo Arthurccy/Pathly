@@ -136,6 +136,66 @@ const AssetManager: React.FC<AssetManagerProps> = ({ onViewChange }) => {
     return null;
   }, [realEstatePlans]);
 
+  // Project financial metrics computed dynamically from the plan
+  const projectMetrics = useMemo(() => {
+    if (!plannedRealEstatePlan) return null;
+    const p = plannedRealEstatePlan;
+    const price = Number(p.propertyPrice) || 0;
+    const notary = Number(p.notaryFeesAmount) || (p.propertyType === 'old' ? Math.round(price * 0.075) : Math.round(price * 0.025));
+    const works = Number(p.renovationBudget) || 0;
+    const guarantee = Number(p.bankGuaranteeFees) || 2500;
+    const agency = Number(p.agencyFees) || 0;
+    const totalCost = price + notary + works + guarantee + agency;
+
+    const downPayment = (Number(p.buyerAContribution) || 0) + (Number(p.buyerBContribution) || 0);
+    const loanNeeded = Math.max(0, totalCost - downPayment);
+
+    // Estimated monthly repayment on 25 years with ~3.4% rate
+    const years = p.mainLoanDurationYears || 25;
+    const rateAnnual = (p.mainLoanInterestRate || 3.4) / 100;
+    const monthlyRate = rateAnnual / 12;
+    const totalMonths = years * 12;
+    let estimatedMonthly = 0;
+    if (loanNeeded > 0 && monthlyRate > 0) {
+      estimatedMonthly = loanNeeded * (monthlyRate / (1 - Math.pow(1 + monthlyRate, -totalMonths)));
+    }
+
+    const hasCoBorrower = Boolean(p.buyerBName && (p.buyerBIncome > 0 || p.buyerBContribution > 0));
+    const ratioA = p.customOwnershipRatioA || 59.2;
+    const ratioB = 100 - ratioA;
+
+    return {
+      price,
+      notary,
+      works,
+      totalCost,
+      downPayment,
+      loanNeeded,
+      estimatedMonthly: Math.round(estimatedMonthly),
+      hasCoBorrower,
+      ratioA,
+      ratioB,
+    };
+  }, [plannedRealEstatePlan]);
+
+  const isRedundantProjectAsset = (a: PhysicalAsset) => {
+    if (!plannedRealEstatePlan) return false;
+    if (a.realEstatePlanId && a.realEstatePlanId === plannedRealEstatePlan.id) return true;
+    if (plannedRealEstatePlan.assetId && a.id === plannedRealEstatePlan.assetId) return true;
+    if (a.category === 'real_estate' && a.isPlanned && a.name.toLowerCase().includes(plannedRealEstatePlan.name.toLowerCase())) return true;
+    return false;
+  };
+
+  const formatProjectTargetDate = (d?: string) => {
+    if (!d) return '';
+    try {
+      const fullDate = d.length === 7 ? `${d}-01` : d;
+      return format(parseISO(fullDate), 'MMMM yyyy', { locale: fr });
+    } catch {
+      return d;
+    }
+  };
+
   // Form State
   const [formData, setFormData] = useState({
     name: '',
@@ -296,6 +356,14 @@ const AssetManager: React.FC<AssetManagerProps> = ({ onViewChange }) => {
     if (activeCategoryFilter === 'all') return scopeAssets;
     return scopeAssets.filter(a => a.category === activeCategoryFilter);
   }, [scopeAssets, activeCategoryFilter]);
+
+  const displayedAssets = useMemo(() => {
+    return filteredAssets.filter(a => !isRedundantProjectAsset(a));
+  }, [filteredAssets, plannedRealEstatePlan]);
+
+  const showProjectCard = Boolean(
+    plannedRealEstatePlan && (activeCategoryFilter === 'all' || activeCategoryFilter === 'real_estate')
+  );
 
   const futureAssets = useMemo(() => {
     return assets.filter(a => isFutureAsset(a));
@@ -466,51 +534,14 @@ const AssetManager: React.FC<AssetManagerProps> = ({ onViewChange }) => {
         </div>
       </div>
 
-      {/* Real Estate Project in progress banner */}
-      {plannedRealEstatePlan && (
-        <div className="bg-gradient-to-r from-indigo-500/10 via-purple-500/10 to-blue-500/10 border border-indigo-200 dark:border-indigo-800/60 rounded-2xl p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div className="flex items-center space-x-3.5">
-            <div className="p-3 bg-indigo-600 text-white rounded-xl shadow-md shrink-0">
-              <Home className="h-5 w-5" />
-            </div>
-            <div>
-              <div className="flex items-center space-x-2">
-                <span className="text-xs font-bold uppercase tracking-wider text-indigo-600 dark:text-indigo-400">
-                  Projet Immobilier en préparation
-                </span>
-                {plannedRealEstatePlan.targetDate && (
-                  <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-800 dark:bg-indigo-950/60 dark:text-indigo-300">
-                    Cible : {plannedRealEstatePlan.targetDate}
-                  </span>
-                )}
-              </div>
-              <h4 className="text-sm sm:text-base font-bold text-slate-900 dark:text-white mt-0.5">
-                {plannedRealEstatePlan.name} • {plannedRealEstatePlan.propertyPrice?.toLocaleString('fr-FR')} €
-              </h4>
-              <p className="text-xs text-slate-500 dark:text-slate-400">
-                Financement prévu : {((plannedRealEstatePlan.buyerAContribution || 0) + (plannedRealEstatePlan.buyerBContribution || 0)).toLocaleString('fr-FR')} € d'apport personnel
-              </p>
-            </div>
-          </div>
-
-          <button
-            onClick={() => onViewChange?.('real-estate-project')}
-            className="inline-flex items-center justify-center space-x-1.5 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition shadow-sm shrink-0"
-          >
-            <span>Accéder au projet immo</span>
-            <ArrowRight className="h-3.5 w-3.5" />
-          </button>
-        </div>
-      )}
-
       {/* Category filter pills */}
       <div className="flex items-center gap-2 overflow-x-auto pb-1 text-sm">
         {[
-          { id: 'all', label: 'Tous les biens', icon: Package, count: assets.length },
-          { id: 'real_estate', label: 'Immobilier', icon: Building2, count: assets.filter(a => a.category === 'real_estate').length },
-          { id: 'vehicle', label: 'Véhicules', icon: Car, count: assets.filter(a => a.category === 'vehicle').length },
-          { id: 'valuable_item', label: 'Horlogerie & Montres', icon: Watch, count: assets.filter(a => a.category === 'valuable_item').length },
-          { id: 'crypto_hardware', label: 'Objets & Autres', icon: Gem, count: assets.filter(a => a.category === 'crypto_hardware' || a.category === 'other').length },
+          { id: 'all', label: 'Tous les biens', icon: Package, count: displayedAssets.length + (showProjectCard ? 1 : 0) },
+          { id: 'real_estate', label: 'Immobilier', icon: Building2, count: displayedAssets.filter(a => a.category === 'real_estate').length + (showProjectCard ? 1 : 0) },
+          { id: 'vehicle', label: 'Véhicules', icon: Car, count: displayedAssets.filter(a => a.category === 'vehicle').length },
+          { id: 'valuable_item', label: 'Horlogerie & Montres', icon: Watch, count: displayedAssets.filter(a => a.category === 'valuable_item').length },
+          { id: 'crypto_hardware', label: 'Objets & Autres', icon: Gem, count: displayedAssets.filter(a => a.category === 'crypto_hardware' || a.category === 'other').length },
         ].map(tab => {
           const TabIcon = tab.icon;
           const isActive = activeCategoryFilter === tab.id;
@@ -537,9 +568,142 @@ const AssetManager: React.FC<AssetManagerProps> = ({ onViewChange }) => {
       </div>
 
       {/* Assets Grid */}
-      {filteredAssets.length > 0 ? (
+      {showProjectCard || displayedAssets.length > 0 ? (
         <div className="grid gap-5 md:grid-cols-2 lg:grid-cols-3">
-          {filteredAssets.map(asset => {
+          {/* PROJET IMMOBILIER EN PRÉPARATION (Card distincte de projet) */}
+          {showProjectCard && plannedRealEstatePlan && projectMetrics && (
+            <div
+              key="real-estate-project-card"
+              className="relative rounded-2xl border-2 border-dashed border-indigo-300 dark:border-indigo-700/80 bg-gradient-to-b from-indigo-50/70 via-white to-purple-50/40 dark:from-indigo-950/30 dark:via-slate-900 dark:to-purple-950/20 p-5 shadow-sm hover:shadow-md transition-all flex flex-col justify-between group"
+            >
+              <div>
+                {/* Header */}
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex items-center gap-3">
+                    <div className="p-3 rounded-2xl bg-gradient-to-br from-indigo-600 to-purple-600 text-white shadow-md shadow-indigo-500/20 shrink-0">
+                      <Home className="h-6 w-6" />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-800 dark:bg-indigo-950/80 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 flex items-center gap-1">
+                          <Sparkles className="h-3 w-3 text-indigo-600 dark:text-indigo-400" />
+                          PROJET EN PRÉPARATION
+                        </span>
+                        {plannedRealEstatePlan.targetDate && (
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-purple-100 text-purple-800 dark:bg-purple-950/80 dark:text-purple-300 border border-purple-200 dark:border-purple-800 flex items-center gap-1">
+                            <Clock className="h-3 w-3 text-purple-600 dark:text-purple-400" />
+                            Cible {formatProjectTargetDate(plannedRealEstatePlan.targetDate)}
+                          </span>
+                        )}
+                      </div>
+                      <h3 className="text-base font-bold text-slate-900 dark:text-white leading-tight mt-1.5">
+                        {plannedRealEstatePlan.name}
+                      </h3>
+                      <p className="text-xs text-slate-500 dark:text-slate-400">
+                        {plannedRealEstatePlan.propertyType === 'new'
+                          ? 'Logement Neuf (RE2020)'
+                          : plannedRealEstatePlan.propertyType === 'construction'
+                          ? 'Maison & Construction'
+                          : 'Immobilier Ancien'}
+                      </p>
+                    </div>
+                  </div>
+
+                  <button
+                    onClick={() => onViewChange?.('real-estate-project')}
+                    className="p-1.5 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-100 dark:hover:bg-indigo-950/60 rounded-xl transition"
+                    title="Accéder au simulateur immobilier"
+                  >
+                    <ArrowRight className="h-4 w-4" />
+                  </button>
+                </div>
+
+                {/* Valuation & Budget box */}
+                <div className="mt-4 p-3.5 rounded-xl bg-white/90 dark:bg-slate-900/90 border border-indigo-100 dark:border-indigo-900/50 space-y-2">
+                  <div className="flex items-baseline justify-between">
+                    <span className="text-xs text-slate-500 dark:text-slate-400">Prix d'achat visé :</span>
+                    <span className="text-lg font-black text-indigo-600 dark:text-indigo-400">
+                      {money(projectMetrics.price)}
+                    </span>
+                  </div>
+
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-slate-500 dark:text-slate-400">Enveloppe globale estimée :</span>
+                    <span className="font-semibold text-slate-700 dark:text-slate-300">
+                      {money(projectMetrics.totalCost)}
+                    </span>
+                  </div>
+
+                  <div className="flex items-center justify-between text-xs pt-1 border-t border-slate-200/60 dark:border-slate-700/60">
+                    <span className="text-slate-500 dark:text-slate-400">Apport personnel prévu :</span>
+                    <span className="font-bold text-emerald-600 dark:text-emerald-400">
+                      {money(projectMetrics.downPayment)}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Financing Box */}
+                <div className="mt-3 p-3.5 rounded-xl border border-indigo-200/70 bg-indigo-50/50 dark:border-indigo-900/40 dark:bg-indigo-950/25 space-y-2">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="font-bold text-indigo-950 dark:text-indigo-200 flex items-center gap-1.5">
+                      <CreditCard className="h-3.5 w-3.5 text-indigo-600 dark:text-indigo-400" />
+                      Financement bancaire projeté
+                    </span>
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-800 dark:bg-indigo-900/60 dark:text-indigo-300">
+                      Sur {plannedRealEstatePlan.mainLoanDurationYears || 25} ans
+                    </span>
+                  </div>
+
+                  <div className="flex justify-between text-[11px] text-slate-600 dark:text-slate-300">
+                    <span>Besoin d'emprunt :</span>
+                    <span className="font-bold text-slate-900 dark:text-white">
+                      {money(projectMetrics.loanNeeded)}
+                      {plannedRealEstatePlan.hasPtz && plannedRealEstatePlan.ptzAmount > 0 ? (
+                        <span className="font-normal text-indigo-600 dark:text-indigo-400 ml-1">
+                          (dont {money(plannedRealEstatePlan.ptzAmount)} PTZ)
+                        </span>
+                      ) : null}
+                    </span>
+                  </div>
+
+                  {projectMetrics.estimatedMonthly > 0 && (
+                    <div className="flex justify-between text-[11px] text-slate-600 dark:text-slate-300">
+                      <span>Mensualité estimée :</span>
+                      <span className="font-bold text-indigo-600 dark:text-indigo-400">
+                        ~{money(projectMetrics.estimatedMonthly)}/mois
+                      </span>
+                    </div>
+                  )}
+
+                  {projectMetrics.hasCoBorrower && (
+                    <div className="pt-1.5 border-t border-indigo-200/40 dark:border-indigo-800/40 flex justify-between text-[10px] text-slate-500 dark:text-slate-400">
+                      <span>Quote-part notariée :</span>
+                      <span className="font-medium text-slate-700 dark:text-slate-300">
+                        {plannedRealEstatePlan.buyerAName || 'Arthur'} {projectMetrics.ratioA.toFixed(1)}% / {plannedRealEstatePlan.buyerBName || 'Alicia'} {projectMetrics.ratioB.toFixed(1)}%
+                      </span>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Card Footer */}
+              <div className="mt-4 pt-3 border-t border-indigo-100 dark:border-indigo-900/40 flex items-center justify-between">
+                <span className="text-[11px] font-medium text-indigo-600 dark:text-indigo-400 flex items-center gap-1">
+                  <Sparkles className="h-3.5 w-3.5" />
+                  Simulateur Immo Pathly
+                </span>
+                <button
+                  onClick={() => onViewChange?.('real-estate-project')}
+                  className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition shadow-sm hover:shadow"
+                >
+                  <span>Gérer le projet</span>
+                  <ArrowRight className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            </div>
+          )}
+
+          {displayedAssets.map(asset => {
             const Icon = getCategoryIcon(asset.category);
             const badgeClass = getCategoryBadgeColor(asset.category);
             const gain = asset.currentValue - asset.purchasePrice;
