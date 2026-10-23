@@ -28,6 +28,7 @@ import { fr } from 'date-fns/locale';
 import { useBudget } from '../contexts/BudgetContext';
 import { useAuth } from '../contexts/AuthContext';
 import { PhysicalAsset, Debt } from '../types';
+import { calculateRealEstatePlan } from '../utils/realEstateCalculations';
 
 const money = (val: number) =>
   new Intl.NumberFormat('fr-FR', {
@@ -136,46 +137,10 @@ const AssetManager: React.FC<AssetManagerProps> = ({ onViewChange }) => {
     return null;
   }, [realEstatePlans]);
 
-  // Project financial metrics computed dynamically from the plan
+  // Project financial metrics computed dynamically from the plan (synced with RealEstatePlanner)
   const projectMetrics = useMemo(() => {
     if (!plannedRealEstatePlan) return null;
-    const p = plannedRealEstatePlan;
-    const price = Number(p.propertyPrice) || 0;
-    const notary = Number(p.notaryFeesAmount) || (p.propertyType === 'old' ? Math.round(price * 0.075) : Math.round(price * 0.025));
-    const works = Number(p.renovationBudget) || 0;
-    const guarantee = Number(p.bankGuaranteeFees) || 2500;
-    const agency = Number(p.agencyFees) || 0;
-    const totalCost = price + notary + works + guarantee + agency;
-
-    const downPayment = (Number(p.buyerAContribution) || 0) + (Number(p.buyerBContribution) || 0);
-    const loanNeeded = Math.max(0, totalCost - downPayment);
-
-    // Estimated monthly repayment on 25 years with ~3.4% rate
-    const years = p.mainLoanDurationYears || 25;
-    const rateAnnual = (p.mainLoanInterestRate || 3.4) / 100;
-    const monthlyRate = rateAnnual / 12;
-    const totalMonths = years * 12;
-    let estimatedMonthly = 0;
-    if (loanNeeded > 0 && monthlyRate > 0) {
-      estimatedMonthly = loanNeeded * (monthlyRate / (1 - Math.pow(1 + monthlyRate, -totalMonths)));
-    }
-
-    const hasCoBorrower = Boolean(p.buyerBName && (p.buyerBIncome > 0 || p.buyerBContribution > 0));
-    const ratioA = p.customOwnershipRatioA || 59.2;
-    const ratioB = 100 - ratioA;
-
-    return {
-      price,
-      notary,
-      works,
-      totalCost,
-      downPayment,
-      loanNeeded,
-      estimatedMonthly: Math.round(estimatedMonthly),
-      hasCoBorrower,
-      ratioA,
-      ratioB,
-    };
+    return calculateRealEstatePlan(plannedRealEstatePlan);
   }, [plannedRealEstatePlan]);
 
   const isRedundantProjectAsset = (a: PhysicalAsset) => {
@@ -623,7 +588,7 @@ const AssetManager: React.FC<AssetManagerProps> = ({ onViewChange }) => {
                   <div className="flex items-baseline justify-between">
                     <span className="text-xs text-slate-500 dark:text-slate-400">Prix d'achat visé :</span>
                     <span className="text-lg font-black text-indigo-600 dark:text-indigo-400">
-                      {money(projectMetrics.price)}
+                      {money(plannedRealEstatePlan.propertyPrice)}
                     </span>
                   </div>
 
@@ -637,7 +602,7 @@ const AssetManager: React.FC<AssetManagerProps> = ({ onViewChange }) => {
                   <div className="flex items-center justify-between text-xs pt-1 border-t border-slate-200/60 dark:border-slate-700/60">
                     <span className="text-slate-500 dark:text-slate-400">Apport personnel prévu :</span>
                     <span className="font-bold text-emerald-600 dark:text-emerald-400">
-                      {money(projectMetrics.downPayment)}
+                      {money(projectMetrics.totalContribution)}
                     </span>
                   </div>
                 </div>
@@ -657,29 +622,29 @@ const AssetManager: React.FC<AssetManagerProps> = ({ onViewChange }) => {
                   <div className="flex justify-between text-[11px] text-slate-600 dark:text-slate-300">
                     <span>Besoin d'emprunt :</span>
                     <span className="font-bold text-slate-900 dark:text-white">
-                      {money(projectMetrics.loanNeeded)}
-                      {plannedRealEstatePlan.hasPtz && plannedRealEstatePlan.ptzAmount > 0 ? (
+                      {money(projectMetrics.totalBorrowing)}
+                      {plannedRealEstatePlan.hasPtz && projectMetrics.ptzPrincipal > 0 && projectMetrics.isPtzOldEligible ? (
                         <span className="font-normal text-indigo-600 dark:text-indigo-400 ml-1">
-                          (dont {money(plannedRealEstatePlan.ptzAmount)} PTZ)
+                          (dont {money(projectMetrics.ptzPrincipal)} PTZ)
                         </span>
                       ) : null}
                     </span>
                   </div>
 
-                  {projectMetrics.estimatedMonthly > 0 && (
+                  {projectMetrics.activeMonthlyPayment > 0 && (
                     <div className="flex justify-between text-[11px] text-slate-600 dark:text-slate-300">
                       <span>Mensualité estimée :</span>
                       <span className="font-bold text-indigo-600 dark:text-indigo-400">
-                        ~{money(projectMetrics.estimatedMonthly)}/mois
+                        ~{money(Math.round(projectMetrics.activeMonthlyPayment))}/mois
                       </span>
                     </div>
                   )}
 
-                  {projectMetrics.hasCoBorrower && (
+                  {Boolean(plannedRealEstatePlan.buyerBName) && (
                     <div className="pt-1.5 border-t border-indigo-200/40 dark:border-indigo-800/40 flex justify-between text-[10px] text-slate-500 dark:text-slate-400">
                       <span>Quote-part notariée :</span>
                       <span className="font-medium text-slate-700 dark:text-slate-300">
-                        {plannedRealEstatePlan.buyerAName || 'Arthur'} {projectMetrics.ratioA.toFixed(1)}% / {plannedRealEstatePlan.buyerBName || 'Alicia'} {projectMetrics.ratioB.toFixed(1)}%
+                        {plannedRealEstatePlan.buyerAName || 'Arthur'} {projectMetrics.officialRatioA.toFixed(1)}% / {plannedRealEstatePlan.buyerBName || 'Alicia'} {projectMetrics.officialRatioB.toFixed(1)}%
                       </span>
                     </div>
                   )}
