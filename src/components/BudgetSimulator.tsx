@@ -2,6 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { Target, TrendingUp, AlertTriangle, Gauge, CheckCircle2, ChevronRight, Calculator, Plus, Minus, Euro, Info, Trash2, CalendarClock } from 'lucide-react';
 import { useBudget } from '../contexts/BudgetContext';
 import { SimulatedEvent } from '../types';
+import { getBudgetBaselineIncome } from '../utils/budgetSimulation';
 
 const BudgetSimulator: React.FC = () => {
   const { 
@@ -28,7 +29,7 @@ const BudgetSimulator: React.FC = () => {
     if (projections.length === 0) return { baselineIncome: 0, baselineFixed: 0, baselineDebts: 0, baselineSavings: 0, baselineBudgets: 0 };
     
     return {
-      baselineIncome: Math.round(projections.reduce((sum, p) => sum + p.income, 0) / projections.length),
+      baselineIncome: getBudgetBaselineIncome(projections),
       baselineFixed: Math.round(projections.reduce((sum, p) => sum + p.baseExpenses, 0) / projections.length),
       baselineDebts: Math.round(projections.reduce((sum, p) => sum + p.debtPayments, 0) / projections.length),
       baselineSavings: Math.round(projections.reduce((sum, p) => sum + p.savings + p.transfersOut, 0) / projections.length),
@@ -37,17 +38,17 @@ const BudgetSimulator: React.FC = () => {
   }, [getCashFlowProjection]);
 
   // Simulator States
-  const [simIncome, setSimIncome] = useState(baselineIncome.toString());
-  const [simFixed, setSimFixed] = useState(baselineFixed.toString());
-  const [simDebts, setSimDebts] = useState(baselineDebts.toString());
-  const [simBudgets, setSimBudgets] = useState(baselineBudgets.toString());
-  const [simSavings, setSimSavings] = useState(baselineSavings.toString());
+  const [simIncome, setSimIncome] = useState<string | undefined>(undefined);
+  const [simFixed, setSimFixed] = useState<string | undefined>(undefined);
+  const [simDebts, setSimDebts] = useState<string | undefined>(undefined);
+  const [simBudgets, setSimBudgets] = useState<string | undefined>(undefined);
+  const [simSavings, setSimSavings] = useState<string | undefined>(undefined);
   
-  const currentIncome = parseFloat(simIncome) || 0;
-  const currentFixed = parseFloat(simFixed) || 0;
-  const currentDebts = parseFloat(simDebts) || 0;
-  const currentBudgets = parseFloat(simBudgets) || 0;
-  const currentSavings = parseFloat(simSavings) || 0;
+  const currentIncome = parseFloat(simIncome ?? baselineIncome.toString()) || 0;
+  const currentFixed = parseFloat(simFixed ?? baselineFixed.toString()) || 0;
+  const currentDebts = parseFloat(simDebts ?? baselineDebts.toString()) || 0;
+  const currentBudgets = parseFloat(simBudgets ?? baselineBudgets.toString()) || 0;
+  const currentSavings = parseFloat(simSavings ?? baselineSavings.toString()) || 0;
 
   const addEvent = () => {
     setSimulatedEvents([...events, {
@@ -288,7 +289,7 @@ const BudgetSimulator: React.FC = () => {
       </div>
       
       <p className="text-sm sm:text-base text-gray-500 dark:text-gray-400">
-        Simulez l'impact d'un changement de salaire, de loyer ou de train de vie sur votre budget mensuel. Les valeurs de départ sont vos moyennes actuelles.
+        Simulez l'impact d'un changement de salaire, de loyer ou de train de vie sur votre budget mensuel. Les valeurs de départ sont les moyennes de vos flux prévus sur 6 mois. Les revenus excluent les remboursements, les retraits d’épargne et les virements entre comptes.
       </p>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
@@ -309,7 +310,7 @@ const BudgetSimulator: React.FC = () => {
                 <div className="relative">
                   <input 
                     type="number" 
-                    value={simIncome} 
+                    value={simIncome ?? baselineIncome.toString()}
                     onChange={e => setSimIncome(e.target.value)}
                     className="w-full pl-3 pr-10 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-indigo-500 dark:bg-gray-700 dark:text-white"
                   />
@@ -329,7 +330,7 @@ const BudgetSimulator: React.FC = () => {
                 <div className="relative">
                   <input 
                     type="number" 
-                    value={simFixed} 
+                    value={simFixed ?? baselineFixed.toString()}
                     onChange={e => setSimFixed(e.target.value)}
                     className="w-full pl-3 pr-10 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-indigo-500 dark:bg-gray-700 dark:text-white"
                   />
@@ -349,7 +350,7 @@ const BudgetSimulator: React.FC = () => {
                 <div className="relative">
                   <input 
                     type="number" 
-                    value={simDebts} 
+                    value={simDebts ?? baselineDebts.toString()}
                     onChange={e => setSimDebts(e.target.value)}
                     className="w-full pl-3 pr-10 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-indigo-500 dark:bg-gray-700 dark:text-white"
                   />
@@ -364,7 +365,7 @@ const BudgetSimulator: React.FC = () => {
                 <div className="relative">
                   <input 
                     type="number" 
-                    value={simBudgets} 
+                    value={simBudgets ?? baselineBudgets.toString()}
                     onChange={e => setSimBudgets(e.target.value)}
                     className="w-full pl-3 pr-10 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-indigo-500 dark:bg-gray-700 dark:text-white"
                   />
@@ -379,7 +380,7 @@ const BudgetSimulator: React.FC = () => {
                 <div className="relative">
                   <input
                     type="number"
-                    value={simSavings}
+                    value={simSavings ?? baselineSavings.toString()}
                     onChange={(e) => setSimSavings(e.target.value)}
                     className="w-full pl-3 pr-10 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-indigo-500 dark:bg-gray-700 dark:text-white"
                   />
@@ -389,15 +390,15 @@ const BudgetSimulator: React.FC = () => {
               
               <button
                 onClick={() => {
-                  setSimIncome(baselineIncome.toString());
-                  setSimFixed(baselineFixed.toString());
-                  setSimDebts(baselineDebts.toString());
-                  setSimBudgets(baselineBudgets.toString());
-                  setSimSavings(baselineSavings.toString());
+                  setSimIncome(undefined);
+                  setSimFixed(undefined);
+                  setSimDebts(undefined);
+                  setSimBudgets(undefined);
+                  setSimSavings(undefined);
                 }}
                 className="text-sm text-indigo-600 dark:text-indigo-400 font-medium hover:underline"
               >
-                Réinitialiser avec mes vraies moyennes
+                Réinitialiser avec mes moyennes prévues
               </button>
             </div>
           </div>
