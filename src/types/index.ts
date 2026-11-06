@@ -175,6 +175,9 @@ export interface CashFlow {
   savings: number;
   balance: number;
   projectedBalance: number;
+  // Unsettled flows still to apply to the current account balance, including overdue ones.
+  remainingIncome?: number;
+  remainingExpenses?: number;
   openingBalance?: number;
   projectedSavingsBalance?: number;
   projectedTotalBalance?: number;

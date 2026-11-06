@@ -20,7 +20,6 @@ const BudgetProgress: React.FC<BudgetProgressProps> = ({ viewMode = 'monthly' })
   const customMonthPeriod = getCustomMonthPeriod(currentDate, monthStartDay);
   const periodStart = viewMode === 'monthly' ? customMonthPeriod.start : startOfYear(currentDate);
   const periodEnd = viewMode === 'monthly' ? customMonthPeriod.end : endOfYear(currentDate);
-  const today = startOfDay(currentDate);
   const selectedAccountSet = new Set(selectedAccountIds);
   const shouldIncludeAccount = (accountId: string) =>
     selectedAccountIds.length === 0 || selectedAccountSet.has(accountId);
@@ -87,7 +86,7 @@ const BudgetProgress: React.FC<BudgetProgressProps> = ({ viewMode = 'monthly' })
       const transactionDate = startOfDay(transaction.date);
       const isUpcomingScheduled =
         transaction.status === 'scheduled' &&
-        transactionDate >= today &&
+        transactionDate >= periodStart &&
         transactionDate <= periodEnd;
       const isPendingInPeriod =
         transaction.status === 'pending' &&
@@ -112,7 +111,7 @@ const BudgetProgress: React.FC<BudgetProgressProps> = ({ viewMode = 'monthly' })
       const hasReachedMaxOccurrences = pattern.maxOccurrences && occurrenceCount >= pattern.maxOccurrences;
       if (hasReachedEndDate || hasReachedMaxOccurrences) break;
 
-      if (nextDate >= today) {
+      if (nextDate >= periodStart) {
         recurringProjection = addImpactToProjection(recurringProjection, impact);
       }
 
@@ -128,7 +127,7 @@ const BudgetProgress: React.FC<BudgetProgressProps> = ({ viewMode = 'monthly' })
     .filter(debt =>
       debt.isActive &&
       spendingAccountIds.has(debt.accountId) &&
-      startOfDay(debt.dueDate) >= today &&
+      startOfDay(debt.dueDate) >= periodStart &&
       startOfDay(debt.dueDate) <= periodEnd
     )
     .reduce((sum, debt) => sum + debt.minimumPayment, 0);
@@ -197,7 +196,6 @@ const BudgetProgress: React.FC<BudgetProgressProps> = ({ viewMode = 'monthly' })
       t.type === 'expense' &&
       categories.find(category => category.id === t.categoryId)?.excludeFromReports !== true &&
       spendingAccountIds.has(t.accountId) &&
-      t.date >= today &&
       !actualPeriodTransactionKeys.has(plannedTransactionKey(t))
     );
 
@@ -210,7 +208,7 @@ const BudgetProgress: React.FC<BudgetProgressProps> = ({ viewMode = 'monthly' })
       !completedPeriodTransactionKeys.has(plannedTransactionKey(t)) &&
       categories.find(category => category.id === t.categoryId)?.excludeFromReports !== true &&
       spendingAccountIds.has(t.accountId) &&
-      (t.status === 'pending' || t.date >= today) &&
+      t.date >= periodStart &&
       t.date <= periodEnd
     )
     .concat(projectedRecurringExpenses.filter(t => t.categoryId === categoryId))
@@ -269,7 +267,6 @@ const BudgetProgress: React.FC<BudgetProgressProps> = ({ viewMode = 'monthly' })
       while (dueDate <= periodEnd) {
         const amount = Math.min(debt.minimumPayment, debt.remainingAmount);
         if (
-          dueDate >= today &&
           !isDebtAlreadyRepresented(categoryId, debt.name, amount, dueDate)
         ) {
           payments.push({

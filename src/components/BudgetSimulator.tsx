@@ -2,6 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { Target, TrendingUp, AlertTriangle, Gauge, CheckCircle2, ChevronRight, Calculator, Plus, Minus, Euro, Info, Trash2, CalendarClock } from 'lucide-react';
 import { useBudget } from '../contexts/BudgetContext';
 import { SimulatedEvent } from '../types';
+import { getBudgetIncomeBaseline } from '../utils/budgetSimulation';
 
 const BudgetSimulator: React.FC = () => {
   const { 
@@ -11,6 +12,7 @@ const BudgetSimulator: React.FC = () => {
     budgets, 
     categories, 
     transactions,
+    selectedAccountIds,
     simulatedEvents: events,
     setSimulatedEvents,
     assets,
@@ -22,13 +24,17 @@ const BudgetSimulator: React.FC = () => {
     return accounts?.filter(a => a.type === 'savings').reduce((sum, a) => sum + a.balance, 0) || 0;
   }, [accounts]);
   
-  // Calculate baselines based on 6 months projection
-  const { baselineIncome, baselineFixed, baselineDebts, baselineSavings, baselineBudgets } = useMemo(() => {
+  const incomeBaseline = useMemo(() => getBudgetIncomeBaseline(
+    transactions, accounts, categories, selectedAccountIds,
+  ), [transactions, accounts, categories, selectedAccountIds]);
+  const baselineIncome = incomeBaseline.amount;
+
+  // Other baselines use the existing six-month cash-flow projection.
+  const { baselineFixed, baselineDebts, baselineSavings, baselineBudgets } = useMemo(() => {
     const projections = getCashFlowProjection(6);
-    if (projections.length === 0) return { baselineIncome: 0, baselineFixed: 0, baselineDebts: 0, baselineSavings: 0, baselineBudgets: 0 };
+    if (projections.length === 0) return { baselineFixed: 0, baselineDebts: 0, baselineSavings: 0, baselineBudgets: 0 };
     
     return {
-      baselineIncome: Math.round(projections.reduce((sum, p) => sum + p.income, 0) / projections.length),
       baselineFixed: Math.round(projections.reduce((sum, p) => sum + p.baseExpenses, 0) / projections.length),
       baselineDebts: Math.round(projections.reduce((sum, p) => sum + p.debtPayments, 0) / projections.length),
       baselineSavings: Math.round(projections.reduce((sum, p) => sum + p.savings + p.transfersOut, 0) / projections.length),
@@ -37,17 +43,17 @@ const BudgetSimulator: React.FC = () => {
   }, [getCashFlowProjection]);
 
   // Simulator States
-  const [simIncome, setSimIncome] = useState(baselineIncome.toString());
-  const [simFixed, setSimFixed] = useState(baselineFixed.toString());
-  const [simDebts, setSimDebts] = useState(baselineDebts.toString());
-  const [simBudgets, setSimBudgets] = useState(baselineBudgets.toString());
-  const [simSavings, setSimSavings] = useState(baselineSavings.toString());
+  const [simIncome, setSimIncome] = useState<string | undefined>(undefined);
+  const [simFixed, setSimFixed] = useState<string | undefined>(undefined);
+  const [simDebts, setSimDebts] = useState<string | undefined>(undefined);
+  const [simBudgets, setSimBudgets] = useState<string | undefined>(undefined);
+  const [simSavings, setSimSavings] = useState<string | undefined>(undefined);
   
-  const currentIncome = parseFloat(simIncome) || 0;
-  const currentFixed = parseFloat(simFixed) || 0;
-  const currentDebts = parseFloat(simDebts) || 0;
-  const currentBudgets = parseFloat(simBudgets) || 0;
-  const currentSavings = parseFloat(simSavings) || 0;
+  const currentIncome = parseFloat(simIncome ?? baselineIncome.toString()) || 0;
+  const currentFixed = parseFloat(simFixed ?? baselineFixed.toString()) || 0;
+  const currentDebts = parseFloat(simDebts ?? baselineDebts.toString()) || 0;
+  const currentBudgets = parseFloat(simBudgets ?? baselineBudgets.toString()) || 0;
+  const currentSavings = parseFloat(simSavings ?? baselineSavings.toString()) || 0;
 
   const addEvent = () => {
     setSimulatedEvents([...events, {
@@ -68,7 +74,6 @@ const BudgetSimulator: React.FC = () => {
 
   const getDebtsTooltip = () => debts.filter(d => d.isActive && d.remainingAmount > 0).map(d => `${d.name}: ${d.minimumPayment}€`).join('\n') || 'Aucune dette active';
   const getBudgetsTooltip = () => budgets.filter(b => b.isActive).map(b => `${categories.find(c => c.id === b.categoryId)?.name || 'Budget'}: ${b.amount}€`).join('\n') || 'Aucun budget actif';
-  const getIncomeTooltip = () => transactions.filter(t => t.isRecurring && t.type === 'income').map(t => `${t.description}: ${t.amount}€`).join('\n') || 'Moyenne sur 6 mois';
   const getFixedTooltip = () => transactions.filter(t => t.isRecurring && (t.type === 'expense' || t.type === 'bill')).map(t => `${t.description}: ${t.amount}€`).join('\n') || 'Moyenne sur 6 mois';
   const getSavingsTooltip = () => transactions.filter(t => t.isRecurring && t.type === 'transfer' && !t.isExcludedFromReports).map(t => `${t.description}: ${t.amount}€`).join('\n') || 'Moyenne sur 6 mois';
 
@@ -288,7 +293,7 @@ const BudgetSimulator: React.FC = () => {
       </div>
       
       <p className="text-sm sm:text-base text-gray-500 dark:text-gray-400">
-        Simulez l'impact d'un changement de salaire, de loyer ou de train de vie sur votre budget mensuel. Les valeurs de départ sont vos moyennes actuelles.
+        Simulez l'impact d'un changement de salaire, de loyer ou de train de vie sur votre budget mensuel. Le revenu de départ est la moyenne des revenus encaissés sur les 6 derniers mois terminés, limitée à votre historique disponible. Les autres paramètres utilisent vos flux prévus sur 6 mois.
       </p>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
@@ -304,20 +309,34 @@ const BudgetSimulator: React.FC = () => {
             <div className="space-y-4">
               <div>
                 <label className="flex items-center gap-1.5 text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Revenus nets mensuels (€) <Info className="h-4 w-4 text-gray-400 cursor-help" title={getIncomeTooltip()} />
+                  Revenus nets mensuels (€) <span title="Revenus encaissés uniquement, hors modèles récurrents et opérations futures"><Info className="h-4 w-4 text-gray-400 cursor-help" /></span>
                 </label>
                 <div className="relative">
                   <input 
                     type="number" 
-                    value={simIncome} 
+                    value={simIncome ?? baselineIncome.toString()}
                     onChange={e => setSimIncome(e.target.value)}
                     className="w-full pl-3 pr-10 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-indigo-500 dark:bg-gray-700 dark:text-white"
                   />
                   <Euro className="absolute right-3 top-2.5 h-5 w-5 text-gray-400" />
                 </div>
+                <p className="text-xs mt-1 text-gray-500 dark:text-gray-400">
+                  {incomeBaseline.transactions.length > 0
+                    ? `Moyenne de ${incomeBaseline.monthCount} mois terminés, du ${incomeBaseline.start.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' })} au ${new Date(incomeBaseline.end.getFullYear(), incomeBaseline.end.getMonth(), 0).toLocaleDateString('fr-FR')}.`
+                    : 'Aucun revenu encaissé dans les mois terminés disponibles. Renseignez votre revenu mensuel pour simuler.'}
+                </p>
+                <details className="mt-2 text-xs text-gray-600 dark:text-gray-300">
+                  <summary className="cursor-pointer">Comprendre le revenu de départ ({baselineIncome.toLocaleString('fr-FR')} €/mois)</summary>
+                  <p className="my-2">Seules les opérations « revenu » terminées des comptes courants sélectionnés sont retenues. Les modèles récurrents, opérations futures, remboursements, retraits d’épargne et virements sont exclus. Les mois sans revenu comptent dans la moyenne. Une opération mal classée peut être corrigée dans Transactions.</p>
+                  {incomeBaseline.transactions.length > 0 && <ul className="space-y-1">
+                    {incomeBaseline.transactions.map(transaction => <li key={transaction.id}>
+                      {transaction.date.toLocaleDateString('fr-FR')} — {transaction.description} : {transaction.amount.toLocaleString('fr-FR')} €
+                    </li>)}
+                  </ul>}
+                </details>
                 {currentIncome !== baselineIncome && (
                   <p className={`text-xs mt-1 font-medium ${currentIncome > baselineIncome ? 'text-green-600' : 'text-red-600'}`}>
-                    {currentIncome > baselineIncome ? '+' : ''}{currentIncome - baselineIncome} € par rapport à aujourd'hui
+                    {currentIncome > baselineIncome ? '+' : ''}{currentIncome - baselineIncome} € par rapport à la moyenne de départ
                   </p>
                 )}
               </div>
@@ -329,7 +348,7 @@ const BudgetSimulator: React.FC = () => {
                 <div className="relative">
                   <input 
                     type="number" 
-                    value={simFixed} 
+                    value={simFixed ?? baselineFixed.toString()}
                     onChange={e => setSimFixed(e.target.value)}
                     className="w-full pl-3 pr-10 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-indigo-500 dark:bg-gray-700 dark:text-white"
                   />
@@ -337,7 +356,7 @@ const BudgetSimulator: React.FC = () => {
                 </div>
                 {currentFixed !== baselineFixed && (
                   <p className={`text-xs mt-1 font-medium ${currentFixed < baselineFixed ? 'text-green-600' : 'text-red-600'}`}>
-                    {currentFixed > baselineFixed ? '+' : ''}{currentFixed - baselineFixed} € par rapport à aujourd'hui
+                    {currentFixed > baselineFixed ? '+' : ''}{currentFixed - baselineFixed} € par rapport à la moyenne de départ
                   </p>
                 )}
               </div>
@@ -349,7 +368,7 @@ const BudgetSimulator: React.FC = () => {
                 <div className="relative">
                   <input 
                     type="number" 
-                    value={simDebts} 
+                    value={simDebts ?? baselineDebts.toString()}
                     onChange={e => setSimDebts(e.target.value)}
                     className="w-full pl-3 pr-10 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-indigo-500 dark:bg-gray-700 dark:text-white"
                   />
@@ -364,7 +383,7 @@ const BudgetSimulator: React.FC = () => {
                 <div className="relative">
                   <input 
                     type="number" 
-                    value={simBudgets} 
+                    value={simBudgets ?? baselineBudgets.toString()}
                     onChange={e => setSimBudgets(e.target.value)}
                     className="w-full pl-3 pr-10 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-indigo-500 dark:bg-gray-700 dark:text-white"
                   />
@@ -379,7 +398,7 @@ const BudgetSimulator: React.FC = () => {
                 <div className="relative">
                   <input
                     type="number"
-                    value={simSavings}
+                    value={simSavings ?? baselineSavings.toString()}
                     onChange={(e) => setSimSavings(e.target.value)}
                     className="w-full pl-3 pr-10 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-indigo-500 dark:bg-gray-700 dark:text-white"
                   />
@@ -389,15 +408,15 @@ const BudgetSimulator: React.FC = () => {
               
               <button
                 onClick={() => {
-                  setSimIncome(baselineIncome.toString());
-                  setSimFixed(baselineFixed.toString());
-                  setSimDebts(baselineDebts.toString());
-                  setSimBudgets(baselineBudgets.toString());
-                  setSimSavings(baselineSavings.toString());
+                  setSimIncome(undefined);
+                  setSimFixed(undefined);
+                  setSimDebts(undefined);
+                  setSimBudgets(undefined);
+                  setSimSavings(undefined);
                 }}
                 className="text-sm text-indigo-600 dark:text-indigo-400 font-medium hover:underline"
               >
-                Réinitialiser avec mes vraies moyennes
+                Réinitialiser avec mes valeurs de départ
               </button>
             </div>
           </div>
