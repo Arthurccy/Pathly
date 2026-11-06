@@ -154,8 +154,8 @@ const Dashboard: React.FC<DashboardProps> = ({ onViewChange }) => {
   const projection = viewMode === 'monthly'
     ? getCashFlowProjection(1, currentMonthPeriod.start, monthStartDay)[0]
     : getCashFlowProjection(1)[0];
-  const projectedIncoming = projection?.income ?? 0;
-  const projectedDeductions = projection?.expenses ?? 0;
+  const projectedIncoming = projection?.remainingIncome ?? projection?.income ?? 0;
+  const projectedDeductions = projection?.remainingExpenses ?? projection?.expenses ?? 0;
   const projectedCurrentBalance = projection?.projectedBalance ?? checkingAccountBalance;
   const projectedSavingsBalance = projection?.projectedSavingsBalance ?? 0;
   const projectedTotalWithSavings = projection?.projectedTotalBalance ?? projectedCurrentBalance;
@@ -168,7 +168,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onViewChange }) => {
       .filter(transaction =>
         !transaction.isRecurring &&
         (transaction.status === 'scheduled' || transaction.status === 'pending') &&
-        transaction.date >= now &&
+        transaction.date >= currentMonthPeriod.start &&
         transaction.date <= currentMonthPeriod.end &&
         isReportableTransaction(transaction)
       )
