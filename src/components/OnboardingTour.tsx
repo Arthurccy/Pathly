@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { ArrowRight, CheckCircle2, CreditCard, ListChecks, Plus, ShieldCheck, Sparkles, X } from 'lucide-react';
-import { useAuth } from '../contexts/AuthContext';
 import { useBudget } from '../contexts/BudgetContext';
+import { useAuth } from '../contexts/AuthContext';
 
 interface OnboardingTourProps {
   onViewChange: (view: string) => void;
@@ -10,26 +10,26 @@ interface OnboardingTourProps {
 const steps = [
   {
     title: 'Bienvenue sur Pathly',
-    subtitle: 'On part d’une page blanche, pas d’un patrimoine inventé.',
+    subtitle: 'Votre budget commence par vos comptes et votre premier relevé.',
     description: 'Vos comptes, soldes et objectifs restent vides tant que vous ne les ajoutez pas. Pathly vous aide simplement à construire une vue fiable de votre argent.',
     icon: Sparkles,
   },
   {
     title: 'Ajoutez vos vrais comptes',
     subtitle: 'Compte courant, Livret A, espèces, PEA...',
-    description: 'Commencez par créer vos comptes avec leurs soldes réels. C’est la base pour que le tableau de bord soit utile dès le premier jour.',
+    description: 'Créez votre compte directement pendant l’import et renseignez le solde affiché par votre banque. Un découvert peut être saisi avec le bouton ±.',
     icon: CreditCard,
   },
   {
-    title: 'Enregistrez en quelques secondes',
-    subtitle: 'Une dépense, un revenu, une catégorie, terminé.',
-    description: 'Le bouton Ajouter reste accessible partout. Moins de clics, moins d’effort, plus de chances de tenir dans le temps.',
+    title: 'Importez et classez votre relevé',
+    subtitle: 'Vérifiez chaque opération avant de l’enregistrer.',
+    description: 'Chargez le fichier CSV de votre banque, vérifiez les colonnes et attribuez les catégories. Créez les catégories manquantes directement dans l’aperçu.',
     icon: Plus,
   },
   {
-    title: 'Gardez le contrôle',
-    subtitle: 'Catégories, objectifs et imports quand vous êtes prêt.',
-    description: 'Les outils avancés sont rangés dans la navigation, pour ne pas vous ralentir au quotidien.',
+    title: 'Préparez les mois suivants',
+    subtitle: 'Salaire, loyer, abonnements : choisissez ce qui revient.',
+    description: 'Après l’import, choisissez les opérations récurrentes, leur fréquence et leur prochaine date. Cette étape est facultative et reste accessible depuis Récurrences.',
     icon: ListChecks,
   },
 ];
@@ -190,10 +190,10 @@ const OnboardingTour: React.FC<OnboardingTourProps> = ({ onViewChange }) => {
                 {isLastStep ? (
                   <button
                     type="button"
-                    onClick={() => complete(accounts.length > 0 ? 'add-transaction' : 'accounts')}
+                    onClick={() => complete('import-csv')}
                     className="inline-flex items-center justify-center gap-2 rounded-lg bg-gray-950 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-gray-800 dark:bg-white dark:text-gray-950 dark:hover:bg-gray-100"
                   >
-                    {accounts.length > 0 ? 'Ajouter une opération' : 'Créer mon premier compte'}
+                    Commencer mon premier import
                     <ArrowRight className="h-4 w-4" />
                   </button>
                 ) : (

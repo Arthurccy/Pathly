@@ -283,7 +283,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   const login = async (email: string, password: string): Promise<boolean> => {
     try {
-      setIsLoading(true);
+      // Keep the auth form mounted while submitting; it owns its busy state.
       console.log('🔐 Attempting login for:', email);
       
       const { data, error } = await supabase.auth.signInWithPassword({
@@ -294,7 +294,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       if (error) {
         console.error('❌ Login error:', error);
         setIsLoading(false);
-        if (error.message?.toLowerCase().includes('email not confirmed')) {
+        if (error.code === 'email_not_confirmed' || error.message?.toLowerCase().includes('email not confirmed')) {
           throw new Error('Veuillez confirmer votre email avant de vous connecter.');
         }
         return false;
@@ -323,7 +323,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   const register = async (email: string, password: string, name: string): Promise<boolean> => {
     try {
-      setIsLoading(true);
+      // Keep the auth form mounted while submitting; it owns its busy state.
       console.log('📝 Attempting registration for:', email);
       
       const { data, error } = await supabase.auth.signUp({

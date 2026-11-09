@@ -1182,7 +1182,7 @@ export const BudgetProvider: React.FC<BudgetProviderProps> = ({ children }) => {
     );
     if (duplicate) {
       console.warn('Un compte avec ce nom existe déjà');
-      return;
+      return accounts.find(existing => existing.type === account.type && existing.name.trim().toLowerCase() === account.name.trim().toLowerCase());
     }
     
     try {
@@ -1193,6 +1193,7 @@ export const BudgetProvider: React.FC<BudgetProviderProps> = ({ children }) => {
       
       setAccounts(prev => [...prev, newAccount]);
       setSelectedAccountIds(prev => [...prev, newAccount.id]);
+      return newAccount;
     } catch (error) {
       console.error('Error adding account:', error);
       throw error;
@@ -1331,7 +1332,7 @@ export const BudgetProvider: React.FC<BudgetProviderProps> = ({ children }) => {
     );
     if (duplicate) {
       console.warn('Une catégorie avec ce nom existe déjà');
-      return;
+      return categories.find(existing => existing.type === category.type && existing.name.trim().toLowerCase() === category.name.trim().toLowerCase());
     }
 
     try {
@@ -1341,6 +1342,7 @@ export const BudgetProvider: React.FC<BudgetProviderProps> = ({ children }) => {
       });
       
       setCategories(prev => [...prev, newCategory]);
+      return newCategory;
     } catch (error) {
       console.error('Error adding category:', error);
       throw error;

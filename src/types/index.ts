@@ -275,13 +275,13 @@ export interface BudgetContextType {
   getProjectedRecurringTransactions: (startDate: Date, endDate: Date) => Transaction[];
   
   // Categories
-  addCategory: (category: Omit<Category, 'id'>) => void;
+  addCategory: (category: Omit<Category, 'id'>) => Promise<Category | undefined>;
   updateCategory: (id: string, category: Partial<Category>) => void;
   deleteCategory: (id: string) => void;
   reorderCategories: (categoryIds: string[]) => void;
   
   // Accounts
-  addAccount: (account: Omit<BankAccount, 'id' | 'userId'>) => void;
+  addAccount: (account: Omit<BankAccount, 'id' | 'userId'>) => Promise<BankAccount | undefined>;
   updateAccount: (id: string, account: Partial<BankAccount>) => void;
   deleteAccount: (id: string) => void;
   transferBetweenAccounts: (fromAccountId: string, toAccountId: string, amount: number, description: string) => void;

@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { ArrowLeft, AlertCircle, CheckCircle, Eye, EyeOff, Lock, Mail, User, X } from 'lucide-react';
+import { ArrowLeft, AlertCircle, CheckCircle, Eye, EyeOff, Lock, Mail, User } from 'lucide-react';
+import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 
 interface AuthProps {
@@ -16,15 +17,24 @@ const Auth: React.FC<AuthProps> = ({ initialMode = 'login', onBack }) => {
     password: '',
     name: '',
   });
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isResending, setIsResending] = useState(false);
+  const [resendSent, setResendSent] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [pendingVerificationEmail, setPendingVerificationEmail] = useState('');
 
-  const switchToLogin = () => {
-    setIsLogin(true);
-    setSuccess('');
+  const resendConfirmation = async () => {
+    setIsResending(true);
     setError('');
-    setFormData({ email: pendingVerificationEmail || formData.email, password: '', name: '' });
+    try {
+      const { error } = await supabase.auth.resend({ type: 'signup', email: pendingVerificationEmail,
+        options: { emailRedirectTo: window.location.origin } });
+      if (error) throw error;
+      setResendSent(true);
+    } catch {
+      setError("Impossible de renvoyer le lien pour le moment. Patientez puis réessayez.");
+    } finally { setIsResending(false); }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -47,6 +57,7 @@ const Auth: React.FC<AuthProps> = ({ initialMode = 'login', onBack }) => {
       return;
     }
 
+    setIsSubmitting(true);
     try {
       if (isLogin) {
         const ok = await login(formData.email, formData.password);
@@ -58,6 +69,8 @@ const Auth: React.FC<AuthProps> = ({ initialMode = 'login', onBack }) => {
 
       const ok = await register(formData.email, formData.password, formData.name);
       if (ok) {
+        setIsLogin(true);
+        setResendSent(false);
         setPendingVerificationEmail(formData.email);
         setSuccess("Compte cree. Verifiez votre boite mail avant d'essayer de vous connecter.");
         setFormData({ email: formData.email, password: '', name: '' });
@@ -66,8 +79,12 @@ const Auth: React.FC<AuthProps> = ({ initialMode = 'login', onBack }) => {
       }
     } catch (err: any) {
       console.error('Auth error:', err);
+      if (err.message?.includes('confirmer votre email')) {
+        setPendingVerificationEmail(formData.email);
+        setResendSent(false);
+      }
       setError(err.message || "Une erreur s'est produite. Veuillez reessayer.");
-    }
+    } finally { setIsSubmitting(false); }
   };
 
   if (isLoading) {
@@ -85,47 +102,6 @@ const Auth: React.FC<AuthProps> = ({ initialMode = 'login', onBack }) => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800 flex items-center justify-center p-4">
-      {pendingVerificationEmail && !isLogin && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/55 p-4 modal-overlay">
-          <div className="modal-panel w-full max-w-lg rounded-2xl bg-white dark:bg-slate-900">
-            <button
-              type="button"
-              onClick={() => setPendingVerificationEmail('')}
-              className="absolute right-4 top-4 rounded-full p-2 text-gray-400 transition hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-gray-800 dark:hover:text-gray-200"
-              aria-label="Fermer"
-            >
-              <X className="h-5 w-5" />
-            </button>
-            <div className="bg-emerald-600 px-6 py-7 text-white">
-              <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-white/15">
-                <Mail className="h-6 w-6" />
-              </div>
-              <h2 className="pr-8 text-2xl font-bold">Verifiez votre email</h2>
-              <p className="mt-2 text-emerald-50">
-                Votre compte Pathly est presque pret.
-              </p>
-            </div>
-            <div className="space-y-5 px-6 py-6">
-              <p className="text-sm leading-6 text-gray-700 dark:text-gray-300">
-                Nous avons envoye un lien de confirmation a{' '}
-                <span className="font-semibold text-gray-950 dark:text-white">{pendingVerificationEmail}</span>.
-                Cliquez sur ce lien pour activer le compte, puis revenez vous connecter ici.
-              </p>
-              <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900 dark:border-amber-900/60 dark:bg-amber-900/20 dark:text-amber-100">
-                Tant que l'email n'est pas valide, Supabase bloque la connexion. Pensez aussi a verifier les spams.
-              </div>
-              <button
-                type="button"
-                onClick={switchToLogin}
-                className="flex w-full items-center justify-center rounded-xl bg-emerald-600 px-4 py-3 font-semibold text-white transition hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2 dark:focus:ring-offset-gray-900"
-              >
-                J'ai verifie mon email, me connecter
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
       <div className="max-w-md w-full">
         {onBack && (
           <button
@@ -184,6 +160,16 @@ const Auth: React.FC<AuthProps> = ({ initialMode = 'login', onBack }) => {
                 <CheckCircle className="mt-0.5 h-5 w-5 text-emerald-600 dark:text-emerald-400" />
                 <p className="text-sm leading-6 text-emerald-800 dark:text-emerald-200">{success}</p>
               </div>
+            </div>
+          )}
+
+          {pendingVerificationEmail && isLogin && (
+            <div role="status" className="mb-6 rounded-xl border border-blue-200 bg-blue-50 p-4 text-blue-950 dark:bg-blue-950 dark:text-blue-100">
+              <h3 className="font-semibold">Vérifiez votre boîte mail</h3>
+              <p className="mt-2 text-sm">Un lien de confirmation a été demandé pour <strong>{pendingVerificationEmail}</strong>. Cliquez dessus pour activer votre compte, puis connectez-vous ici. Pensez à vérifier les courriers indésirables.</p>
+              <button type="button" onClick={resendConfirmation} disabled={isResending || resendSent} className="mt-3 text-sm underline disabled:opacity-60">
+                {resendSent ? 'Lien renvoyé — vérifiez votre boîte mail' : isResending ? 'Envoi en cours…' : 'Renvoyer le lien de confirmation'}
+              </button>
             </div>
           )}
 
@@ -257,7 +243,7 @@ const Auth: React.FC<AuthProps> = ({ initialMode = 'login', onBack }) => {
             </div>
 
             {error && (
-              <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-3">
+              <div role="alert" className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-3">
                 <div className="flex items-center space-x-2">
                   <AlertCircle className="h-5 w-5 text-red-600 dark:text-red-400" />
                   <p className="text-red-600 dark:text-red-400 text-sm">{error}</p>
@@ -276,10 +262,10 @@ const Auth: React.FC<AuthProps> = ({ initialMode = 'login', onBack }) => {
 
             <button
               type="submit"
-              disabled={isLoading}
+              disabled={isSubmitting || isLoading}
               className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white font-medium py-3 px-4 rounded-lg transition-colors flex items-center justify-center space-x-2"
             >
-              {isLoading ? (
+              {isSubmitting ? (
                 <>
                   <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white" />
                   <span>Chargement...</span>

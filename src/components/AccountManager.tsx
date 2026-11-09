@@ -1,3 +1,5 @@
+import SignedAmountInput from './SignedAmountInput';
+import { parseSignedAmount } from '../utils/amountInput';
 import React, { useState } from 'react';
 import { 
   Plus, 
@@ -90,7 +92,7 @@ const AccountManager: React.FC = () => {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!formData.name || !formData.balance) {
+    if (!formData.name || !Number.isFinite(parseSignedAmount(formData.balance))) {
       alert('Veuillez remplir tous les champs obligatoires');
       return;
     }
@@ -98,7 +100,7 @@ const AccountManager: React.FC = () => {
     const accountData = {
       name: formData.name,
       type: formData.type,
-      balance: parseFloat(formData.balance),
+      balance: parseSignedAmount(formData.balance),
       currency: formData.currency,
       color: formData.color,
       bankName: formData.bankName || undefined,
@@ -118,12 +120,12 @@ const AccountManager: React.FC = () => {
 
   const handleBalanceUpdate = (accountId: string) => {
     const account = accounts.find(a => a.id === accountId);
-    if (!account || !balanceUpdateData.newBalance) {
+    if (!account || !Number.isFinite(parseSignedAmount(balanceUpdateData.newBalance))) {
       alert('Veuillez saisir un nouveau solde');
       return;
     }
 
-    const newBalance = parseFloat(balanceUpdateData.newBalance);
+    const newBalance = parseSignedAmount(balanceUpdateData.newBalance);
     const currentBalance = account.balance;
     const difference = newBalance - currentBalance;
 
@@ -311,7 +313,7 @@ const AccountManager: React.FC = () => {
   const reconstructedOpeningBalance = selectedHistoryAccount
     ? selectedHistoryAccount.balance - completedHistoryImpact
     : 0;
-  const bankBalance = bankBalanceInput ? parseFloat(bankBalanceInput) : NaN;
+  const bankBalance = bankBalanceInput ? parseSignedAmount(bankBalanceInput) : NaN;
   const bankGap = selectedHistoryAccount && Number.isFinite(bankBalance)
     ? bankBalance - selectedHistoryAccount.balance
     : null;
@@ -461,12 +463,10 @@ const AccountManager: React.FC = () => {
                 <label htmlFor="balance" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
                   Solde initial *
                 </label>
-                <input
-                  type="number"
+                <SignedAmountInput
                   id="balance"
-                  step="0.01"
                   value={formData.balance}
-                  onChange={(e) => setFormData({ ...formData, balance: e.target.value })}
+                  onValueChange={(value) => setFormData({ ...formData, balance: value })}
                   className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-slate-700 dark:text-white"
                   placeholder="0.00"
                   required
@@ -755,11 +755,9 @@ const AccountManager: React.FC = () => {
                     <label className="block text-sm font-medium text-blue-950 dark:text-blue-100">
                       Solde réel affiché par ta banque
                     </label>
-                    <input
-                      type="number"
-                      step="0.01"
+                    <SignedAmountInput
                       value={bankBalanceInput}
-                      onChange={(event) => setBankBalanceInput(event.target.value)}
+                      onValueChange={setBankBalanceInput}
                       className="mt-2 w-full rounded-xl border border-blue-200 bg-white px-3 py-2.5 text-slate-950 focus:border-transparent focus:ring-2 focus:ring-blue-500 dark:border-blue-900 dark:bg-slate-900 dark:text-white"
                       placeholder={`Ex: ${selectedHistoryAccount.balance.toFixed(2)}`}
                     />
@@ -876,11 +874,9 @@ const AccountManager: React.FC = () => {
                 <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
                   Nouveau solde *
                 </label>
-                <input
-                  type="number"
-                  step="0.01"
+                <SignedAmountInput
                   value={balanceUpdateData.newBalance}
-                  onChange={(e) => setBalanceUpdateData({ ...balanceUpdateData, newBalance: e.target.value })}
+                  onValueChange={(value) => setBalanceUpdateData({ ...balanceUpdateData, newBalance: value })}
                   className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent dark:bg-slate-700 dark:text-white"
                   placeholder="0.00"
                 />
