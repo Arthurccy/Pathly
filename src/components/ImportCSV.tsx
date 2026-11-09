@@ -1,3 +1,4 @@
+import { autoMapBankColumns, bankMappingErrors } from '../utils/importColumnMapping';
 import SignedAmountInput from './SignedAmountInput';
 import { parseSignedAmount } from '../utils/amountInput';
 import { ImportAccountSetup, ImportCategoryCreator } from './ImportSetupTools';
@@ -113,19 +114,6 @@ const ImportCSV: React.FC<{ onViewChange?: (view: string) => void }> = ({ onView
 
   const strip = (text: string) => text.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
 
-  const autoMapColumns = (data: CSVRow[]): ColumnMapping => {
-    const headers = Object.keys(data[0] || {});
-    const find = (re: RegExp) => headers.find(h => re.test(strip(h))) || '';
-    return {
-      date: find(/date|datum/i),
-      description: find(/desc|libelle|label|motif|intitule|operation|payee|merchant/i),
-      amount: find(/^montant|amount/i) || find(/montant|amount|debit|credit/i),
-      account: find(/compte|account/i),
-      category: find(/categorie|category/i),
-      balance: find(/solde|balance/i)
-    };
-  };
-
   // Rows left without a category go to the built-in "Autres dépenses" / "Autres revenus"
   const fallbackCategoryFor = (type?: string) => {
     const wantedName = type === 'income' ? 'autres revenus' : 'autres depenses';
@@ -163,7 +151,7 @@ const ImportCSV: React.FC<{ onViewChange?: (view: string) => void }> = ({ onView
       setCsvData(data);
       
       if (data.length > 0) {
-        setMapping(autoMapColumns(data));
+        setMapping(autoMapBankColumns(data));
       }
 
       setStep('mapping');
@@ -195,7 +183,7 @@ const ImportCSV: React.FC<{ onViewChange?: (view: string) => void }> = ({ onView
 
     setCsvData(data);
     setFileName('Copier-coller');
-    setMapping(autoMapColumns(data));
+    setMapping(autoMapBankColumns(data));
     setStep('mapping');
     setIsProcessing(false);
   };
@@ -264,9 +252,14 @@ const ImportCSV: React.FC<{ onViewChange?: (view: string) => void }> = ({ onView
     });
   };
 
+  const mappingBlockers = [
+    ...(!targetAccountId ? ['Choisissez ou créez un compte pour enregistrer ces opérations.'] : []),
+    ...bankMappingErrors(mapping, Object.keys(csvData[0] || {})),
+  ];
+
   const handleMappingComplete = async () => {
-    if (!mapping.date || !mapping.description || !mapping.amount || new Set([mapping.date, mapping.description, mapping.amount]).size !== 3) {
-      setSetupError('Choisissez trois colonnes différentes pour la date, le libellé et le montant.');
+    if (mappingBlockers.length > 0) {
+      setSetupError(mappingBlockers.join(' '));
       return;
     }
 
@@ -871,15 +864,17 @@ const ImportCSV: React.FC<{ onViewChange?: (view: string) => void }> = ({ onView
                 { key: 'balance', label: 'Solde du compte (optionnel)', required: false }
               ].map(field => (
                 <div key={field.key} className="space-y-1">
-                  <label className="block text-xs font-medium text-slate-700 dark:text-slate-300">
+                  <label htmlFor={`import-column-${field.key}`} className="block text-xs font-medium text-slate-700 dark:text-slate-300">
                     {field.label}
                   </label>
                   <select
+                    id={`import-column-${field.key}`}
+                    aria-describedby="import-mapping-help"
                     value={mapping[field.key as keyof ColumnMapping] || ''}
-                    onChange={(e) => setMapping({ ...mapping, [field.key]: e.target.value })}
+                    onChange={(e) => { setMapping({ ...mapping, [field.key]: e.target.value }); setSetupError(''); }}
                     className="w-full px-3 py-2 border border-slate-200 dark:border-slate-700 rounded-lg text-xs dark:bg-slate-800 dark:text-white"
                   >
-                    <option value="">-- Ignorer --</option>
+                    <option value="">{field.required ? '-- Choisir une colonne --' : '-- Ignorer --'}</option>
                     {Object.keys(csvData[0] || {}).map(header => (
                       <option key={header} value={header}>{header}</option>
                     ))}
@@ -888,6 +883,13 @@ const ImportCSV: React.FC<{ onViewChange?: (view: string) => void }> = ({ onView
               ))}
             </div>
 
+            <div id="import-mapping-help" className="space-y-2 text-sm">
+              <p className="text-slate-600 dark:text-slate-300">La description correspond au libellé de l’opération. Le solde est facultatif : laissez « Ignorer » si votre fichier contient uniquement des débits et des crédits.</p>
+              {mappingBlockers.length > 0 && <div role="status" className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-amber-950 dark:bg-amber-950 dark:text-amber-100">
+                <p className="font-medium">Pour continuer :</p>
+                <ul className="mt-1 list-disc pl-5">{mappingBlockers.map(message => <li key={message}>{message}</li>)}</ul>
+              </div>}
+            </div>
             <div className="flex justify-between pt-4 border-t border-slate-100 dark:border-slate-800">
               <button
                 onClick={() => setStep('upload')}
@@ -897,7 +899,7 @@ const ImportCSV: React.FC<{ onViewChange?: (view: string) => void }> = ({ onView
               </button>
               <button
                 onClick={handleMappingComplete}
-                disabled={isProcessing || !targetAccountId || !mapping.date || !mapping.description || !mapping.amount || new Set([mapping.date, mapping.description, mapping.amount]).size !== 3}
+                disabled={isProcessing || mappingBlockers.length > 0}
                 className="px-5 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-400 text-white text-xs font-semibold rounded-lg shadow-sm transition-all"
               >
                 {isProcessing ? 'Analyse en cours…' : 'Lancer le rapprochement'}
