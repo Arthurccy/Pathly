@@ -122,7 +122,7 @@ const AppContent: React.FC = () => {
       case 'help':
         return <HelpCenter />;
       case 'import-csv':
-        return <ImportCSV />;
+        return <ImportCSV onViewChange={setCurrentView} />;
       case 'rules':
         return <RulesManager />;
       default:

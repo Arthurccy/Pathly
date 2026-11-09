@@ -1,3 +1,7 @@
+import SignedAmountInput from './SignedAmountInput';
+import { parseSignedAmount } from '../utils/amountInput';
+import { ImportAccountSetup, ImportCategoryCreator } from './ImportSetupTools';
+import ImportRecurringSetup from './ImportRecurringSetup';
 import React, { useState, useRef, useMemo } from 'react';
 import { 
   Upload, 
@@ -36,11 +40,13 @@ import {
   ImportResult
 } from '../types/import';
 
-const ImportCSV: React.FC = () => {
+const ImportCSV: React.FC<{ onViewChange?: (view: string) => void }> = ({ onViewChange }) => {
   const { user } = useAuth();
   const { categories, accounts, transactions: existingTransactions, updateAccount, reloadAll } = useBudget();
   const fileInputRef = useRef<HTMLInputElement>(null);
   
+  const [categoryRow, setCategoryRow] = useState<number | null>(null);
+  const [setupError, setSetupError] = useState('');
   const [step, setStep] = useState<'upload' | 'mapping' | 'preview' | 'importing' | 'complete'>('upload');
   const [csvData, setCsvData] = useState<CSVRow[]>([]);
   const [parsedTransactions, setParsedTransactions] = useState<ParsedTransaction[]>([]);
@@ -111,9 +117,9 @@ const ImportCSV: React.FC = () => {
     const headers = Object.keys(data[0] || {});
     const find = (re: RegExp) => headers.find(h => re.test(strip(h))) || '';
     return {
-      date: find(/date|datum/i) || headers[0] || '',
-      description: find(/desc|libelle|label|motif|intitule|operation/i) || headers[1] || '',
-      amount: find(/^montant|amount/i) || find(/montant|amount|debit|credit/i) || headers[2] || '',
+      date: find(/date|datum/i),
+      description: find(/desc|libelle|label|motif|intitule|operation|payee|merchant/i),
+      amount: find(/^montant|amount/i) || find(/montant|amount|debit|credit/i),
       account: find(/compte|account/i),
       category: find(/categorie|category/i),
       balance: find(/solde|balance/i)
@@ -147,6 +153,7 @@ const ImportCSV: React.FC = () => {
       return;
     }
 
+    setSetupError('');
     setFileName(file.name);
     setProcessingLabel('Lecture du fichier…');
     setIsProcessing(true);
@@ -161,7 +168,7 @@ const ImportCSV: React.FC = () => {
 
       setStep('mapping');
     } catch (error: any) {
-      alert(`Erreur lors de la lecture du fichier: ${error.message}`);
+      setSetupError(`Lecture du CSV : ${error.message}`);
     } finally {
       setIsProcessing(false);
     }
@@ -258,8 +265,8 @@ const ImportCSV: React.FC = () => {
   };
 
   const handleMappingComplete = async () => {
-    if (!mapping.date || !mapping.description || !mapping.amount) {
-      alert('Veuillez mapper au minimum les colonnes Date, Description et Montant');
+    if (!mapping.date || !mapping.description || !mapping.amount || new Set([mapping.date, mapping.description, mapping.amount]).size !== 3) {
+      setSetupError('Choisissez trois colonnes différentes pour la date, le libellé et le montant.');
       return;
     }
 
@@ -277,6 +284,11 @@ const ImportCSV: React.FC = () => {
         transactions.push(transaction);
       }
 
+      if (!transactions.some(t => t.errors.length === 0)) {
+        setSetupError('Aucune opération valide : vérifiez les colonnes choisies. Les dates et les libellés ne doivent pas servir de montant.');
+        return;
+      }
+      setSetupError('');
       // Apply categorization rules
       let processedTransactions = transactions;
       if (settings.autoApplyRules && user) {
@@ -327,7 +339,7 @@ const ImportCSV: React.FC = () => {
 
       // Auto-extract statement final balance if mapped and present on rows
       if (mapping.balance) {
-        const rowsWithBalance = processedTransactions.filter(t => t.rowBalance !== undefined);
+        const rowsWithBalance = processedTransactions.filter(t => t.errors.length === 0 && t.date && t.rowBalance !== undefined).sort((a, b) => b.date!.getTime() - a.date!.getTime());
         if (rowsWithBalance.length > 0) {
           // Take the latest row balance
           const latest = rowsWithBalance[0].rowBalance;
@@ -372,7 +384,9 @@ const ImportCSV: React.FC = () => {
 
   const handleImport = async () => {
     if (!user) return;
-
+    if (!targetAccountId) { setSetupError('Choisissez ou créez un compte avant de lancer l’import.'); return; }
+    if (syncAccountBalance && !Number.isFinite(parseSignedAmount(statementFinalBalance))) { setSetupError('Indiquez un solde valide ou désactivez l’ajustement du solde.'); return; }
+    setSetupError('');
     setIsProcessing(true);
     setStep('importing');
     setProcessedCount(0);
@@ -431,7 +445,7 @@ const ImportCSV: React.FC = () => {
       const targetAcc = accounts.find(a => a.id === targetAccountId);
 
       if (syncAccountBalance && targetAcc && statementFinalBalance) {
-        const parsedBal = parseFloat(statementFinalBalance.replace(',', '.'));
+        const parsedBal = parseSignedAmount(statementFinalBalance);
         if (!isNaN(parsedBal)) {
           try {
             await updateAccount(targetAcc.id, { balance: parsedBal });
@@ -520,6 +534,8 @@ const ImportCSV: React.FC = () => {
 
   const resetImport = () => {
     setStep('upload');
+    setCategoryRow(null);
+    setSetupError('');
     setCsvData([]);
     setParsedTransactions([]);
     setSelectedTransactions(new Set());
@@ -555,7 +571,7 @@ const ImportCSV: React.FC = () => {
 
     const currentBalance = selectedAccount?.balance || 0;
     const projectedBalance = currentBalance + netImpactOfSelected;
-    const targetRealBalance = statementFinalBalance ? parseFloat(statementFinalBalance.replace(',', '.')) : null;
+    const targetRealBalance = statementFinalBalance ? parseSignedAmount(statementFinalBalance) : null;
     const balanceGap = targetRealBalance !== null && !isNaN(targetRealBalance) ? (targetRealBalance - projectedBalance) : null;
 
     return {
@@ -687,6 +703,24 @@ const ImportCSV: React.FC = () => {
         </div>
       </div>
 
+      {step !== 'importing' && step !== 'complete' && <>
+        {existingTransactions.length === 0 && <section className="rounded-xl bg-blue-50 p-4 text-sm text-blue-950 dark:bg-blue-950 dark:text-blue-100">
+          <h2 className="font-semibold">Votre premier import, étape par étape</h2>
+          <ol className="mt-2 list-decimal pl-5 space-y-1">
+            <li>Choisissez ou créez votre compte et indiquez son solde bancaire actuel, même négatif.</li>
+            <li>Chargez votre CSV puis vérifiez les colonnes Date, Libellé et Montant.</li>
+            <li>Vérifiez les opérations et leurs catégories. Vous pouvez créer une catégorie directement sur une ligne.</li>
+            <li>Importez, puis préparez vos salaires, loyers et abonnements récurrents si vous le souhaitez.</li>
+          </ol>
+        </section>}
+        <ImportAccountSetup onCreated={(id, balance) => {
+          setTargetAccountId(id); setStatementFinalBalance(String(balance)); setSyncAccountBalance(true); setSetupError('');
+          setParsedTransactions(prev => prev.map(t => ({ ...t, accountId: id })));
+        }} />
+        {!targetAccountId && <p role="status" className="text-sm text-amber-700">Créez un compte ci-dessus pour y enregistrer votre relevé.</p>}
+        {setupError && <p role="alert" className="text-red-600">{setupError}</p>}
+      </>}
+
       {/* Step 1: Upload */}
       {step === 'upload' && (
         <div className="space-y-6">
@@ -770,15 +804,12 @@ const ImportCSV: React.FC = () => {
                     Solde réel affiché sur votre relevé (optionnel)
                   </label>
                   <div className="relative">
-                    <input
-                      type="number"
-                      step="0.01"
+                    <SignedAmountInput
                       placeholder="Ex: 1450.20"
                       value={statementFinalBalance}
-                      onChange={(e) => setStatementFinalBalance(e.target.value)}
+                      onValueChange={setStatementFinalBalance}
                       className="w-full px-3 py-2 border border-slate-200 dark:border-slate-700 rounded-lg text-sm dark:bg-slate-800 dark:text-white pr-8"
                     />
-                    <span className="absolute right-3 top-2 text-sm text-slate-400">€</span>
                   </div>
                   <p className="text-[11px] text-slate-400 mt-1">
                     Permet à Pathly de comparer votre solde réel avec votre solde théorique.
@@ -866,7 +897,7 @@ const ImportCSV: React.FC = () => {
               </button>
               <button
                 onClick={handleMappingComplete}
-                disabled={isProcessing}
+                disabled={isProcessing || !targetAccountId || !mapping.date || !mapping.description || !mapping.amount || new Set([mapping.date, mapping.description, mapping.amount]).size !== 3}
                 className="px-5 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-400 text-white text-xs font-semibold rounded-lg shadow-sm transition-all"
               >
                 {isProcessing ? 'Analyse en cours…' : 'Lancer le rapprochement'}
@@ -987,16 +1018,14 @@ const ImportCSV: React.FC = () => {
                     Ajuster le solde de mon compte sur le solde réel
                   </span>
                   <span className="text-[11px] text-slate-500 dark:text-slate-400">
-                    Fixe le compte à {statementFinalBalance ? `${parseFloat(statementFinalBalance).toFixed(2)} €` : 'votre solde réel'} après import
+                    Fixe le compte à {statementFinalBalance ? `${parseSignedAmount(statementFinalBalance).toFixed(2)} €` : 'votre solde réel'} après import
                   </span>
                 </label>
                 {syncAccountBalance && (
-                  <div className="w-24">
-                    <input
-                      type="number"
-                      step="0.01"
+                  <div className="w-40">
+                    <SignedAmountInput
                       value={statementFinalBalance}
-                      onChange={(e) => setStatementFinalBalance(e.target.value)}
+                      onValueChange={setStatementFinalBalance}
                       placeholder="Solde réel"
                       className="w-full px-2 py-1 text-xs border border-slate-300 dark:border-slate-600 rounded bg-white dark:bg-slate-900"
                     />
@@ -1104,7 +1133,7 @@ const ImportCSV: React.FC = () => {
                 </button>
                 <button
                   onClick={handleImport}
-                  disabled={selectedTransactions.size === 0}
+                  disabled={selectedTransactions.size === 0 || !targetAccountId}
                   className="px-5 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-400 text-white rounded-lg text-xs font-semibold shadow-sm transition-all"
                 >
                   Valider l'import ({selectedTransactions.size})
@@ -1208,12 +1237,14 @@ const ImportCSV: React.FC = () => {
                                 <option key={cat.id} value={cat.id}>{cat.name}</option>
                               ))}
                             </select>
+                            <button type="button" className="text-blue-600 underline" onClick={() => setCategoryRow(index)}>Nouvelle catégorie</button>
                           </div>
+                          {categoryRow === index && <ImportCategoryCreator type={transaction.type === 'income' ? 'income' : 'expense'} onCancel={() => setCategoryRow(null)} onCreated={id => { applySuggestion(index, id); setCategoryRow(null); }} />}
                         </td>
                         <td className="px-3 py-2.5 whitespace-nowrap">
                           {transaction.errors.length > 0 ? (
                             <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-red-100 text-red-800 dark:bg-red-950/60 dark:text-red-300">
-                              Erreur lecture
+                              {transaction.errors.join(' · ')}
                             </span>
                           ) : transaction.reconciliationStatus === 'matched' ? (
                             <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300">
@@ -1253,7 +1284,7 @@ const ImportCSV: React.FC = () => {
             </button>
             <button
               onClick={handleImport}
-              disabled={selectedTransactions.size === 0}
+              disabled={selectedTransactions.size === 0 || !targetAccountId}
               className="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-400 text-white text-xs font-semibold rounded-lg shadow-sm transition-all"
             >
               Importer les {selectedTransactions.size} transactions sélectionnées
@@ -1288,10 +1319,10 @@ const ImportCSV: React.FC = () => {
             <CheckCircle className="h-7 w-7" />
           </div>
           <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-1">
-            Rapprochement et import réussis !
+            {importResult.errors.length > 0 ? 'Import terminé avec des erreurs' : 'Import terminé'}
           </h3>
           <p className="text-xs text-slate-500 dark:text-slate-400 max-w-md mx-auto mb-6">
-            Votre compte <strong>{selectedAccount?.name}</strong> est maintenant parfaitement synchronisé avec votre relevé bancaire.
+            Les opérations traitées sont disponibles dans Transactions. Vérifiez le bilan ci-dessous avant de poursuivre.
           </p>
           
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 max-w-lg mx-auto mb-6">
@@ -1321,6 +1352,8 @@ const ImportCSV: React.FC = () => {
             </div>
           )}
 
+          {importResult.errors.length > 0 && <div role="alert" className="mb-4 text-left text-red-600"><p>Certaines opérations n’ont pas été importées :</p><ul>{importResult.errors.map((error, index) => <li key={index}>{error}</li>)}</ul></div>}
+          <ImportRecurringSetup accountId={targetAccountId} />
           <div className="flex justify-center space-x-3">
             <button
               onClick={resetImport}
@@ -1329,10 +1362,10 @@ const ImportCSV: React.FC = () => {
               Nouveau rapprochement
             </button>
             <button
-              onClick={async () => { try { await reloadAll?.(); } catch {} }}
+              onClick={async () => { try { await reloadAll?.(); onViewChange?.('dashboard'); } catch {} }}
               className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded-lg transition-colors shadow-sm"
             >
-              Actualiser le tableau de bord
+              Voir mon tableau de bord
             </button>
           </div>
         </div>
