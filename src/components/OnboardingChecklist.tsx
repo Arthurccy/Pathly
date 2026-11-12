@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { useBudget } from '../contexts/BudgetContext';
-import { CheckCircle2, Circle, ChevronRight, Sparkles, X } from 'lucide-react';
+import { useBudget } from '../contexts/budgetState';
+import { CheckCircle2, Circle, ChevronRight, Sparkles } from 'lucide-react';
 
 interface OnboardingChecklistProps {
   onViewChange?: (view: string) => void;

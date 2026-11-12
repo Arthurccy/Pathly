@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
-import { Calendar, Clock, Repeat, Plus, Edit, Trash2, Play, Pause, Percent } from 'lucide-react';
+import { Clock, Repeat, Plus, Edit, Trash2, Play, Pause, Percent } from 'lucide-react';
 import * as LucideIcons from 'lucide-react';
-import { format, addDays, addWeeks, addMonths, addYears } from 'date-fns';
+import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
-import { useBudget } from '../contexts/BudgetContext';
+import { useBudget } from '../contexts/budgetState';
 import { Transaction, RecurringPattern } from '../types';
 
 const getTransactionDisplayImpact = (transaction: Transaction) => {
@@ -78,25 +78,6 @@ const RecurringTransactions: React.FC = () => {
     return labels[frequency as keyof typeof labels] || frequency;
   };
 
-  const getNextOccurrence = (pattern: RecurringPattern) => {
-    const { frequency, interval, nextDate } = pattern;
-    let next = new Date(nextDate);
-    
-    switch (frequency) {
-      case 'daily':
-        return addDays(next, interval);
-      case 'weekly':
-        return addWeeks(next, interval);
-      case 'monthly':
-        return addMonths(next, interval);
-      case 'quarterly':
-        return addMonths(next, interval * 3);
-      case 'yearly':
-        return addYears(next, interval);
-      default:
-        return next;
-    }
-  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -517,7 +498,7 @@ const RecurringTransactions: React.FC = () => {
                 <select
                   id="frequency"
                   value={formData.frequency}
-                  onChange={(e) => setFormData({ ...formData, frequency: e.target.value as any })}
+                  onChange={(e) => setFormData({ ...formData, frequency: e.target.value as typeof formData.frequency })}
                   className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
                   required
                 >
@@ -621,7 +602,7 @@ const RecurringTransactions: React.FC = () => {
             {recurringTransactions.map((transaction) => {
               const category = categories.find(c => c.id === transaction.categoryId);
               const account = accounts.find(a => a.id === transaction.accountId);
-              const IconComponent = category ? (LucideIcons as any)[category.icon] : LucideIcons.DollarSign;
+              const IconComponent = category ? LucideIcons.icons[category.icon as keyof typeof LucideIcons.icons] : LucideIcons.DollarSign;
               const pattern = transaction.recurringPattern;
               const linkedTx = pattern?.linkedTransactionId
                 ? transactions.find(t => t.id === pattern.linkedTransactionId)

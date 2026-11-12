@@ -5,7 +5,6 @@ import {
   Percent, 
   CheckCircle2, 
   ArrowRightLeft, 
-  Plus, 
   ChevronLeft, 
   ChevronRight, 
   Sparkles, 
@@ -16,18 +15,12 @@ import {
   CreditCard,
   Scale,
   Target,
-  CheckSquare,
-  Square,
-  Layers,
-  ArrowRight,
-  Info,
-  DollarSign
-} from 'lucide-react';
+  ArrowRight} from 'lucide-react';
 import * as LucideIcons from 'lucide-react';
 import { format, startOfMonth, endOfMonth, subMonths, addMonths } from 'date-fns';
 import { fr } from 'date-fns/locale';
-import { useBudget } from '../contexts/BudgetContext';
-import { Transaction, Category } from '../types';
+import { useBudget } from '../contexts/budgetState';
+import { Transaction } from '../types';
 
 const HouseholdManager: React.FC = () => {
   const { 
@@ -36,7 +29,6 @@ const HouseholdManager: React.FC = () => {
     transactions, 
     accounts,
     categories, 
-    updateCategory,
     toggleTransactionShared, 
     toggleCategoryShared,
     isTransactionShared,
@@ -408,7 +400,7 @@ const HouseholdManager: React.FC = () => {
           {/* Grid of Categories / Budgets */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {expenseCategories.map(cat => {
-              const IconComponent = (LucideIcons as any)[cat.icon] || LucideIcons.DollarSign;
+              const IconComponent = LucideIcons.icons[cat.icon as keyof typeof LucideIcons.icons] || LucideIcons.DollarSign;
               const isShared = sharedCategoryIds.includes(cat.id);
               const stats = categoryStats[cat.id] || { spent: 0, count: 0 };
               const userAPart = (stats.spent * ratioA) / 100;
@@ -695,7 +687,7 @@ const HouseholdManager: React.FC = () => {
               {expenseCategories
                 .filter(c => sharedCategoryIds.includes(c.id))
                 .map(cat => {
-                  const IconComponent = (LucideIcons as any)[cat.icon] || LucideIcons.DollarSign;
+                  const IconComponent = LucideIcons.icons[cat.icon as keyof typeof LucideIcons.icons] || LucideIcons.DollarSign;
                   const stats = categoryStats[cat.id] || { spent: 0, count: 0 };
                   const userBPart = (stats.spent * ratioB) / 100;
 
@@ -861,7 +853,7 @@ const HouseholdManager: React.FC = () => {
               })
               .map(t => {
                 const category = categories.find(c => c.id === t.categoryId);
-                const IconComponent = category ? (LucideIcons as any)[category.icon] || LucideIcons.DollarSign : LucideIcons.DollarSign;
+                const IconComponent = category ? LucideIcons.icons[category.icon as keyof typeof LucideIcons.icons] || LucideIcons.DollarSign : LucideIcons.DollarSign;
                 const isShared = isTransactionShared(t);
                 const isCategoryCommon = sharedCategoryIds.includes(t.categoryId);
                 const userAPart = (t.amount * ratioA) / 100;

@@ -1,3 +1,4 @@
+import { insertImportBatch } from '../utils/importBatch';
 import { format } from 'date-fns';
 import { parseBankCsv, parseBankAmount, parseBankDate } from '../utils/bankCsv';
 import { distance } from 'fastest-levenshtein';
@@ -27,17 +28,6 @@ class ImportService {
       .replace(/\b(cb|paiement|visa|sepa|virement|prelevement)\b/g, '') // Remove stopwords
       .replace(/\s+/g, ' ') // Collapse spaces
       .trim();
-  }
-
-  private extractCommunityPattern(description: string): string {
-    return this.normalizeText(description)
-      .replace(/\b\d{1,2}[/-]\d{1,2}([/-]\d{2,4})?\b/g, ' ')
-      .replace(/\b\d+[,.]\d{2}\b/g, ' ')
-      .replace(/\b\d{3,}\b/g, ' ')
-      .replace(/[^\p{L}\p{N}\s.'-]/gu, ' ')
-      .replace(/\s+/g, ' ')
-      .trim()
-      .slice(0, 80);
   }
 
   private stripAccents(text: string): string {
@@ -137,7 +127,7 @@ class ImportService {
           transaction.date = parsedDate;
         }
       }
-    } catch (e) {
+    } catch {
       errors.push('Erreur lors du parsing de la date');
     }
 
@@ -155,7 +145,7 @@ class ImportService {
           transaction.type = amount >= 0 ? 'income' : 'expense';
         }
       }
-    } catch (e) {
+    } catch {
       errors.push('Erreur lors du parsing du montant');
     }
 
@@ -202,7 +192,6 @@ class ImportService {
     const activeRules = rules
       .filter(r => r.isActive)
       .sort((a, b) => b.priority - a.priority);
-    const categoriesById = new Map(categories.map(c => [c.id, c]));
     const preparedRules = activeRules.map(r => ({
       ...r,
       normalizedPattern: this.normalizeText(r.pattern),
@@ -212,7 +201,7 @@ class ImportService {
     const preparedFuzzy = preparedRules.filter(r => r.matchType === 'fuzzy');
 
     // Load vendor aliases (tolerant to missing table/RLS)
-    let vendorAliases: any[] = [];
+    let vendorAliases: { alias: string; normalized: string; category_id?: string; account_id?: string }[] = [];
     try {
       const { data, error } = await supabase
         .from('vendor_aliases')
@@ -224,8 +213,8 @@ class ImportService {
       } else {
         vendorAliases = data || [];
       }
-    } catch (e: any) {
-      console.warn('ImportService: vendor_aliases fetch exception (ignored):', e?.message || e);
+    } catch (e: unknown) {
+      console.warn('ImportService: vendor_aliases fetch exception (ignored):', e instanceof Error ? e.message : String(e));
     }
 
     return transactions.map(transaction => {
@@ -286,10 +275,10 @@ class ImportService {
       // Check vendor aliases
       for (const alias of vendorAliases) {
         if (normalizedDesc.includes(alias.normalized)) {
-          const category = categories.find(c => c.id === alias.categoryId);
+          const category = categories.find(c => c.id === alias.category_id);
           if (category) {
             suggestions.push({
-              categoryId: alias.categoryId,
+              categoryId: category.id,
               categoryName: category.name,
               confidence: 0.95,
               reason: `Alias: "${alias.alias}"`,
@@ -313,86 +302,6 @@ class ImportService {
     });
   }
 
-  async applyCommunitySuggestions(
-    transactions: ParsedTransaction[],
-    categories: Category[]
-  ): Promise<ParsedTransaction[]> {
-    const patterns = Array.from(new Set(
-      transactions
-        .filter(transaction => !transaction.categoryId && transaction.description)
-        .map(transaction => this.extractCommunityPattern(transaction.description))
-        .filter(pattern => pattern.length >= 3)
-    ));
-
-    if (patterns.length === 0) return transactions;
-
-    let rows: any[] = [];
-    try {
-      const { data, error } = await supabase
-        .from('community_rules')
-        .select('*')
-        .in('normalized_pattern', patterns)
-        .order('confidence_score', { ascending: false });
-
-      if (error) {
-        console.warn('ImportService: community_rules fetch error (ignored):', error.message);
-        return transactions;
-      }
-      rows = data || [];
-    } catch (e: any) {
-      console.warn('ImportService: community_rules fetch exception (ignored):', e?.message || e);
-      return transactions;
-    }
-
-    const rulesByPattern = new Map<string, any[]>();
-    for (const row of rows) {
-      const items = rulesByPattern.get(row.normalized_pattern) || [];
-      items.push(row);
-      rulesByPattern.set(row.normalized_pattern, items);
-    }
-
-    const localCategoriesByKey = new Map(
-      categories.map(category => [
-        `${this.normalizeText(category.name)}:${category.type}`,
-        category,
-      ])
-    );
-
-    return transactions.map(transaction => {
-      if (transaction.categoryId || !transaction.description) return transaction;
-
-      const pattern = this.extractCommunityPattern(transaction.description);
-      const matches = rulesByPattern.get(pattern) || [];
-      const communitySuggestions: CategorySuggestion[] = [];
-
-      for (const rule of matches.slice(0, 3)) {
-        const category = localCategoriesByKey.get(
-          `${this.normalizeText(rule.suggested_category_name)}:${rule.suggested_category_type}`
-        );
-        if (!category) continue;
-
-        communitySuggestions.push({
-          categoryId: category.id,
-          categoryName: category.name,
-          confidence: parseFloat(rule.confidence_score),
-          reason: 'Suggestion Pathly',
-          ruleId: rule.id,
-          source: 'community',
-        });
-      }
-
-      const suggestions = [...(transaction.suggestions || []), ...communitySuggestions]
-        .sort((a, b) => b.confidence - a.confidence)
-        .slice(0, 3);
-
-      return {
-        ...transaction,
-        suggestions,
-        categoryId: suggestions[0]?.confidence >= 0.9 ? suggestions[0].categoryId : transaction.categoryId,
-      };
-    });
-  }
-
   // Calculate rule confidence
   private calculateRuleConfidence(description: string, pattern: string, matchType: string): number {
     const normalizedDesc = this.normalizeText(description);
@@ -413,12 +322,13 @@ class ImportService {
           return 0.0;
         }
       
-      case 'fuzzy':
+      case 'fuzzy': {
         const maxLength = Math.max(normalizedDesc.length, normalizedPattern.length);
         if (maxLength === 0) return 0.0;
         
         const dist = distance(normalizedDesc, normalizedPattern);
         return Math.max(0, 1 - (dist / maxLength));
+      }
       
       default:
         return 0.0;
@@ -447,10 +357,10 @@ class ImportService {
       if (error) {
         console.warn('ImportService: dup_hash check error (ignored):', error.message);
       } else {
-        existingHashSet = new Set((data || []).map((h: any) => h.dup_hash));
+        existingHashSet = new Set((data || []).map((h: { dup_hash: string }) => h.dup_hash));
       }
-    } catch (e: any) {
-      console.warn('ImportService: dup_hash check exception (ignored):', e?.message || e);
+    } catch (e: unknown) {
+      console.warn('ImportService: dup_hash check exception (ignored):', e instanceof Error ? e.message : String(e));
     }
 
     return transactions.map(transaction => {
@@ -496,142 +406,32 @@ class ImportService {
     for (let i = 0; i < validTransactions.length; i += chunkSize) {
       const chunk = validTransactions.slice(i, i + chunkSize);
       
-      try {
-        const insertPromise = supabase
-          .from('transactions')
-          .insert(
-            chunk.map(t => ({
-              user_id: userId,
-              account_id: t.accountId,
-              amount: t.amount,
-              description: t.description,
-              date: format(t.date!, 'yyyy-MM-dd'),
-              category_id: t.categoryId,
-              type: t.type,
-              status: 'completed',
-              source: 'import',
-              dup_hash: t.duplicateHash,
-              is_recurring: false
-            })),
-            { returning: 'minimal' }
-          );
-
-        // Guard against long network waits with a timeout, but try a generous window
-        const timeoutMs = 20000;
-        const raced = await Promise.race([
-          insertPromise,
-          new Promise<{ error: any }>((resolve) => setTimeout(() => resolve({ error: new Error('timeout') }), timeoutMs))
-        ]);
-        let error = (raced as any)?.error;
-
-        if (error) {
-          // Fallback: try row-by-row to surface real error messages and keep progressing
-          for (const t of chunk) {
-            try {
-              const { error: rowError } = await supabase
-                .from('transactions')
-                .insert([
-                  {
-                    user_id: userId,
-                    account_id: t.accountId,
-                    amount: t.amount,
-                    description: t.description,
-                    date: format(t.date!, 'yyyy-MM-dd'),
-                    category_id: t.categoryId,
-                    type: t.type,
-                    status: 'completed',
-                    source: 'import',
-                    dup_hash: t.duplicateHash,
-                    is_recurring: false
-                  }
-                ], { returning: 'minimal' });
-              if (rowError) {
-                errors.push(`Row insert error: ${rowError.message}`);
-              } else {
-                imported += 1;
-              }
-            } catch (e: any) {
-              errors.push(`Row insert exception: ${e?.message || e}`);
-            }
-            try { onProgress?.(Math.min(i + (imported % (i + chunk.length) || 0), validTransactions.length), validTransactions.length); } catch {}
-          }
-        } else {
-          imported += chunk.length;
-        }
-      } catch (error: any) {
-        errors.push(`Chunk ${Math.floor(i / chunkSize) + 1}: ${error.message}`);
-      }
+      const rows = chunk.map(t => ({
+        user_id: userId,
+        account_id: t.accountId,
+        amount: t.amount,
+        description: t.description,
+        date: format(t.date!, 'yyyy-MM-dd'),
+        category_id: t.categoryId,
+        type: t.type,
+        status: 'completed',
+        source: 'import',
+        dup_hash: t.duplicateHash,
+        is_recurring: false,
+      }));
+      const result = await insertImportBatch(rows, (payload, signal) =>
+        supabase.from('transactions').insert(payload).abortSignal(signal)
+      );
+      imported += result.imported;
+      errors.push(...result.errors);
+      // Never resend an ambiguous request or continue unattended after it.
+      if (result.uncertain) break;
 
       // Report progress regardless of success to avoid UI stalls
-      try { onProgress?.(Math.min(i + chunk.length, validTransactions.length), validTransactions.length); } catch {}
+      try { onProgress?.(Math.min(i + chunk.length, validTransactions.length), validTransactions.length); } catch { /* A progress observer must not interrupt the import. */ }
     }
 
     return { imported, skipped, duplicates, errors };
-  }
-
-  async submitCommunityLearning(
-    transactions: ParsedTransaction[],
-    userId: string,
-    categories: Category[]
-  ): Promise<void> {
-    const categoryById = new Map(categories.map(category => [category.id, category]));
-    const confirmed = transactions.filter(transaction =>
-      transaction.errors.length === 0 &&
-      transaction.description &&
-      transaction.categoryId &&
-      transaction.isSelected !== false
-    );
-
-    for (const transaction of confirmed) {
-      const category = categoryById.get(transaction.categoryId!);
-      const normalizedPattern = this.extractCommunityPattern(transaction.description);
-      if (!category || normalizedPattern.length < 3) continue;
-
-      try {
-        const { data, error } = await supabase
-          .from('community_rules')
-          .upsert({
-            normalized_pattern: normalizedPattern,
-            suggested_category_name: category.name,
-            suggested_category_type: category.type,
-            locale: 'fr',
-          }, {
-            onConflict: 'normalized_pattern,suggested_category_name,suggested_category_type,locale',
-          })
-          .select('*')
-          .single();
-
-        if (error) {
-          console.warn('ImportService: community rule upsert error (ignored):', error.message);
-          continue;
-        }
-
-        const confirmations = (data.confirmations_count || 0) + 1;
-        const corrections = data.corrections_count || 0;
-        const confidence = Math.min(0.98, Math.max(0.6, confirmations / (confirmations + corrections + 1)));
-
-        await supabase
-          .from('community_rules')
-          .update({
-            confirmations_count: confirmations,
-            confidence_score: confidence,
-          })
-          .eq('id', data.id);
-
-        await supabase
-          .from('rule_feedback')
-          .insert({
-            user_id: userId,
-            community_rule_id: data.id,
-            normalized_pattern: normalizedPattern,
-            accepted: true,
-            corrected_category_name: category.name,
-            corrected_category_type: category.type,
-          });
-      } catch (e: any) {
-        console.warn('ImportService: community learning exception (ignored):', e?.message || e);
-      }
-    }
   }
 
   // Create import job record
@@ -662,7 +462,7 @@ class ImportService {
       rowsImported?: number;
       rowsSkipped?: number;
       rowsDuplicates?: number;
-      errorsJson?: any;
+      errorsJson?: unknown;
       status?: 'processing' | 'completed' | 'failed';
     }
   ): Promise<void> {
@@ -755,7 +555,7 @@ class ImportService {
         is_active: updates.isActive,
         match_type: updates.matchType,
         confidence_threshold: updates.confidenceThreshold
-      }).filter(([_, v]) => v !== undefined)
+      }).filter(([, v]) => v !== undefined)
     );
 
     const { error } = await supabase

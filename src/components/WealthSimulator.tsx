@@ -1,8 +1,10 @@
-import React, { useState, useMemo } from 'react';
-import { TrendingUp, Calculator, Target, DollarSign, Percent, Calendar, CalendarClock, Home, RefreshCw, CheckCircle2 } from 'lucide-react';
+import type { ChartDataset, ChartOptions } from 'chart.js';
+import type { PhysicalAsset, Debt } from '../types';
+import React, { useState, useMemo, useCallback } from 'react';
+import { TrendingUp, Calculator, Target, DollarSign, Percent, Calendar, CalendarClock, Home } from 'lucide-react';
 import { Line } from 'react-chartjs-2';
-import { useBudget } from '../contexts/BudgetContext';
-import { useAuth } from '../contexts/AuthContext';
+import { useBudget } from '../contexts/budgetState';
+import { useAuth } from '../contexts/authState';
 
 interface SimulationScenario {
   id: string;
@@ -40,11 +42,11 @@ const parseEventValue = (input: string, currentValue: number): number => {
 };
 
 const WealthSimulator: React.FC = () => {
-  const { accounts, savingsGoals, simulatedEvents, totalAssetsValue, assets, debts, realEstatePlans } = useBudget();
+  const { accounts, simulatedEvents, totalAssetsValue, assets, debts, realEstatePlans } = useBudget();
   const { user } = useAuth();
   
   // Helper to detect if an asset is a future planned acquisition
-  const isFutureAsset = (asset: any): boolean => {
+  const isFutureAsset = (asset: PhysicalAsset): boolean => {
     if (asset?.isPlanned) return true;
     if (!asset?.purchaseDate) return false;
     try {
@@ -58,7 +60,7 @@ const WealthSimulator: React.FC = () => {
   };
 
   // Helper to detect if a debt starts in the future (like planned 2029 mortgage)
-  const isFutureDebt = (debt: any): boolean => {
+  const isFutureDebt = (debt: Debt): boolean => {
     if (!debt?.dueDate) return false;
     try {
       const dDate = new Date(debt.dueDate);
@@ -150,21 +152,13 @@ const WealthSimulator: React.FC = () => {
     withdrawalRate: '',
   });
 
-  const syncWithLiveNetWorth = () => {
-    const updatedScenario = {
-      ...activeScenario,
-      currentWealth: liveNetWorth
-    };
-    setActiveScenario(updatedScenario);
-    setScenarios(scenarios.map(s => s.id === updatedScenario.id ? updatedScenario : s));
-  };
 
-  const calculateProjection = (scenario: SimulationScenario) => {
+  const calculateProjection = useCallback((scenario: SimulationScenario) => {
     const { currentWealth, monthlyContribution, years, returnRate, inflationRate } = scenario;
     const monthlyRate = returnRate / 100 / 12;
     const months = years * 12;
     
-    const projections: any[] = [];
+    const projections = [];
     const now = new Date();
 
     // Planned real estate setup
@@ -246,7 +240,7 @@ const WealthSimulator: React.FC = () => {
     }
     
     return projections;
-  };
+  }, [includeRealEstate, plannedRealEstate, simulatedEvents, currentOwnedAssetsValue]);
 
   const calculateRetirementIncome = (scenario: SimulationScenario) => {
     const projections = calculateProjection(scenario);
@@ -274,7 +268,7 @@ const WealthSimulator: React.FC = () => {
     const projections = calculateProjection(activeScenario);
     const yearlySnaps = projections.filter((_, index) => index % 12 === 0);
     
-    const datasets: any[] = [
+    const datasets: ChartDataset<'line'>[] = [
       {
         label: 'Patrimoine Total (Nominal)',
         data: yearlySnaps.map(p => p.nominalValue),
@@ -332,9 +326,9 @@ const WealthSimulator: React.FC = () => {
       labels: yearlySnaps.map(p => `Année ${Math.floor(p.year)}`),
       datasets,
     };
-  }, [activeScenario, simulatedEvents, includeRealEstate, plannedRealEstate]);
+  }, [activeScenario, calculateProjection, includeRealEstate, plannedRealEstate]);
 
-  const chartOptions = {
+  const chartOptions: ChartOptions<'line'> = {
     responsive: true,
     maintainAspectRatio: false,
     plugins: {
@@ -346,9 +340,9 @@ const WealthSimulator: React.FC = () => {
       },
       tooltip: {
         callbacks: {
-          label: (context: any) => {
+          label: (context) => {
             const value = context.parsed.y;
-            return `${context.dataset.label}: ${value.toLocaleString('fr-FR', { style: 'currency', currency: 'EUR' })}`;
+            return `${context.dataset.label}: ${(value ?? 0).toLocaleString('fr-FR', { style: 'currency', currency: 'EUR' })}`;
           },
         },
       },
@@ -368,7 +362,7 @@ const WealthSimulator: React.FC = () => {
         },
         ticks: {
           color: document.documentElement.classList.contains('dark') ? '#D1D5DB' : '#374151',
-          callback: (value: any) => `${(value / 1000).toFixed(0)}k €`,
+          callback: (value) => `${(Number(value) / 1000).toFixed(0)}k €`,
         },
       },
     },

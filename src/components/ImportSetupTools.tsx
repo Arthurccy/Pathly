@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useBudget } from '../contexts/BudgetContext';
+import { useBudget } from '../contexts/budgetState';
 import SignedAmountInput from './SignedAmountInput';
 import { parseSignedAmount } from '../utils/amountInput';
 

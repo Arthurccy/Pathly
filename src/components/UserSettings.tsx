@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Settings, User, Palette, Globe, Bell, Save } from 'lucide-react';
-import { useAuth } from '../contexts/AuthContext';
+import { useAuth } from '../contexts/authState';
 import { useTheme } from '../hooks/useTheme';
 import { UserSettings as UserSettingsType } from '../types';
 
@@ -53,7 +53,7 @@ const UserSettings: React.FC = () => {
       setTimeout(() => setSaveSuccess(false), 3000);
     } catch (error) {
       console.error('Failed to save settings:', error);
-      setSaveError(error instanceof Error ? error.message : 'Impossible de sauvegarder les paramètres.');
+      setSaveError(error instanceof Error ? (error instanceof Error ? error.message : String(error)) : 'Impossible de sauvegarder les paramètres.');
     } finally {
       setIsSaving(false);
     }
@@ -108,7 +108,7 @@ const UserSettings: React.FC = () => {
               </label>
               <input
                 type="text"
-                value={user?.name || ''}
+                value={user?.user_metadata?.full_name || ''}
                 disabled
                 className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-700 text-gray-500 dark:text-gray-400"
               />
@@ -193,7 +193,7 @@ const UserSettings: React.FC = () => {
               </label>
               <select
                 value={settings.defaultPeriod}
-                onChange={(e) => setSettings({ ...settings, defaultPeriod: e.target.value as any })}
+                onChange={(e) => setSettings({ ...settings, defaultPeriod: e.target.value as typeof settings.defaultPeriod })}
                 className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
               >
                 <option value="weekly">Hebdomadaire</option>

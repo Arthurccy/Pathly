@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 import { 
   Building2, 
   Car, 
@@ -6,8 +6,6 @@ import {
   Gem, 
   Package, 
   Plus, 
-  Calendar, 
-  DollarSign, 
   TrendingUp, 
   TrendingDown, 
   CreditCard, 
@@ -15,7 +13,6 @@ import {
   Trash2, 
   X, 
   Save, 
-  CheckCircle2, 
   Clock, 
   ShieldCheck, 
   Sparkles,
@@ -23,11 +20,10 @@ import {
   PieChart,
   Home
 } from 'lucide-react';
-import { format, differenceInMonths, parseISO, isValid } from 'date-fns';
+import { format, parseISO } from 'date-fns';
 import { fr } from 'date-fns/locale';
-import { useBudget } from '../contexts/BudgetContext';
-import { useAuth } from '../contexts/AuthContext';
-import { PhysicalAsset, Debt } from '../types';
+import { useBudget } from '../contexts/budgetState';
+import { PhysicalAsset } from '../types';
 import { calculateRealEstatePlan } from '../utils/realEstateCalculations';
 
 const money = (val: number) =>
@@ -109,7 +105,7 @@ const AssetManager: React.FC<AssetManagerProps> = ({ onViewChange }) => {
   };
 
   // Helper to find all debts linked to an asset
-  const getAssetDebts = (asset: PhysicalAsset): any[] => {
+  const getAssetDebts = useCallback((asset: PhysicalAsset) => {
     const ids = asset.debtIds || (asset.debtId ? [asset.debtId] : []);
     if (ids.length > 0) {
       const matched = debts.filter(d => ids.includes(d.id));
@@ -127,7 +123,7 @@ const AssetManager: React.FC<AssetManagerProps> = ({ onViewChange }) => {
       if (autoMatched.length > 0) return autoMatched;
     }
     return [];
-  };
+  }, [debts]);
 
   // Active real estate project in progress (only if configured and propertyPrice > 0)
   const plannedRealEstatePlan = useMemo(() => {
@@ -143,13 +139,13 @@ const AssetManager: React.FC<AssetManagerProps> = ({ onViewChange }) => {
     return calculateRealEstatePlan(plannedRealEstatePlan);
   }, [plannedRealEstatePlan]);
 
-  const isRedundantProjectAsset = (a: PhysicalAsset) => {
+  const isRedundantProjectAsset = useCallback((a: PhysicalAsset) => {
     if (!plannedRealEstatePlan) return false;
     if (a.realEstatePlanId && a.realEstatePlanId === plannedRealEstatePlan.id) return true;
     if (plannedRealEstatePlan.assetId && a.id === plannedRealEstatePlan.assetId) return true;
     if (a.category === 'real_estate' && a.isPlanned && a.name.toLowerCase().includes(plannedRealEstatePlan.name.toLowerCase())) return true;
     return false;
-  };
+  }, [plannedRealEstatePlan]);
 
   const formatProjectTargetDate = (d?: string) => {
     if (!d) return '';
@@ -246,7 +242,7 @@ const AssetManager: React.FC<AssetManagerProps> = ({ onViewChange }) => {
       return;
     }
 
-    let linkedDebtId = formData.selectedDebtId || undefined;
+    const linkedDebtId = formData.selectedDebtId || undefined;
 
     // If user asked to create a new Debt in Pathly alongside the asset
     if (formData.hasLoan && formData.createDebtRecord && formData.loanOriginalAmount && formData.loanAccountId) {
@@ -324,7 +320,7 @@ const AssetManager: React.FC<AssetManagerProps> = ({ onViewChange }) => {
 
   const displayedAssets = useMemo(() => {
     return filteredAssets.filter(a => !isRedundantProjectAsset(a));
-  }, [filteredAssets, plannedRealEstatePlan]);
+  }, [filteredAssets, isRedundantProjectAsset]);
 
   const showProjectCard = Boolean(
     plannedRealEstatePlan && (activeCategoryFilter === 'all' || activeCategoryFilter === 'real_estate')
@@ -351,11 +347,11 @@ const AssetManager: React.FC<AssetManagerProps> = ({ onViewChange }) => {
     return scopeAssets.reduce((sum, asset) => {
       const linkedDebts = getAssetDebts(asset);
       if (linkedDebts.length > 0) {
-        return sum + linkedDebts.reduce((s: number, d: any) => s + (d.remainingAmount || 0), 0);
+        return sum + linkedDebts.reduce((s: number, d) => s + (d.remainingAmount || 0), 0);
       }
       return sum + (asset.loanDetails?.originalLoanAmount || 0);
     }, 0);
-  }, [scopeAssets, debts]);
+  }, [scopeAssets, getAssetDebts]);
 
   const netEquity = totalGrossValue - totalAssociatedDebt;
 
@@ -681,10 +677,10 @@ const AssetManager: React.FC<AssetManagerProps> = ({ onViewChange }) => {
             const isFuture = isFutureAsset(asset);
             
             const remainingLoan = linkedDebts.length > 0
-              ? linkedDebts.reduce((sum: number, d: any) => sum + (d.remainingAmount || 0), 0)
+              ? linkedDebts.reduce((sum: number, d) => sum + (d.remainingAmount || 0), 0)
               : (loanDetails?.originalLoanAmount || 0);
             const originalLoan = linkedDebts.length > 0
-              ? linkedDebts.reduce((sum: number, d: any) => sum + (d.totalAmount || 0), 0)
+              ? linkedDebts.reduce((sum: number, d) => sum + (d.totalAmount || 0), 0)
               : (loanDetails?.originalLoanAmount || 0);
             const assetEquity = asset.currentValue - remainingLoan;
             
@@ -796,7 +792,7 @@ const AssetManager: React.FC<AssetManagerProps> = ({ onViewChange }) => {
                       {/* Detail per loan if multiple */}
                       {linkedDebts.length > 1 && (
                         <div className="space-y-1 pt-1 border-t border-blue-200/40 dark:border-blue-800/40">
-                          {linkedDebts.map((d: any) => (
+                          {linkedDebts.map((d) => (
                             <div key={d.id} className="flex items-center justify-between text-[11px] text-slate-600 dark:text-slate-300">
                               <span className="truncate max-w-[180px]">{d.name}</span>
                               <span className="font-semibold text-rose-600 dark:text-rose-400">-{money(d.remainingAmount)}</span>
@@ -929,7 +925,7 @@ const AssetManager: React.FC<AssetManagerProps> = ({ onViewChange }) => {
                       <button
                         key={cat.id}
                         type="button"
-                        onClick={() => setFormData({ ...formData, category: cat.id as any })}
+                        onClick={() => setFormData({ ...formData, category: cat.id as typeof formData.category })}
                         className={`flex flex-col items-center justify-center p-3 rounded-xl border text-xs font-semibold transition ${
                           isSelected
                             ? 'border-blue-600 bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300'

@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import {
   TrendingUp,
   TrendingDown,
@@ -7,25 +7,14 @@ import {
   Edit2,
   RefreshCw,
   Search,
-  ShieldCheck,
   Clock,
   Wallet,
-  BarChart2,
-  Sparkles,
   CheckCircle2,
-  AlertCircle,
   AlertTriangle,
   ArrowUpRight,
   ArrowDownRight,
-  Filter,
-  Layers,
-  ChevronRight,
-  Info,
-  Sliders,
-  DollarSign,
-  HelpCircle
-} from 'lucide-react';
-import { useBudget } from '../contexts/BudgetContext';
+  Layers} from 'lucide-react';
+import { useBudget } from '../contexts/budgetState';
 import { InvestmentPosition, BankAccount, StockSearchResult, StockQuote } from '../types';
 import { searchStocks, fetchStockQuotes, fetchEurUsdRate, POPULAR_FRENCH_ASSETS } from '../services/stockService';
 
@@ -33,7 +22,7 @@ interface InvestmentPortfolioProps {
   onViewChange?: (view: string) => void;
 }
 
-export const InvestmentPortfolio: React.FC<InvestmentPortfolioProps> = ({ onViewChange }) => {
+export const InvestmentPortfolio: React.FC<InvestmentPortfolioProps> = () => {
   const {
     accounts,
     addAccount,
@@ -114,7 +103,7 @@ export const InvestmentPortfolio: React.FC<InvestmentPortfolioProps> = ({ onView
   }, [investmentAccounts, formAccountId]);
 
   // Fetch quotes function
-  const refreshQuotes = async () => {
+  const refreshQuotes = useCallback(async () => {
     const symbols = investmentPositions.map(p => p.symbol).filter(Boolean);
     if (symbols.length === 0) return;
 
@@ -132,14 +121,14 @@ export const InvestmentPortfolio: React.FC<InvestmentPortfolioProps> = ({ onView
     } finally {
       setIsRefreshing(false);
     }
-  };
+  }, [investmentPositions]);
 
   // Auto-refresh on mount if positions exist
   useEffect(() => {
     if (investmentPositions.length > 0 && !lastRefreshedAt) {
       refreshQuotes();
     }
-  }, [investmentPositions.length]);
+  }, [investmentPositions.length, lastRefreshedAt, refreshQuotes]);
 
   // Handle autocomplete search
   useEffect(() => {
@@ -182,7 +171,7 @@ export const InvestmentPortfolio: React.FC<InvestmentPortfolioProps> = ({ onView
           setFormBuyPrice(q.price.toString());
         }
       }
-    } catch {}
+    } catch { /* Keep manually entered values when optional refresh fails. */ }
   };
 
   // Auto-fetch price & currency when user leaves the symbol input
@@ -197,7 +186,7 @@ export const InvestmentPortfolio: React.FC<InvestmentPortfolioProps> = ({ onView
         if (!formName && q.name) setFormName(q.name);
         if (q.currency) setFormCurrency(q.currency);
       }
-    } catch {}
+    } catch { /* Keep manually entered values when optional refresh fails. */ }
   };
 
   // Reset form
@@ -312,7 +301,7 @@ export const InvestmentPortfolio: React.FC<InvestmentPortfolioProps> = ({ onView
   const handleOpenEditAccount = (acc: BankAccount) => {
     setEditingAccount(acc);
     setAccName(acc.name);
-    setAccSubType((acc.subType as any) || (acc.name.toLowerCase().includes('pea') ? 'pea' : 'cto'));
+    setAccSubType((acc.subType as typeof accSubType) || (acc.name.toLowerCase().includes('pea') ? 'pea' : 'cto'));
     setAccBankName(acc.bankName || 'BoursoBank');
     
     // Find cash portion
@@ -427,7 +416,7 @@ export const InvestmentPortfolio: React.FC<InvestmentPortfolioProps> = ({ onView
           balance: Math.round(metric.totalValuation * 100) / 100,
           cashBalance: metric.cash
         });
-      } catch {}
+      } catch { /* Keep manually entered values when optional refresh fails. */ }
     }
   };
 
@@ -1021,7 +1010,7 @@ export const InvestmentPortfolio: React.FC<InvestmentPortfolioProps> = ({ onView
             <button
               key={tab.id}
               type="button"
-              onClick={() => setActiveTab(tab.id as any)}
+              onClick={() => setActiveTab(tab.id as typeof activeTab)}
               className={`px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center space-x-1.5 ${
                 activeTab === tab.id
                   ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900 shadow-sm'
@@ -1386,7 +1375,7 @@ export const InvestmentPortfolio: React.FC<InvestmentPortfolioProps> = ({ onView
                   </label>
                   <select
                     value={formAssetType}
-                    onChange={e => setFormAssetType(e.target.value as any)}
+                    onChange={e => setFormAssetType(e.target.value as typeof formAssetType)}
                     className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900/50 border border-slate-300 dark:border-slate-600 rounded-xl text-xs font-semibold dark:text-white"
                   >
                     <option value="etf">ETF (Fonds indiciel)</option>

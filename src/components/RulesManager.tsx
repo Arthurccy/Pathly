@@ -1,19 +1,19 @@
-import React, { useState, useEffect } from 'react';
-import { Brain, Plus, Edit, Trash2, Play, TestTube, GripVertical, Eye, EyeOff } from 'lucide-react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { Brain, Plus, Edit, Trash2, TestTube, GripVertical, Eye, EyeOff } from 'lucide-react';
 import * as LucideIcons from 'lucide-react';
-import { useBudget } from '../contexts/BudgetContext';
-import { useAuth } from '../contexts/AuthContext';
+import { useBudget } from '../contexts/budgetState';
+import { useAuth } from '../contexts/authState';
 import { importService } from '../services/importService';
 import { ImportRule } from '../types/import';
 
 const RulesManager: React.FC = () => {
   const { user } = useAuth();
-  const { categories, accounts } = useBudget();
+  const { categories } = useBudget();
   const [rules, setRules] = useState<ImportRule[]>([]);
   const [showForm, setShowForm] = useState(false);
   const [editingRule, setEditingRule] = useState<ImportRule | null>(null);
   const [testingRule, setTestingRule] = useState<ImportRule | null>(null);
-  const [testResults, setTestResults] = useState<any>(null);
+  const [testResults, setTestResults] = useState<Awaited<ReturnType<typeof importService.testRule>> | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   
   const [formData, setFormData] = useState({
@@ -27,13 +27,7 @@ const RulesManager: React.FC = () => {
     isActive: true
   });
 
-  useEffect(() => {
-    if (user) {
-      loadRules();
-    }
-  }, [user]);
-
-  const loadRules = async () => {
+  const loadRules = useCallback(async () => {
     if (!user) return;
     
     setIsLoading(true);
@@ -45,7 +39,9 @@ const RulesManager: React.FC = () => {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [user]);
+
+  useEffect(() => { void loadRules(); }, [loadRules]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -77,8 +73,8 @@ const RulesManager: React.FC = () => {
 
       await loadRules();
       resetForm();
-    } catch (error: any) {
-      alert(`Erreur: ${error.message}`);
+    } catch (error: unknown) {
+      alert(`Erreur: ${(error instanceof Error ? error.message : String(error))}`);
     } finally {
       setIsLoading(false);
     }
@@ -121,8 +117,8 @@ const RulesManager: React.FC = () => {
     try {
       await importService.deleteRule(ruleId);
       await loadRules();
-    } catch (error: any) {
-      alert(`Erreur: ${error.message}`);
+    } catch (error: unknown) {
+      alert(`Erreur: ${(error instanceof Error ? error.message : String(error))}`);
     } finally {
       setIsLoading(false);
     }
@@ -133,8 +129,8 @@ const RulesManager: React.FC = () => {
     try {
       await importService.updateRule(rule.id, { isActive: !rule.isActive });
       await loadRules();
-    } catch (error: any) {
-      alert(`Erreur: ${error.message}`);
+    } catch (error: unknown) {
+      alert(`Erreur: ${(error instanceof Error ? error.message : String(error))}`);
     } finally {
       setIsLoading(false);
     }
@@ -147,8 +143,8 @@ const RulesManager: React.FC = () => {
     try {
       const results = await importService.testRule(rule, user!.id, categories);
       setTestResults(results);
-    } catch (error: any) {
-      alert(`Erreur lors du test: ${error.message}`);
+    } catch (error: unknown) {
+      alert(`Erreur lors du test: ${(error instanceof Error ? error.message : String(error))}`);
     } finally {
       setIsLoading(false);
     }
@@ -240,7 +236,7 @@ const RulesManager: React.FC = () => {
                 <select
                   id="matchType"
                   value={formData.matchType}
-                  onChange={(e) => setFormData({ ...formData, matchType: e.target.value as any })}
+                  onChange={(e) => setFormData({ ...formData, matchType: e.target.value as typeof formData.matchType })}
                   className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
                   required
                 >
@@ -264,7 +260,6 @@ const RulesManager: React.FC = () => {
                 >
                   <option value="">Sélectionner une catégorie</option>
                   {categories.map(category => {
-                    const IconComponent = (LucideIcons as any)[category.icon] || LucideIcons.DollarSign;
                     return (
                       <option key={category.id} value={category.id}>
                         {category.name} ({category.type})
@@ -360,7 +355,7 @@ const RulesManager: React.FC = () => {
               .sort((a, b) => b.priority - a.priority)
               .map((rule) => {
                 const category = categories.find(c => c.id === rule.targetCategoryId);
-                const IconComponent = category ? (LucideIcons as any)[category.icon] : LucideIcons.DollarSign;
+                const IconComponent = category ? LucideIcons.icons[category.icon as keyof typeof LucideIcons.icons] : LucideIcons.DollarSign;
                 
                 return (
                   <div key={rule.id} className="p-4">
@@ -511,7 +506,7 @@ const RulesManager: React.FC = () => {
                     Exemples de correspondances:
                   </h4>
                   <div className="space-y-2">
-                    {testResults.examples.map((example: any, index: number) => (
+                    {testResults.examples.map((example, index: number) => (
                       <div key={index} className="p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
                         <div className="flex items-center justify-between">
                           <span className="text-sm text-gray-900 dark:text-white">

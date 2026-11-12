@@ -1,5 +1,6 @@
+import type { ChartOptions } from 'chart.js';
 import React, { useState } from 'react';
-import { Bar, Doughnut } from 'react-chartjs-2';
+import { Doughnut } from 'react-chartjs-2';
 import {
   Chart as ChartJS,
   ArcElement,
@@ -9,10 +10,10 @@ import {
   Tooltip,
   Legend,
 } from 'chart.js';
-import { addMonths, endOfYear, format, startOfYear } from 'date-fns';
+import { endOfYear, format, startOfYear } from 'date-fns';
 import { fr } from 'date-fns/locale';
-import { useBudget } from '../contexts/BudgetContext';
-import { useAuth } from '../contexts/AuthContext';
+import { useBudget } from '../contexts/budgetState';
+import { useAuth } from '../contexts/authState';
 import { getCustomMonthPeriod } from '../utils/dateUtils';
 
 ChartJS.register(ArcElement, BarElement, CategoryScale, LinearScale, Tooltip, Legend);
@@ -22,7 +23,7 @@ interface ExpenseChartProps {
 }
 
 const ExpenseChart: React.FC<ExpenseChartProps> = ({ viewMode = 'monthly' }) => {
-  const { transactions, categories, accounts, debts, selectedAccountIds } = useBudget();
+  const { transactions, categories, accounts, selectedAccountIds } = useBudget();
   const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
 
   const { user } = useAuth();
@@ -46,14 +47,6 @@ const ExpenseChart: React.FC<ExpenseChartProps> = ({ viewMode = 'monthly' }) => 
          isReportableTransaction(t) &&
          (selectedAccountIds.length === 0 || selectedAccountIds.includes(t.accountId))
   );
-  const cashFlowTransactions = transactions.filter(
-    t => t.status !== 'cancelled' &&
-         t.date >= periodStart &&
-         t.date <= periodEnd &&
-         isReportableTransaction(t) &&
-         (selectedAccountIds.length === 0 || selectedAccountIds.includes(t.accountId))
-  );
-
   const expenseTransactions = completedPeriodTransactions.filter(t => t.type === 'expense');
 
   const expensesByCategory = expenseTransactions.reduce((acc, transaction) => {
@@ -93,7 +86,7 @@ const ExpenseChart: React.FC<ExpenseChartProps> = ({ viewMode = 'monthly' }) => 
     ],
   };
 
-  const options = {
+  const options: ChartOptions<'doughnut'> = {
     responsive: true,
     maintainAspectRatio: false,
     resizeDelay: 100,
@@ -106,7 +99,7 @@ const ExpenseChart: React.FC<ExpenseChartProps> = ({ viewMode = 'monthly' }) => 
       },
       tooltip: {
         callbacks: {
-          label: (context: any) => {
+          label: (context) => {
             const value = context.parsed;
             const total = categoryBreakdown.reduce((sum, category) => sum + category.amount, 0);
             const percentage = total > 0 ? ((value / total) * 100).toFixed(1) : '0';
@@ -118,106 +111,18 @@ const ExpenseChart: React.FC<ExpenseChartProps> = ({ viewMode = 'monthly' }) => 
     animation: {
       duration: 250,
     },
-    onClick: (_event: unknown, elements: any[]) => {
+    onClick: (_event, elements) => {
       const element = elements[0];
       if (!element) return;
       setSelectedCategoryId(categoryBreakdown[element.index]?.id || null);
     },
-    onHover: (event: any, elements: any[]) => {
-      event.native.target.style.cursor = elements.length ? 'pointer' : 'default';
+    onHover: (_event, elements, chart) => {
+      chart.canvas.style.cursor = elements.length ? 'pointer' : 'default';
     },
   };
 
   const hasData = categoryBreakdown.length > 0;
   const totalExpenses = categoryBreakdown.reduce((sum, category) => sum + category.amount, 0);
-  const moneyFormatter = new Intl.NumberFormat('fr-FR', {
-    style: 'currency',
-    currency: 'EUR',
-    maximumFractionDigits: 0,
-  });
-  const preciseMoneyFormatter = new Intl.NumberFormat('fr-FR', {
-    style: 'currency',
-    currency: 'EUR',
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  });
-
-  const baseIncome = cashFlowTransactions
-    .filter(t => t.type === 'income' || t.type === 'refund' || t.type === 'savings_withdrawal')
-    .reduce((sum, t) => sum + t.amount, 0);
-  const isSavingsTransferOut = (transaction: typeof cashFlowTransactions[number]) => {
-    if (transaction.type !== 'transfer' || !transaction.transferToAccountId) return false;
-
-    const destinationAccount = accounts.find(account => account.id === transaction.transferToAccountId);
-    const destinationName = destinationAccount?.name.trim().toLowerCase() || '';
-    const isSavingsDestination = destinationAccount?.type === 'savings' || destinationName.includes('livret');
-
-    return isSavingsDestination && transaction.description.trim().toLowerCase().startsWith('virement vers');
-  };
-  const outgoingTransactions = cashFlowTransactions
-    .filter(t => t.type === 'expense' || t.type === 'bill' || t.type === 'savings' || isSavingsTransferOut(t))
-    .sort((a, b) => a.date.getTime() - b.date.getTime());
-  const debtPaymentItems = debts
-    .filter(debt =>
-      debt.isActive &&
-      debt.minimumPayment > 0 &&
-      debt.remainingAmount > 0 &&
-      (selectedAccountIds.length === 0 || selectedAccountIds.includes(debt.accountId))
-    )
-    .flatMap(debt => {
-      const items: {
-        date: Date;
-        amount: number;
-        description: string;
-        statusLabel: string;
-        color: string;
-      }[] = [];
-      let cursor = debt.dueDate;
-      while (cursor < periodStart) {
-        cursor = addMonths(cursor, 1);
-      }
-
-      let remainingDebt = debt.remainingAmount;
-      while (cursor <= periodEnd && remainingDebt > 0) {
-        const amount = Math.min(debt.minimumPayment, remainingDebt);
-        items.push({
-          date: cursor,
-          amount,
-          description: `Paiement dette - ${debt.name}`,
-          statusLabel: 'planifiée',
-          color: '#9333EA',
-        });
-        remainingDebt -= amount;
-        cursor = addMonths(cursor, 1);
-      }
-
-      return items;
-    });
-  const outgoingItems = [
-    ...outgoingTransactions.map(transaction => {
-      const category = categories.find(c => c.id === transaction.categoryId);
-      const statusLabel = transaction.status === 'scheduled'
-        ? 'planifiée'
-        : transaction.status === 'pending'
-          ? 'en attente'
-          : 'terminée';
-
-      return {
-        date: transaction.date,
-        amount: transaction.amount,
-        description: transaction.description || category?.name || 'Sortie',
-        statusLabel,
-        color: transaction.type === 'savings' || isSavingsTransferOut(transaction) ? '#2563EB' : '#DC2626',
-      };
-    }),
-    ...debtPaymentItems,
-  ].sort((a, b) => a.date.getTime() - b.date.getTime());
-  const totalOutgoings = outgoingItems.reduce((sum, item) => sum + item.amount, 0);
-  const remainingIncome = baseIncome - totalOutgoings;
-  const plannedTransactionsCount = cashFlowTransactions.filter(t => t.status === 'scheduled' || t.status === 'pending').length + debtPaymentItems.length;
-
-  const hasCashFlowData = baseIncome > 0 || totalOutgoings > 0;
-  const outgoingRatio = baseIncome > 0 ? Math.min((totalOutgoings / baseIncome) * 100, 999) : 0;
 
   return (
     <div className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-800 sm:p-6">

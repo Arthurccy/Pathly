@@ -1,7 +1,8 @@
+import type { Transaction } from '../types';
 import React, { useEffect, useMemo, useState } from 'react';
 import { AlertCircle, CheckCircle2, CreditCard, Plus, Save, X } from 'lucide-react';
 import * as LucideIcons from 'lucide-react';
-import { useBudget } from '../contexts/BudgetContext';
+import { useBudget } from '../contexts/budgetState';
 
 const AddTransaction: React.FC = () => {
   const { accounts, categories, addTransaction, householdConfig, ratioA, ratioB } = useBudget();
@@ -10,7 +11,8 @@ const AddTransaction: React.FC = () => {
     description: '',
     accountId: '',
     categoryId: '',
-    type: 'expense' as 'expense' | 'income',
+    type: 'expense' as 'expense' | 'income' | 'transfer',
+    transferToAccountId: '',
     date: new Date().toISOString().split('T')[0],
     isRecurring: false,
     frequency: 'monthly' as 'daily' | 'weekly' | 'monthly' | 'quarterly' | 'yearly',
@@ -74,14 +76,29 @@ const AddTransaction: React.FC = () => {
       return;
     }
 
+    const amount = Number(formData.amount);
+    if (!Number.isFinite(amount) || amount <= 0) {
+      setNotice({ type: 'error', title: 'Montant invalide', message: 'Saisissez un montant positif.' });
+      return;
+    }
+    if (formData.type === 'transfer') {
+      const source = activeAccounts.find(account => account.id === formData.accountId);
+      const destination = activeAccounts.find(account => account.id === formData.transferToAccountId);
+      if (!source || !destination || source.id === destination.id || source.currency !== destination.currency) {
+        setNotice({ type: 'error', title: 'Virement invalide', message: 'Choisissez deux comptes actifs distincts dans la même devise.' });
+        return;
+      }
+    }
+
     try {
       setIsSubmitting(true);
 
-      const transactionPayload: any = {
+      const transactionPayload: Omit<Transaction, 'id' | 'userId'> = {
         accountId: formData.accountId,
-        amount: parseFloat(formData.amount),
+        amount,
         description: formData.description,
         categoryId: formData.categoryId,
+        transferToAccountId: formData.type === 'transfer' ? formData.transferToAccountId : undefined,
         type: formData.type,
         date: new Date(formData.isRecurring ? formData.nextDate : formData.date),
         status: formData.isRecurring || formData.date > new Date().toISOString().split('T')[0]
@@ -112,6 +129,7 @@ const AddTransaction: React.FC = () => {
         accountId: prev.accountId,
         categoryId: '',
         type: 'expense',
+        transferToAccountId: '',
         date: new Date().toISOString().split('T')[0],
         isRecurring: false,
         frequency: 'monthly',
@@ -295,7 +313,7 @@ const AddTransaction: React.FC = () => {
               </label>
               <div className="grid grid-cols-3 gap-2 sm:grid-cols-4 lg:grid-cols-5 max-h-56 overflow-y-auto pr-1">
                 {availableCategories.map((category) => {
-                  const IconComponent = (LucideIcons as any)[category.icon] || LucideIcons.DollarSign;
+                  const IconComponent = LucideIcons.icons[category.icon as keyof typeof LucideIcons.icons] || LucideIcons.DollarSign;
                   return (
                     <button
                       key={category.id}
@@ -440,7 +458,7 @@ const AddTransaction: React.FC = () => {
                   <select
                     id="frequency"
                     value={formData.frequency}
-                    onChange={(e) => setFormData({ ...formData, frequency: e.target.value as any })}
+                    onChange={(e) => setFormData({ ...formData, frequency: e.target.value as typeof formData.frequency })}
                     className="w-full px-4 py-3 border border-slate-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-slate-700 dark:text-white"
                     required
                   >

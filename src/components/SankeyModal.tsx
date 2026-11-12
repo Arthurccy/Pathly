@@ -1,8 +1,8 @@
 import React, { useMemo, useEffect, useState, useCallback } from 'react';
 import { createPortal } from 'react-dom';
-import { X, Sparkles, TrendingDown, TrendingUp, Calendar, Wallet, CheckCircle, ChevronRight, Info } from 'lucide-react';
+import { X, Sparkles, TrendingDown, TrendingUp } from 'lucide-react';
 import { Sankey, ResponsiveContainer } from 'recharts';
-import { CashFlow, Category, Transaction, BankAccount } from '../types';
+import { CashFlow, Category, BankAccount } from '../types';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 
@@ -240,7 +240,7 @@ const SankeyModal: React.FC<SankeyModalProps> = ({ isOpen, onClose, cashFlow, ca
     return hover.key === `${source}>${target}`;
   };
 
-  const renderLink = (props: any) => {
+  const renderLink = (props: {sourceX: number; targetX: number; sourceY: number; targetY: number; sourceControlX: number; targetControlX: number; linkWidth: number; index: number; payload: {source: {name: string}; target: {name: string}; value: number}}) => {
     const { sourceX, targetX, sourceY, targetY, sourceControlX, targetControlX, linkWidth, index, payload } = props;
     const sName: string = payload.source.name;
     const tName: string = payload.target.name;
@@ -280,7 +280,7 @@ const SankeyModal: React.FC<SankeyModalProps> = ({ isOpen, onClose, cashFlow, ca
     setSelectedNodeDetails(node);
   };
 
-  const renderNode = (props: any) => {
+  const renderNode = (props: {x: number; y: number; width: number; height: number; index: number}) => {
     const { x, y, width, height, index } = props;
     const node = data?.nodes[index];
     if (!node) return <g />;
@@ -445,8 +445,8 @@ const SankeyModal: React.FC<SankeyModalProps> = ({ isOpen, onClose, cashFlow, ca
                 nodeWidth={10}
                 nodePadding={isNarrow ? 22 : 28}
                 margin={margin}
-                link={renderLink as any}
-                node={renderNode as any}
+                link={renderLink}
+                node={renderNode}
               />
             </ResponsiveContainer>
           ) : (

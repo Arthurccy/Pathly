@@ -3,13 +3,11 @@ import {
   Calendar as CalendarIcon, 
   ChevronLeft, 
   ChevronRight, 
-  Plus,
   Clock,
   CheckCircle,
   AlertCircle,
   DollarSign
 } from 'lucide-react';
-import * as LucideIcons from 'lucide-react';
 import { 
   format, 
   startOfMonth, 
@@ -25,13 +23,11 @@ import {
   addDays,
   subMonths,
   isToday,
-  isPast,
-  isFuture,
   startOfDay
 } from 'date-fns';
 import { fr } from 'date-fns/locale';
-import { useBudget } from '../contexts/BudgetContext';
-import { useAuth } from '../contexts/AuthContext';
+import { useBudget } from '../contexts/budgetState';
+import { useAuth } from '../contexts/authState';
 import { getCustomMonthPeriod } from '../utils/dateUtils';
 import { CalendarEvent, Transaction } from '../types';
 
@@ -40,7 +36,6 @@ const BudgetCalendar: React.FC = () => {
     transactions, 
     categories, 
     accounts, 
-    savingsGoals, 
     debts, 
     selectedAccountIds,
     getCalendarEvents 

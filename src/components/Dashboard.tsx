@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useState } from 'react';
 import { endOfYear, format, startOfYear, subYears } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import {
@@ -19,8 +19,8 @@ import {
   Upload,
   Wallet,
 } from 'lucide-react';
-import { useBudget } from '../contexts/BudgetContext';
-import { useAuth } from '../contexts/AuthContext';
+import { useBudget } from '../contexts/budgetState';
+import { useAuth } from '../contexts/authState';
 import { getCustomMonthPeriod, getPreviousCustomMonthPeriod } from '../utils/dateUtils';
 import { Transaction } from '../types';
 import ExpenseChart from './ExpenseChart';
@@ -45,7 +45,6 @@ const money = (value: number, digits = 2) =>
     maximumFractionDigits: digits,
   }).format(value);
 
-const compactMoney = (value: number) => money(value, 0);
 
 const getImpact = (transaction: Transaction) => {
   if (transaction.type === 'income' || transaction.type === 'refund' || transaction.type === 'savings_withdrawal') {
@@ -163,8 +162,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onViewChange }) => {
   const projectedBudgetReserve = projection?.budgetReserve ?? 0;
 
 
-  const upcomingTransactions = useMemo(
-    () => transactions
+  const upcomingTransactions = transactions
       .filter(transaction =>
         !transaction.isRecurring &&
         (transaction.status === 'scheduled' || transaction.status === 'pending') &&
@@ -172,9 +170,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onViewChange }) => {
         transaction.date <= currentMonthPeriod.end &&
         isReportableTransaction(transaction)
       )
-      .sort((a, b) => a.date.getTime() - b.date.getTime()),
-    [transactions, currentMonthPeriod.end, selectedAccountIds.join('|'), categories.length]
-  );
+      .sort((a, b) => a.date.getTime() - b.date.getTime());
   const upcomingIncome = upcomingTransactions
     .filter(transaction => getImpact(transaction) > 0)
     .reduce((sum, transaction) => sum + getImpact(transaction), 0);

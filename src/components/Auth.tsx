@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { ArrowLeft, AlertCircle, CheckCircle, Eye, EyeOff, Lock, Mail, User } from 'lucide-react';
 import { supabase } from '../lib/supabase';
-import { useAuth } from '../contexts/AuthContext';
+import { useAuth } from '../contexts/authState';
 
 interface AuthProps {
   initialMode?: 'login' | 'register';
@@ -77,13 +77,13 @@ const Auth: React.FC<AuthProps> = ({ initialMode = 'login', onBack }) => {
       } else {
         setError("Erreur lors de la creation du compte. Verifiez que l'email n'est pas deja utilise.");
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Auth error:', err);
-      if (err.message?.includes('confirmer votre email')) {
+      if ((err instanceof Error ? (err instanceof Error ? err.message : String(err)) : String(err))?.includes('confirmer votre email')) {
         setPendingVerificationEmail(formData.email);
         setResendSent(false);
       }
-      setError(err.message || "Une erreur s'est produite. Veuillez reessayer.");
+      setError((err instanceof Error ? (err instanceof Error ? err.message : String(err)) : String(err)) || "Une erreur s'est produite. Veuillez reessayer.");
     } finally { setIsSubmitting(false); }
   };
 

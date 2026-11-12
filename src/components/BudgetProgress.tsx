@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import { addDays, addMonths, addWeeks, addYears, format, startOfDay, startOfYear, endOfYear } from 'date-fns';
 import { fr } from 'date-fns/locale';
-import { useBudget } from '../contexts/BudgetContext';
-import { useAuth } from '../contexts/AuthContext';
+import { useBudget } from '../contexts/budgetState';
+import { useAuth } from '../contexts/authState';
 import { getCustomMonthPeriod } from '../utils/dateUtils';
 import { Transaction } from '../types';
 
@@ -378,28 +378,12 @@ const BudgetProgress: React.FC<BudgetProgressProps> = ({ viewMode = 'monthly' })
   const totalBudgeted = budgetProgress.reduce((sum, item) => sum + item.budgeted, 0);
   const totalPlanned = budgetProgress.reduce((sum, item) => sum + item.planned, 0);
   const totalCommitted = budgetProgress.reduce((sum, item) => sum + item.committed, 0);
-  const totalUnplannedSpent = budgetProgress
-    .filter(item => item.isUnplanned)
-    .reduce((sum, item) => sum + item.committed, 0);
   const remainingBudgets = budgetProgress.reduce(
     (sum, item) => sum + Math.max(item.budgeted - item.committed, 0),
     0
   );
-  const finalProjectedAfterBudgets = projectedCurrentBalance;
-  const totalOverBudgetAmount = budgetProgress
-    .filter(item => !item.isUnplanned)
-    .reduce((sum, item) => sum + Math.max(item.committed - item.budgeted, 0), 0);
   const totalBudgetGap = totalCommitted - totalBudgeted;
-  const pressureToCover = totalOverBudgetAmount + totalUnplannedSpent;
-  const uncoveredAfterReallocation = Math.max(pressureToCover - remainingBudgets, 0);
   const budgetPlanIsOver = totalBudgetGap > 0;
-  const budgetActionMessage = budgetPlanIsOver
-    ? projectedCurrentBalance >= 0
-      ? `Ton plan de budget dépasse de ${totalBudgetGap.toFixed(2)} €. Le reste estimé fin du mois tient déjà compte des budgets restants. Tu peux réallouer ${Math.min(remainingBudgets, pressureToCover).toFixed(2)} €, augmenter certains budgets, ou garder une partie pour l'épargne.`
-      : `Ton plan de budget dépasse de ${totalBudgetGap.toFixed(2)} € et le solde prévu passe négatif. Il faut réduire ou décaler au moins ${Math.abs(projectedCurrentBalance).toFixed(2)} € de sorties.`
-    : projectedCurrentBalance > 0
-      ? `Ton plan tient avec ${Math.abs(totalBudgetGap).toFixed(2)} € de marge budgétaire. Le reste estimé fin du mois tient déjà compte des budgets restants.`
-      : `Tes budgets tiennent sur le papier, mais le solde prévu est négatif. Le blocage vient plutôt de la trésorerie disponible que des budgets.`;
   const selectedBudgetCategory = selectedCategoryId
     ? categories.find(category => category.id === selectedCategoryId)
     : null;
@@ -425,6 +409,7 @@ const BudgetProgress: React.FC<BudgetProgressProps> = ({ viewMode = 'monthly' })
           projectedDebtExpenses
             .filter(d => d.categoryId === selectedCategoryId)
             .map(d => ({
+              userId: '',
               id: `projected-debt-${d.debtName}-${d.date.getTime()}`,
               description: `Dette: ${d.debtName}`,
               amount: d.amount,

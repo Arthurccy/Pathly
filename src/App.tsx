@@ -3,34 +3,35 @@
  * Ce code source est la propriété exclusive de son auteur.
  * Toute reproduction, modification, distribution ou utilisation non autorisée est strictement interdite.
  */
-import React, { useState } from 'react';
-import { AuthProvider, useAuth } from './contexts/AuthContext';
+import React, { useState, lazy, Suspense } from 'react';
+import { AuthProvider } from './contexts/AuthContext';
+import { useAuth } from './contexts/authState';
 import { BudgetProvider } from './contexts/BudgetContext';
 import Layout from './components/Layout';
 import Auth from './components/Auth';
 import LandingPage from './components/LandingPage';
-import Dashboard from './components/Dashboard';
-import AddTransaction from './components/AddTransaction';
-import RecentTransactions from './components/RecentTransactions';
-import RecurringTransactions from './components/RecurringTransactions';
-import BudgetCalendar from './components/BudgetCalendar';
-import CategoryManager from './components/CategoryManager';
-import AccountManager from './components/AccountManager';
-import DebtManager from './components/DebtManager';
-import WealthSimulator from './components/WealthSimulator';
-import BudgetSimulator from './components/BudgetSimulator';
-import AdvancedAnalytics from './components/AdvancedAnalytics';
-import AdvancedSavingsGoals from './components/AdvancedSavingsGoals';
-import ExportManager from './components/ExportManager';
-import UserSettings from './components/UserSettings';
-import HelpCenter from './components/HelpCenter';
-import ImportCSV from './components/ImportCSV';
-import RulesManager from './components/RulesManager';
+const Dashboard = lazy(() => import('./components/Dashboard'));
+const AddTransaction = lazy(() => import('./components/AddTransaction'));
+const RecentTransactions = lazy(() => import('./components/RecentTransactions'));
+const RecurringTransactions = lazy(() => import('./components/RecurringTransactions'));
+const BudgetCalendar = lazy(() => import('./components/BudgetCalendar'));
+const CategoryManager = lazy(() => import('./components/CategoryManager'));
+const AccountManager = lazy(() => import('./components/AccountManager'));
+const DebtManager = lazy(() => import('./components/DebtManager'));
+const WealthSimulator = lazy(() => import('./components/WealthSimulator'));
+const BudgetSimulator = lazy(() => import('./components/BudgetSimulator'));
+const AdvancedAnalytics = lazy(() => import('./components/AdvancedAnalytics'));
+const AdvancedSavingsGoals = lazy(() => import('./components/AdvancedSavingsGoals'));
+const ExportManager = lazy(() => import('./components/ExportManager'));
+const UserSettings = lazy(() => import('./components/UserSettings'));
+const HelpCenter = lazy(() => import('./components/HelpCenter'));
+const ImportCSV = lazy(() => import('./components/ImportCSV'));
+const RulesManager = lazy(() => import('./components/RulesManager'));
 import OnboardingTour from './components/OnboardingTour';
-import HouseholdManager from './components/HouseholdManager';
-import AssetManager from './components/AssetManager';
-import RealEstatePlanner from './components/RealEstatePlanner';
-import { InvestmentPortfolio } from './components/InvestmentPortfolio';
+const HouseholdManager = lazy(() => import('./components/HouseholdManager'));
+const AssetManager = lazy(() => import('./components/AssetManager'));
+const RealEstatePlanner = lazy(() => import('./components/RealEstatePlanner'));
+const InvestmentPortfolio = lazy(() => import('./components/InvestmentPortfolio').then(module => ({ default: module.InvestmentPortfolio })));
 import { getCustomMonthPeriod } from './utils/dateUtils';
 
 const AppContent: React.FC = () => {
@@ -132,18 +133,21 @@ const AppContent: React.FC = () => {
 
   return (
     <Layout currentView={currentView} onViewChange={setCurrentView}>
-      {renderContent()}
+      <Suspense fallback={<p role="status" className="p-6">Chargement…</p>}>{renderContent()}</Suspense>
       <OnboardingTour onViewChange={setCurrentView} />
     </Layout>
   );
 };
 
+function UserBudget() {
+  const { user } = useAuth();
+  return <BudgetProvider key={user?.id || "signed-out"}><AppContent /></BudgetProvider>;
+}
+
 function App() {
   return (
     <AuthProvider>
-      <BudgetProvider>
-        <AppContent />
-      </BudgetProvider>
+      <UserBudget />
     </AuthProvider>
   );
 }

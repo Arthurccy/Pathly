@@ -2,7 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { addMonths, endOfMonth, format, startOfDay } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import * as LucideIcons from 'lucide-react';
-import { useBudget } from '../contexts/BudgetContext';
+import { useBudget } from '../contexts/budgetState';
 import type { Transaction, Debt } from '../types';
 
 const toDateInputValue = (date: Date) => date.toISOString().split('T')[0];
@@ -21,11 +21,6 @@ const getTransactionDisplayImpact = (transaction: Transaction) => {
   return -transaction.amount;
 };
 
-const isRentTransaction = (transaction: Transaction, categoryName?: string) => {
-  const description = transaction.description?.toLowerCase() || '';
-  const category = categoryName?.toLowerCase() || '';
-  return description.includes('loyer') || category.includes('loyer');
-};
 
 const buildProjectedDebtTransactions = (
   debts: Debt[],
@@ -281,7 +276,9 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({
     try {
       setIsSaving(true);
       if (transaction.id.includes('-projected-') || transaction.id.startsWith('projected-')) {
-        const { id, userId, ...transactionData } = transaction as any;
+        const transactionData = { ...transaction };
+        Reflect.deleteProperty(transactionData, 'id');
+        Reflect.deleteProperty(transactionData, 'userId');
         await addTransaction({
           ...transactionData,
           status: 'completed',
@@ -302,11 +299,10 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({
   const renderTransaction = (transaction: Transaction) => {
     const category = categories.find(c => c.id === transaction.categoryId);
     const account = accounts.find(a => a.id === transaction.accountId);
-    const IconComponent = category ? (LucideIcons as any)[category.icon] : LucideIcons.DollarSign;
+    const IconComponent = category ? LucideIcons.icons[category.icon as keyof typeof LucideIcons.icons] : LucideIcons.DollarSign;
     const displayImpact = getTransactionDisplayImpact(transaction);
     const isProjectedRecurring = transaction.id.includes('-projected-');
     const isDebtPayment = transaction.id.startsWith('debt-');
-    const isRent = isRentTransaction(transaction, category?.name);
     const canMarkCompleted = transaction.status !== 'completed' && !isDebtPayment;
 
     return (

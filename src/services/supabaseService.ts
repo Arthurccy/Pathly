@@ -1,4 +1,4 @@
-import { supabase } from '../lib/supabase';
+import { supabase, type Database } from '../lib/supabase';
 import { 
   Transaction, 
   Category, 
@@ -9,14 +9,23 @@ import {
   DebtPayment 
 } from '../types';
 
+type StoredValue<T> = T extends Date ? string : T extends (infer U)[] ? StoredValue<U>[] : T extends object ? { [K in keyof T]: StoredValue<T[K]> } : T;
+type Row<T extends keyof Database['public']['Tables']> = { [K in keyof Database['public']['Tables'][T]['Row']]: Exclude<Database['public']['Tables'][T]['Row'][K], null> };
+type AccountRow = Omit<Row<'accounts'>, 'type'> & { type: BankAccount['type'] };
+type CategoryRow = Omit<Row<'categories'>, 'type'> & { type: Category['type']; exclude_from_reports?: boolean };
+type TransactionRow = Omit<Row<'transactions'>, 'type' | 'status' | 'recurring_pattern'> & { type: Transaction['type']; status: Transaction['status']; recurring_pattern?: StoredValue<Transaction['recurringPattern']> };
+type GoalRow = Omit<Row<'savings_goals'>, 'priority' | 'auto_contribution'> & { priority: SavingsGoal['priority']; auto_contribution?: SavingsGoal['autoContribution'] };
+type DebtRow = Omit<Row<'debts'>, 'type'> & { type: Debt['type']; end_date?: string };
+type BudgetRow = Omit<Row<'budgets'>, 'period'> & { period: Budget['period'] };
+
 // Helper function to convert database row to app format
 const convertDatabaseToApp = {
-  account: (row: any): BankAccount => {
+  account: (row: AccountRow): BankAccount => {
     let subType: string | undefined = undefined;
     let totalDeposits: number | undefined = undefined;
     let openingDate: string | undefined = undefined;
     let cashBalance: number | undefined = undefined;
-    let cleanDesc = row.description;
+    let cleanDesc: string | undefined = row.description;
 
     if (row.description && typeof row.description === 'string' && row.description.includes('__META__:')) {
       try {
@@ -27,7 +36,7 @@ const convertDatabaseToApp = {
         totalDeposits = meta.totalDeposits !== undefined ? Number(meta.totalDeposits) : undefined;
         openingDate = meta.openingDate;
         cashBalance = meta.cashBalance !== undefined ? Number(meta.cashBalance) : undefined;
-      } catch {}
+      } catch { /* Malformed optional metadata or dates are ignored. */ }
     }
 
     const nameLower = (row.name || '').toLowerCase();
@@ -42,7 +51,7 @@ const convertDatabaseToApp = {
       userId: row.user_id,
       name: row.name,
       type: row.type,
-      balance: parseFloat(row.balance),
+      balance: Number(row.balance),
       currency: row.currency,
       color: row.color,
       isActive: row.is_active,
@@ -56,7 +65,7 @@ const convertDatabaseToApp = {
     };
   },
 
-  category: (row: any): Category => ({
+  category: (row: CategoryRow): Category => ({
     id: row.id,
     userId: row.user_id,
     name: row.name,
@@ -66,16 +75,16 @@ const convertDatabaseToApp = {
     parentId: row.parent_id,
     order: row.order_index,
     isActive: row.is_active,
-    budget: row.budget ? parseFloat(row.budget) : undefined,
+    budget: row.budget ? Number(row.budget) : undefined,
     description: row.description,
     excludeFromReports: row.exclude_from_reports || false,
   }),
 
-  transaction: (row: any): Transaction => ({
+  transaction: (row: TransactionRow): Transaction => ({
     id: row.id,
     userId: row.user_id,
     accountId: row.account_id,
-    amount: parseFloat(row.amount),
+    amount: Number(row.amount),
     description: row.description,
     date: new Date(row.date),
     categoryId: row.category_id,
@@ -96,13 +105,13 @@ const convertDatabaseToApp = {
     isHouseholdContribution: Boolean(row.tags?.includes('foyer_contribution')),
   }),
 
-  savingsGoal: (row: any): SavingsGoal => ({
+  savingsGoal: (row: GoalRow): SavingsGoal => ({
     id: row.id,
     userId: row.user_id,
     title: row.title,
     description: row.description,
-    targetAmount: parseFloat(row.target_amount),
-    currentAmount: parseFloat(row.current_amount),
+    targetAmount: Number(row.target_amount),
+    currentAmount: Number(row.current_amount),
     deadline: row.deadline ? new Date(row.deadline) : undefined,
     categoryId: row.category_id,
     accountId: row.account_id,
@@ -113,14 +122,14 @@ const convertDatabaseToApp = {
     autoContribution: row.auto_contribution,
   }),
 
-  debt: (row: any): Debt => ({
+  debt: (row: DebtRow): Debt => ({
     id: row.id,
     userId: row.user_id,
     name: row.name,
-    totalAmount: parseFloat(row.total_amount),
-    remainingAmount: parseFloat(row.remaining_amount),
-    interestRate: parseFloat(row.interest_rate),
-    minimumPayment: parseFloat(row.minimum_payment),
+    totalAmount: Number(row.total_amount),
+    remainingAmount: Number(row.remaining_amount),
+    interestRate: Number(row.interest_rate),
+    minimumPayment: Number(row.minimum_payment),
     dueDate: new Date(row.due_date),
     accountId: row.account_id,
     categoryId: row.category_id,
@@ -132,22 +141,22 @@ const convertDatabaseToApp = {
     endDate: row.end_date ? new Date(row.end_date) : undefined,
   }),
 
-  debtPayment: (row: any): DebtPayment => ({
+  debtPayment: (row: Row<'debt_payments'>): DebtPayment => ({
     id: row.id,
     debtId: row.debt_id,
-    amount: parseFloat(row.amount),
+    amount: Number(row.amount),
     date: new Date(row.date),
-    principal: parseFloat(row.principal),
-    interest: parseFloat(row.interest),
+    principal: Number(row.principal),
+    interest: Number(row.interest),
     transactionId: row.transaction_id,
     paymentMethod: row.payment_method,
   }),
 
-  budget: (row: any): Budget => ({
+  budget: (row: BudgetRow): Budget => ({
     id: row.id,
     userId: row.user_id,
     categoryId: row.category_id,
-    amount: parseFloat(row.amount),
+    amount: Number(row.amount),
     period: row.period,
     startDate: new Date(row.start_date),
     endDate: row.end_date ? new Date(row.end_date) : undefined,
@@ -158,31 +167,31 @@ const convertDatabaseToApp = {
 };
 
 // Helper functions to safely format dates
-const formatDateOnly = (d: any): string | undefined => {
+const formatDateOnly = (d: Date | string | number | undefined): string | undefined => {
   if (!d) return undefined;
   if (typeof d === 'string') return d.split('T')[0];
   if (d instanceof Date && !isNaN(d.getTime())) return d.toISOString().split('T')[0];
   try {
     const parsed = new Date(d);
     if (!isNaN(parsed.getTime())) return parsed.toISOString().split('T')[0];
-  } catch {}
+  } catch { /* Malformed optional metadata or dates are ignored. */ }
   return undefined;
 };
 
-const formatIsoDateTime = (d: any): string | undefined => {
+const formatIsoDateTime = (d: Date | string | number | undefined): string | undefined => {
   if (!d) return undefined;
   if (typeof d === 'string') return d;
   if (d instanceof Date && !isNaN(d.getTime())) return d.toISOString();
   try {
     const parsed = new Date(d);
     if (!isNaN(parsed.getTime())) return parsed.toISOString();
-  } catch {}
+  } catch { /* Malformed optional metadata or dates are ignored. */ }
   return undefined;
 };
 
 // Helper function to convert app format to database format
 const convertAppToDatabase = {
-  account: (account: Omit<BankAccount, 'id'> | Partial<BankAccount>): any => {
+  account: (account: Omit<BankAccount, 'id'> | Partial<BankAccount>) => {
     let desc = account.description;
     const hasMeta = account.subType !== undefined || account.totalDeposits !== undefined || account.openingDate !== undefined || account.cashBalance !== undefined;
     if (hasMeta) {
@@ -210,7 +219,7 @@ const convertAppToDatabase = {
     };
   },
 
-  category: (category: Omit<Category, 'id'> | Partial<Category>): any => ({
+  category: (category: Omit<Category, 'id'> | Partial<Category>) => ({
     user_id: category.userId,
     name: category.name,
     icon: category.icon,
@@ -224,7 +233,7 @@ const convertAppToDatabase = {
     exclude_from_reports: category.excludeFromReports,
   }),
 
-  transaction: (transaction: Omit<Transaction, 'id'> | Partial<Transaction>): any => ({
+  transaction: (transaction: Omit<Transaction, 'id'> | Partial<Transaction>) => ({
     user_id: transaction.userId,
     account_id: transaction.accountId,
     amount: transaction.amount,
@@ -253,7 +262,7 @@ const convertAppToDatabase = {
     is_checked: transaction.isChecked,
   }),
 
-  savingsGoal: (goal: Omit<SavingsGoal, 'id' | 'createdAt'> | Partial<SavingsGoal>): any => ({
+  savingsGoal: (goal: Omit<SavingsGoal, 'id' | 'createdAt'> | Partial<SavingsGoal>) => ({
     user_id: goal.userId,
     title: goal.title,
     description: goal.description,
@@ -268,7 +277,7 @@ const convertAppToDatabase = {
     auto_contribution: goal.autoContribution,
   }),
 
-  debt: (debt: Omit<Debt, 'id'> | Partial<Debt>): any => ({
+  debt: (debt: Omit<Debt, 'id'> | Partial<Debt>) => ({
     user_id: debt.userId,
     name: debt.name,
     total_amount: debt.totalAmount,
@@ -286,7 +295,7 @@ const convertAppToDatabase = {
     end_date: formatDateOnly(debt.endDate),
   }),
 
-  debtPayment: (payment: Omit<DebtPayment, 'id'>): any => ({
+  debtPayment: (payment: Omit<DebtPayment, 'id'>) => ({
     debt_id: payment.debtId,
     amount: payment.amount,
     date: formatDateOnly(payment.date) || new Date().toISOString().split('T')[0],
@@ -296,7 +305,7 @@ const convertAppToDatabase = {
     payment_method: payment.paymentMethod,
   }),
 
-  budget: (budget: Omit<Budget, 'id'> | Partial<Budget>): any => ({
+  budget: (budget: Omit<Budget, 'id'> | Partial<Budget>) => ({
     user_id: budget.userId,
     category_id: budget.categoryId,
     amount: budget.amount,
@@ -336,7 +345,7 @@ export const supabaseService = {
 
   async updateAccount(id: string, updates: Partial<BankAccount>): Promise<BankAccount> {
     const cleanedUpdates = Object.fromEntries(
-      Object.entries(convertAppToDatabase.account(updates)).filter(([_, v]) => v !== undefined)
+      Object.entries(convertAppToDatabase.account(updates)).filter(([, v]) => v !== undefined)
     );
 
     const { data, error } = await supabase
@@ -368,7 +377,7 @@ export const supabaseService = {
       .order('snapshot_date');
 
     if (error) throw error;
-    return (data || []).map((row: any) => ({
+    return (data || []).map((row: { account_id: string; snapshot_date: string; balance: number | string }) => ({
       accountId: row.account_id,
       date: row.snapshot_date,
       balance: Number(row.balance),
@@ -421,7 +430,7 @@ export const supabaseService = {
 
   async updateCategory(id: string, updates: Partial<Category>): Promise<Category> {
     const cleanedUpdates = Object.fromEntries(
-      Object.entries(convertAppToDatabase.category(updates)).filter(([_, v]) => v !== undefined)
+      Object.entries(convertAppToDatabase.category(updates)).filter(([, v]) => v !== undefined)
     );
 
     const { data, error } = await supabase
@@ -469,7 +478,7 @@ export const supabaseService = {
 
   async updateTransaction(id: string, updates: Partial<Transaction>): Promise<Transaction> {
     const cleanedUpdates = Object.fromEntries(
-      Object.entries(convertAppToDatabase.transaction(updates)).filter(([_, v]) => v !== undefined)
+      Object.entries(convertAppToDatabase.transaction(updates)).filter(([, v]) => v !== undefined)
     );
     if (!Object.prototype.hasOwnProperty.call(updates, 'recurringPattern')) {
       delete cleanedUpdates.recurring_pattern;
@@ -520,7 +529,7 @@ export const supabaseService = {
 
   async updateSavingsGoal(id: string, updates: Partial<SavingsGoal>): Promise<SavingsGoal> {
     const cleanedUpdates = Object.fromEntries(
-      Object.entries(convertAppToDatabase.savingsGoal(updates)).filter(([_, v]) => v !== undefined)
+      Object.entries(convertAppToDatabase.savingsGoal(updates)).filter(([, v]) => v !== undefined)
     );
 
     const { data, error } = await supabase
@@ -568,7 +577,7 @@ export const supabaseService = {
 
   async updateDebt(id: string, updates: Partial<Debt>): Promise<Debt> {
     const cleanedUpdates = Object.fromEntries(
-      Object.entries(convertAppToDatabase.debt(updates)).filter(([_, v]) => v !== undefined)
+      Object.entries(convertAppToDatabase.debt(updates)).filter(([, v]) => v !== undefined)
     );
 
     const { data, error } = await supabase
@@ -638,7 +647,7 @@ export const supabaseService = {
 
   async updateBudget(id: string, updates: Partial<Budget>): Promise<Budget> {
     const cleanedUpdates = Object.fromEntries(
-      Object.entries(convertAppToDatabase.budget(updates)).filter(([_, v]) => v !== undefined)
+      Object.entries(convertAppToDatabase.budget(updates)).filter(([, v]) => v !== undefined)
     );
 
     const { data, error } = await supabase
@@ -662,10 +671,10 @@ export const supabaseService = {
   },
 
   // Migration helper
-  async migrateFromIndexedDB(userId: string, data: any): Promise<void> {
+  async migrateFromIndexedDB(userId: string, data: { categories?: Category[]; accounts?: BankAccount[]; transactions?: Transaction[]; savingsGoals?: SavingsGoal[]; debts?: Debt[]; debtPayments?: DebtPayment[]; budgets?: Budget[] }): Promise<void> {
     try {
       // Migrate categories first (they're referenced by transactions)
-      if (data.categories?.length > 0) {
+      if (data.categories && data.categories.length > 0) {
         for (const category of data.categories) {
           await this.createCategory({
             ...category,
@@ -675,7 +684,7 @@ export const supabaseService = {
       }
 
       // Migrate accounts
-      if (data.accounts?.length > 0) {
+      if (data.accounts && data.accounts.length > 0) {
         for (const account of data.accounts) {
           await this.createAccount({
             ...account,
@@ -685,7 +694,7 @@ export const supabaseService = {
       }
 
       // Migrate transactions
-      if (data.transactions?.length > 0) {
+      if (data.transactions && data.transactions.length > 0) {
         for (const transaction of data.transactions) {
           await this.createTransaction({
             ...transaction,
@@ -695,7 +704,7 @@ export const supabaseService = {
       }
 
       // Migrate savings goals
-      if (data.savingsGoals?.length > 0) {
+      if (data.savingsGoals && data.savingsGoals.length > 0) {
         for (const goal of data.savingsGoals) {
           await this.createSavingsGoal({
             ...goal,
@@ -705,7 +714,7 @@ export const supabaseService = {
       }
 
       // Migrate debts
-      if (data.debts?.length > 0) {
+      if (data.debts && data.debts.length > 0) {
         for (const debt of data.debts) {
           await this.createDebt({
             ...debt,
@@ -715,14 +724,14 @@ export const supabaseService = {
       }
 
       // Migrate debt payments
-      if (data.debtPayments?.length > 0) {
+      if (data.debtPayments && data.debtPayments.length > 0) {
         for (const payment of data.debtPayments) {
           await this.createDebtPayment(payment);
         }
       }
 
       // Migrate budgets
-      if (data.budgets?.length > 0) {
+      if (data.budgets && data.budgets.length > 0) {
         for (const budget of data.budgets) {
           await this.createBudget({
             ...budget,

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { LogOut, Loader2, Moon, Settings, Sun, User } from 'lucide-react';
-import { useAuth } from '../contexts/AuthContext';
+import { useAuth } from '../contexts/authState';
 import { useTheme } from '../hooks/useTheme';
 
 interface HeaderProps {

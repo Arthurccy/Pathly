@@ -1,6 +1,7 @@
+import type { PhysicalAsset, Debt } from '../types';
 import React, { useState, useMemo } from 'react';
-import { Target, TrendingUp, AlertTriangle, Gauge, CheckCircle2, ChevronRight, Calculator, Plus, Minus, Euro, Info, Trash2, CalendarClock } from 'lucide-react';
-import { useBudget } from '../contexts/BudgetContext';
+import { Target, AlertTriangle, Gauge, CheckCircle2, Calculator, Plus, Euro, Info, Trash2, CalendarClock } from 'lucide-react';
+import { useBudget } from '../contexts/budgetState';
 import { SimulatedEvent } from '../types';
 import { getBudgetIncomeBaseline } from '../utils/budgetSimulation';
 
@@ -20,9 +21,6 @@ const BudgetSimulator: React.FC = () => {
   } = useBudget();
   
   // Calculate initial savings balance
-  const initialSavingsBalance = useMemo(() => {
-    return accounts?.filter(a => a.type === 'savings').reduce((sum, a) => sum + a.balance, 0) || 0;
-  }, [accounts]);
   
   const incomeBaseline = useMemo(() => getBudgetIncomeBaseline(
     transactions, accounts, categories, selectedAccountIds,
@@ -35,10 +33,10 @@ const BudgetSimulator: React.FC = () => {
     if (projections.length === 0) return { baselineFixed: 0, baselineDebts: 0, baselineSavings: 0, baselineBudgets: 0 };
     
     return {
-      baselineFixed: Math.round(projections.reduce((sum, p) => sum + p.baseExpenses, 0) / projections.length),
-      baselineDebts: Math.round(projections.reduce((sum, p) => sum + p.debtPayments, 0) / projections.length),
-      baselineSavings: Math.round(projections.reduce((sum, p) => sum + p.savings + p.transfersOut, 0) / projections.length),
-      baselineBudgets: Math.round(projections.reduce((sum, p) => sum + p.budgetReserve, 0) / projections.length)
+      baselineFixed: Math.round(projections.reduce((sum, p) => sum + (p.baseExpenses ?? 0), 0) / projections.length),
+      baselineDebts: Math.round(projections.reduce((sum, p) => sum + (p.debtPayments ?? 0), 0) / projections.length),
+      baselineSavings: Math.round(projections.reduce((sum, p) => sum + p.savings + (p.transfersOut ?? 0), 0) / projections.length),
+      baselineBudgets: Math.round(projections.reduce((sum, p) => sum + (p.budgetReserve ?? 0), 0) / projections.length)
     };
   }, [getCashFlowProjection]);
 
@@ -75,14 +73,14 @@ const BudgetSimulator: React.FC = () => {
   const getDebtsTooltip = () => debts.filter(d => d.isActive && d.remainingAmount > 0).map(d => `${d.name}: ${d.minimumPayment}€`).join('\n') || 'Aucune dette active';
   const getBudgetsTooltip = () => budgets.filter(b => b.isActive).map(b => `${categories.find(c => c.id === b.categoryId)?.name || 'Budget'}: ${b.amount}€`).join('\n') || 'Aucun budget actif';
   const getFixedTooltip = () => transactions.filter(t => t.isRecurring && (t.type === 'expense' || t.type === 'bill')).map(t => `${t.description}: ${t.amount}€`).join('\n') || 'Moyenne sur 6 mois';
-  const getSavingsTooltip = () => transactions.filter(t => t.isRecurring && t.type === 'transfer' && !t.isExcludedFromReports).map(t => `${t.description}: ${t.amount}€`).join('\n') || 'Moyenne sur 6 mois';
+  const getSavingsTooltip = () => transactions.filter(t => t.isRecurring && t.type === 'transfer').map(t => `${t.description}: ${t.amount}€`).join('\n') || 'Moyenne sur 6 mois';
 
   const totalExpenses = currentFixed + currentDebts + currentSavings + currentBudgets;
   const surplus = currentIncome - totalExpenses;
   const marginPercent = currentIncome > 0 ? (surplus / currentIncome) * 100 : 0;
   
   // Helper to detect if an asset is in the future (like planned house)
-  const isFutureAsset = (asset: any): boolean => {
+  const isFutureAsset = (asset: PhysicalAsset): boolean => {
     if (asset?.isPlanned) return true;
     if (!asset?.purchaseDate) return false;
     try {
@@ -96,7 +94,7 @@ const BudgetSimulator: React.FC = () => {
   };
 
   // Helper to detect if a debt starts in the future (like planned mortgage)
-  const isFutureDebt = (debt: any): boolean => {
+  const isFutureDebt = (debt: Debt): boolean => {
     if (!debt?.dueDate) return false;
     try {
       const dDate = new Date(debt.dueDate);
@@ -136,7 +134,7 @@ const BudgetSimulator: React.FC = () => {
 
   // Calculate true projections integrating realistic cash flows, future events & real estate equity
   const yearlyProjections = useMemo(() => {
-    const trueProjections: any[] = [];
+    const trueProjections = [];
     const now = new Date();
 
     let runningLiquid = initialLiquidCash;
@@ -271,7 +269,7 @@ const BudgetSimulator: React.FC = () => {
     }
 
     return trueProjections;
-  }, [accounts, assets, debts, realEstatePlans, activePlan, initialLiquidCash, initialCurrentAssetsNet, currentIncome, currentFixed, currentDebts, currentBudgets, currentSavings, events]);
+  }, [assets, activePlan, initialLiquidCash, initialCurrentAssetsNet, currentIncome, currentFixed, currentDebts, currentBudgets, currentSavings, events]);
 
   const getStatus = (balance: number) => {
     if (balance < 0) return { label: 'Déficit', Icon: AlertTriangle, color: 'text-red-600 dark:text-red-400', bg: 'bg-red-50 dark:bg-red-950/30' };
@@ -309,7 +307,7 @@ const BudgetSimulator: React.FC = () => {
             <div className="space-y-4">
               <div>
                 <label className="flex items-center gap-1.5 text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Revenus nets mensuels (€) <span title="Revenus encaissés uniquement, hors modèles récurrents et opérations futures"><Info className="h-4 w-4 text-gray-400 cursor-help" /></span>
+                  Revenus nets mensuels (€) <span aria-label="Revenus encaissés uniquement, hors modèles récurrents et opérations futures"><Info className="h-4 w-4 text-gray-400 cursor-help" /></span>
                 </label>
                 <div className="relative">
                   <input 
@@ -343,7 +341,7 @@ const BudgetSimulator: React.FC = () => {
 
               <div>
                 <label className="flex items-center gap-1.5 text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Charges fixes (Loyer, Assurances...) (€) <Info className="h-4 w-4 text-gray-400 cursor-help" title={getFixedTooltip()} />
+                  Charges fixes (Loyer, Assurances...) (€) <Info className="h-4 w-4 text-gray-400 cursor-help" aria-label={getFixedTooltip()} />
                 </label>
                 <div className="relative">
                   <input 
@@ -363,7 +361,7 @@ const BudgetSimulator: React.FC = () => {
 
               <div>
                 <label className="flex items-center gap-1.5 text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Remboursements de Dettes (€) <Info className="h-4 w-4 text-gray-400 cursor-help" title={getDebtsTooltip()} />
+                  Remboursements de Dettes (€) <Info className="h-4 w-4 text-gray-400 cursor-help" aria-label={getDebtsTooltip()} />
                 </label>
                 <div className="relative">
                   <input 
@@ -378,7 +376,7 @@ const BudgetSimulator: React.FC = () => {
 
               <div>
                 <label className="flex items-center gap-1.5 text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Budgets de vie (Courses, Loisirs...) (€) <Info className="h-4 w-4 text-gray-400 cursor-help" title={getBudgetsTooltip()} />
+                  Budgets de vie (Courses, Loisirs...) (€) <Info className="h-4 w-4 text-gray-400 cursor-help" aria-label={getBudgetsTooltip()} />
                 </label>
                 <div className="relative">
                   <input 
@@ -393,7 +391,7 @@ const BudgetSimulator: React.FC = () => {
               
               <div>
                 <label className="flex items-center gap-1.5 text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Épargne mensuelle (€) <Info className="h-4 w-4 text-gray-400 cursor-help" title={getSavingsTooltip()} />
+                  Épargne mensuelle (€) <Info className="h-4 w-4 text-gray-400 cursor-help" aria-label={getSavingsTooltip()} />
                 </label>
                 <div className="relative">
                   <input
@@ -449,7 +447,7 @@ const BudgetSimulator: React.FC = () => {
                     />
                     <select 
                       value={event.type}
-                      onChange={e => updateEvent(event.id, { type: e.target.value as any })}
+                      onChange={e => updateEvent(event.id, { type: e.target.value as SimulatedEvent["type"] })}
                       className="flex-1 px-2 py-1.5 border border-gray-300 dark:border-gray-600 rounded-md text-sm bg-white dark:bg-gray-700 dark:text-white"
                     >
                       <option value="income">Revenus</option>
@@ -516,11 +514,11 @@ const BudgetSimulator: React.FC = () => {
                 <span className="font-semibold text-red-600 dark:text-red-400">{totalExpenses.toLocaleString('fr-FR')} €</span>
               </div>
               <div className="w-full bg-gray-200 rounded-full h-2.5 dark:bg-gray-700 overflow-hidden flex">
-                <div className="bg-red-500 h-2.5" style={{ width: `${Math.min((currentFixed / currentIncome) * 100, 100)}%` }} title="Charges fixes"></div>
-                <div className="bg-orange-500 h-2.5" style={{ width: `${Math.min((currentDebts / currentIncome) * 100, 100)}%` }} title="Dettes"></div>
-                <div className="bg-amber-500 h-2.5" style={{ width: `${Math.min((currentBudgets / currentIncome) * 100, 100)}%` }} title="Budgets"></div>
-                <div className="bg-blue-500 h-2.5" style={{ width: `${Math.min((currentSavings / currentIncome) * 100, 100)}%` }} title="Epargne"></div>
-                <div className="bg-emerald-500 h-2.5" style={{ width: `${Math.max(marginPercent, 0)}%` }} title="Reste"></div>
+                <div className="bg-red-500 h-2.5" style={{ width: `${Math.min((currentFixed / currentIncome) * 100, 100)}%` }} aria-label="Charges fixes"></div>
+                <div className="bg-orange-500 h-2.5" style={{ width: `${Math.min((currentDebts / currentIncome) * 100, 100)}%` }} aria-label="Dettes"></div>
+                <div className="bg-amber-500 h-2.5" style={{ width: `${Math.min((currentBudgets / currentIncome) * 100, 100)}%` }} aria-label="Budgets"></div>
+                <div className="bg-blue-500 h-2.5" style={{ width: `${Math.min((currentSavings / currentIncome) * 100, 100)}%` }} aria-label="Epargne"></div>
+                <div className="bg-emerald-500 h-2.5" style={{ width: `${Math.max(marginPercent, 0)}%` }} aria-label="Reste"></div>
               </div>
               <div className="flex flex-wrap gap-2 text-xs text-gray-500 mt-2 justify-center">
                 <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-red-500"></span> Fixe</span>
@@ -545,7 +543,7 @@ const BudgetSimulator: React.FC = () => {
           <div className="mt-4 p-4 border border-gray-100 dark:border-gray-700 rounded-lg bg-gray-50 dark:bg-gray-800/50">
             <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-3">Prévision du Patrimoine (avec vos transactions planifiées)</h3>
               <div className="flex overflow-x-auto pb-4 pt-2 -mx-2 px-2 gap-3 snap-x snap-mandatory sm:grid sm:grid-cols-5 sm:overflow-visible sm:pb-0 sm:pt-0 sm:mx-0 sm:px-0 sm:snap-none hide-scrollbar">
-                {yearlyProjections.slice(0, 5).map((proj: any) => (
+                {yearlyProjections.slice(0, 5).map((proj) => (
                   <div key={proj.yearOffset} className="snap-center shrink-0 w-[140px] sm:w-auto bg-gradient-to-br from-white to-blue-50/50 dark:from-gray-800 dark:to-blue-900/20 p-4 rounded-xl border border-blue-100 dark:border-blue-800/50 shadow-sm hover:shadow-md transition-shadow flex flex-col items-center justify-center text-center relative overflow-hidden">
                     <div className="absolute top-0 right-0 w-16 h-16 bg-blue-500/5 dark:bg-blue-400/5 rounded-bl-full"></div>
                     <p className="text-xs font-semibold text-blue-800/70 dark:text-blue-300/70 uppercase tracking-wider mb-2">Dans {proj.yearOffset} an{proj.yearOffset > 1 ? 's' : ''}</p>
@@ -582,7 +580,7 @@ const BudgetSimulator: React.FC = () => {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
-                    {yearlyProjections.map((proj: any) => (
+                    {yearlyProjections.map((proj) => (
                       <tr key={proj.yearOffset} className="hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
                         <td className="px-4 py-3 font-medium text-gray-900 dark:text-gray-100">
                           {proj.date.getFullYear()} <span className="text-xs text-gray-400 font-normal ml-1">(+{proj.yearOffset} an{proj.yearOffset > 1 ? 's' : ''})</span>

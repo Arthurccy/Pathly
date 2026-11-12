@@ -33,7 +33,7 @@ export interface ImportJob {
   rowsImported: number;
   rowsSkipped: number;
   rowsDuplicates: number;
-  errorsJson?: any;
+  errorsJson?: unknown;
   status: 'processing' | 'completed' | 'failed';
   createdAt: Date;
 }

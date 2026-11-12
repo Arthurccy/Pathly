@@ -1,6 +1,6 @@
 import React from 'react';
 import { Calendar, Home, ListChecks, Plus, Wallet } from 'lucide-react';
-import { useAuth } from '../contexts/AuthContext';
+import { useAuth } from '../contexts/authState';
 import Header from './Header';
 import Sidebar from './Sidebar';
 

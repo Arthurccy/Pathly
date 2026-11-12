@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import { Target, Plus, Edit, Trash2, Calendar, TrendingUp, DollarSign, Clock, CheckCircle } from 'lucide-react';
-import { format, differenceInDays, addMonths } from 'date-fns';
+import { format, differenceInDays } from 'date-fns';
 import { fr } from 'date-fns/locale';
-import { useBudget } from '../contexts/BudgetContext';
+import { useBudget } from '../contexts/budgetState';
 import { SavingsGoal } from '../types';
 
 const AdvancedSavingsGoals: React.FC = () => {
@@ -281,7 +281,7 @@ const AdvancedSavingsGoals: React.FC = () => {
                 <select
                   id="priority"
                   value={formData.priority}
-                  onChange={(e) => setFormData({ ...formData, priority: e.target.value as any })}
+                  onChange={(e) => setFormData({ ...formData, priority: e.target.value as typeof formData.priority })}
                   className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
                 >
                   <option value="low">Basse</option>
@@ -398,7 +398,7 @@ const AdvancedSavingsGoals: React.FC = () => {
                         ...formData,
                         autoContribution: {
                           ...formData.autoContribution,
-                          frequency: e.target.value as any
+                          frequency: e.target.value as typeof formData.autoContribution.frequency
                         }
                       })}
                       className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white"

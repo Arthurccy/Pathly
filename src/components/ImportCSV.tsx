@@ -4,32 +4,19 @@ import { ImportAccountSetup, ImportCategoryCreator } from './ImportSetupTools';
 import ImportRecurringSetup from './ImportRecurringSetup';
 import React, { useState, useRef, useMemo } from 'react';
 import { 
+  icons,
   Upload, 
   FileText, 
   CheckCircle, 
   AlertCircle, 
-  Download, 
-  Settings, 
-  Eye, 
-  EyeOff, 
-  Brain,
   Scale,
-  ArrowRight,
-  TrendingUp,
-  TrendingDown,
-  Info,
   Check,
-  RefreshCw,
-  HelpCircle,
   Sparkles,
-  Search,
-  Filter
-} from 'lucide-react';
+  Search} from 'lucide-react';
 import * as LucideIcons from 'lucide-react';
 import { format, differenceInCalendarDays } from 'date-fns';
-import { fr } from 'date-fns/locale';
-import { useBudget } from '../contexts/BudgetContext';
-import { useAuth } from '../contexts/AuthContext';
+import { useBudget } from '../contexts/budgetState';
+import { useAuth } from '../contexts/authState';
 import { importService } from '../services/importService';
 import { 
   CSVRow, 
@@ -54,7 +41,7 @@ const ImportCSV: React.FC<{ onViewChange?: (view: string) => void }> = ({ onView
   const [rules, setRules] = useState<ImportRule[]>([]);
   const [importResult, setImportResult] = useState<ImportResult | null>(null);
   
-  const [settings, setSettings] = useState<ImportSettings>({
+  const [settings] = useState<ImportSettings>({
     hasHeader: true,
     separator: '',
     encoding: 'auto',
@@ -87,29 +74,18 @@ const ImportCSV: React.FC<{ onViewChange?: (view: string) => void }> = ({ onView
   const [previewFilter, setPreviewFilter] = useState<'all' | 'new' | 'matched' | 'duplicates'>('all');
   const [searchQuery, setSearchQuery] = useState<string>('');
 
-  // Load user rules on mount
   React.useEffect(() => {
-    if (user) {
-      loadUserRules();
-    }
+    let active = true;
+    if (!user) { setRules([]); return; }
+    importService.getUserRules(user.id).then(rules => {
+      if (active) setRules(rules);
+    }).catch(error => console.error('Failed to load rules:', error));
+    return () => { active = false; };
   }, [user]);
 
-  // Default to first account if user has accounts
   React.useEffect(() => {
-    if (accounts.length > 0 && !targetAccountId) {
-      setTargetAccountId(accounts[0].id);
-    }
+    if (accounts.length > 0 && !targetAccountId) setTargetAccountId(accounts[0].id);
   }, [accounts, targetAccountId]);
-
-  const loadUserRules = async () => {
-    if (!user) return;
-    try {
-      const userRules = await importService.getUserRules(user.id);
-      setRules(userRules);
-    } catch (error) {
-      console.error('Failed to load rules:', error);
-    }
-  };
 
   const strip = (text: string) => text.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
 
@@ -136,8 +112,6 @@ const ImportCSV: React.FC<{ onViewChange?: (view: string) => void }> = ({ onView
     );
   };
 
-  const isSelectable = (t: ParsedTransaction) =>
-    t.errors.length === 0 && (!settings.skipDuplicates || !t.isDuplicate);
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -167,8 +141,8 @@ const ImportCSV: React.FC<{ onViewChange?: (view: string) => void }> = ({ onView
       }
 
       setStep('mapping');
-    } catch (error: any) {
-      setSetupError(`Lecture du CSV : ${error.message}`);
+    } catch (error: unknown) {
+      setSetupError(`Lecture du CSV : ${error instanceof Error ? error.message : String(error)}`);
     } finally {
       setIsProcessing(false);
     }
@@ -182,9 +156,9 @@ const ImportCSV: React.FC<{ onViewChange?: (view: string) => void }> = ({ onView
     let data: CSVRow[];
     try {
       data = importService.parseRawText(rawText);
-    } catch (error: any) {
+    } catch (error: unknown) {
       setIsProcessing(false);
-      alert(`Erreur lors de la lecture du texte: ${error.message}`);
+      alert(`Erreur lors de la lecture du texte: ${error instanceof Error ? error.message : String(error)}`);
       return;
     }
     if (data.length === 0) {
@@ -309,14 +283,6 @@ const ImportCSV: React.FC<{ onViewChange?: (view: string) => void }> = ({ onView
           processedTransactions = transactions;
         }
 
-        try {
-          processedTransactions = await Promise.race([
-            importService.applyCommunitySuggestions(processedTransactions, categories),
-            new Promise<ParsedTransaction[]>(resolve => setTimeout(() => resolve(processedTransactions), 6000))
-          ]);
-        } catch (e) {
-          console.warn('[ImportCSV] applyCommunitySuggestions failed', e);
-        }
       }
 
       // Check for duplicate hashes in DB
@@ -360,8 +326,8 @@ const ImportCSV: React.FC<{ onViewChange?: (view: string) => void }> = ({ onView
       );
       setSelectedTransactions(validIndices);
       setStep('preview');
-    } catch (error: any) {
-      alert(`Erreur lors du traitement: ${error.message}`);
+    } catch (error: unknown) {
+      alert(`Erreur lors du traitement: ${error instanceof Error ? error.message : String(error)}`);
     } finally {
       setIsProcessing(false);
     }
@@ -436,7 +402,7 @@ const ImportCSV: React.FC<{ onViewChange?: (view: string) => void }> = ({ onView
         transactionsToImport,
         user.id,
         settings.skipDuplicates,
-        (done, total) => setProcessedCount(done)
+        (done) => setProcessedCount(done)
       );
 
       // Optional: adjust bank account balance to exact statement balance if user checked the box
@@ -457,15 +423,6 @@ const ImportCSV: React.FC<{ onViewChange?: (view: string) => void }> = ({ onView
         }
       }
 
-      try {
-        await importService.submitCommunityLearning(
-          transactionsToImport.filter((_, i) => parsedTransactions[i].categoryId || defaultCategoryId),
-          user.id,
-          categories
-        );
-      } catch (e) {
-        console.warn('[ImportCSV] submitCommunityLearning failed (ignored)', e);
-      }
 
       if (jobId) {
         try {
@@ -488,12 +445,12 @@ const ImportCSV: React.FC<{ onViewChange?: (view: string) => void }> = ({ onView
       // Reload fresh budget & account data
       try {
         await reloadAll?.();
-      } catch {}
+      } catch (error) { console.error("Failed to refresh imported data", error); }
 
       setImportResult({ ...result, jobId, balanceAdjusted, newBalance: finalNewBalance });
       setStep('complete');
-    } catch (error: any) {
-      alert(`Erreur lors de l'import: ${error.message}`);
+    } catch (error: unknown) {
+      alert(`Erreur lors de l'import: ${error instanceof Error ? error.message : String(error)}`);
       setStep('preview');
     } finally {
       setIsProcessing(false);
@@ -1176,7 +1133,7 @@ const ImportCSV: React.FC<{ onViewChange?: (view: string) => void }> = ({ onView
                 <tbody className="bg-white dark:bg-slate-900 divide-y divide-slate-100 dark:divide-slate-800">
                   {filteredTransactions.map(({ t: transaction, index }) => {
                     const category = categories.find(c => c.id === transaction.categoryId);
-                    const IconComponent = category ? (LucideIcons as any)[category.icon] : LucideIcons.DollarSign;
+                    const IconComponent = category ? (icons[category.icon as keyof typeof icons] ?? LucideIcons.DollarSign) : LucideIcons.DollarSign;
                     const isSelected = selectedTransactions.has(index);
 
                     return (
@@ -1362,7 +1319,7 @@ const ImportCSV: React.FC<{ onViewChange?: (view: string) => void }> = ({ onView
               Nouveau rapprochement
             </button>
             <button
-              onClick={async () => { try { await reloadAll?.(); onViewChange?.('dashboard'); } catch {} }}
+              onClick={async () => { try { await reloadAll?.(); onViewChange?.('dashboard'); } catch (error) { console.error("Failed to refresh imported data", error); } }}
               className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded-lg transition-colors shadow-sm"
             >
               Voir mon tableau de bord

@@ -1,8 +1,8 @@
 import React from 'react';
-import { Target, Plus, Calendar, TrendingUp } from 'lucide-react';
+import { Target, Calendar, TrendingUp } from 'lucide-react';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
-import { useBudget } from '../contexts/BudgetContext';
+import { useBudget } from '../contexts/budgetState';
 
 const SavingsGoalsProgress: React.FC = () => {
   const { savingsGoals } = useBudget();

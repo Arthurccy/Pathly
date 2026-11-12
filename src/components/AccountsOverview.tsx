@@ -1,6 +1,6 @@
 import React from 'react';
 import { CreditCard, Wallet, PiggyBank, TrendingUp, Plus, Utensils } from 'lucide-react';
-import { useBudget } from '../contexts/BudgetContext';
+import { useBudget } from '../contexts/budgetState';
 
 const AccountsOverview: React.FC = () => {
   const { accounts, selectedAccountIds } = useBudget();

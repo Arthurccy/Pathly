@@ -1,14 +1,13 @@
-import React, { createContext, useContext, useState, useEffect, useRef, ReactNode } from 'react';
-import { 
-  Transaction, 
-  Category, 
+import React, { useState, useEffect, useRef, ReactNode } from 'react';
+import {
+  Transaction,
+  Category,
   BankAccount,
   BalanceSnapshot,
   Budget,
-  SavingsGoal, 
+  SavingsGoal,
   Debt,
   DebtPayment,
-  BudgetContextType,
   FinancialSummary,
   CashFlow,
   RecurringPattern,
@@ -20,17 +19,19 @@ import {
   RealEstatePlan,
   InvestmentPosition
 } from '../types';
-import { useAuth } from './AuthContext';
+import { useAuth } from './authState';
+import { BudgetContext } from './budgetState';
+import { useLatestCallback } from '../hooks/useLatestCallback';
+import { serializeCsv } from '../utils/csvExport';
 import { supabaseService } from '../services/supabaseService';
 import { supabase } from '../lib/supabase';
 import { db } from '../services/database';
 import { calculateCashFlowProjection } from '../utils/cashFlowProjection';
 import { getCustomMonthStart } from '../utils/dateUtils';
-import { 
-  startOfMonth, 
-  endOfMonth, 
-  addMonths, 
-  eachDayOfInterval,
+import {
+  startOfMonth,
+  endOfMonth,
+  addMonths,
   format,
   isSameMonth,
   addDays,
@@ -42,23 +43,13 @@ import {
   startOfDay
 } from 'date-fns';
 
-const BudgetContext = createContext<BudgetContextType | undefined>(undefined);
-
-export const useBudget = () => {
-  const context = useContext(BudgetContext);
-  if (!context) {
-    throw new Error('useBudget must be used within a BudgetProvider');
-  }
-  return context;
-};
-
 const defaultCategories: Omit<Category, 'id' | 'userId'>[] = [
   // Income categories
   { name: 'Salaire', icon: 'Banknote', color: '#059669', type: 'income', order: 1, isActive: true },
   { name: 'Freelance', icon: 'Briefcase', color: '#0891B2', type: 'income', order: 2, isActive: true },
   { name: 'Investissements', icon: 'TrendingUp', color: '#7C3AED', type: 'income', order: 3, isActive: true },
   { name: 'Autres revenus', icon: 'Plus', color: '#059669', type: 'income', order: 4, isActive: true },
-  
+
   // Expense categories
   { name: 'Logement', icon: 'Home', color: '#3B82F6', type: 'expense', order: 1, isActive: true },
   { name: 'Alimentation', icon: 'ShoppingCart', color: '#10B981', type: 'expense', order: 2, isActive: true },
@@ -70,7 +61,7 @@ const defaultCategories: Omit<Category, 'id' | 'userId'>[] = [
   { name: 'Assurances', icon: 'Shield', color: '#64748B', type: 'expense', order: 8, isActive: true },
   { name: 'Impôts', icon: 'Receipt', color: '#DC2626', type: 'expense', order: 9, isActive: true },
   { name: 'Autres dépenses', icon: 'MoreHorizontal', color: '#6B7280', type: 'expense', order: 10, isActive: true },
-  
+
   // Savings categories
   { name: 'Épargne urgence', icon: 'Shield', color: '#059669', type: 'savings', order: 1, isActive: true },
   { name: 'Épargne projet', icon: 'Target', color: '#0891B2', type: 'savings', order: 2, isActive: true },
@@ -154,6 +145,7 @@ interface BudgetProviderProps {
 
 export const BudgetProvider: React.FC<BudgetProviderProps> = ({ children }) => {
   const { user } = useAuth();
+  const userId = user?.id;
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [accounts, setAccounts] = useState<BankAccount[]>([]);
@@ -162,10 +154,10 @@ export const BudgetProvider: React.FC<BudgetProviderProps> = ({ children }) => {
   const [savingsGoals, setSavingsGoals] = useState<SavingsGoal[]>([]);
   const [debts, setDebts] = useState<Debt[]>([]);
   const [debtPayments, setDebtPayments] = useState<DebtPayment[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
-  const [migrationStatus, setMigrationStatus] = useState<'pending' | 'completed' | 'error'>('pending');
+  const [, setIsLoading] = useState(false);
+  const [, setMigrationStatus] = useState<'pending' | 'completed' | 'error'>('pending');
   const loadRequestId = useRef(0);
-  
+
   // Filters
   const [currentPeriod, setCurrentPeriod] = useState({
     start: startOfMonth(new Date()),
@@ -176,7 +168,7 @@ export const BudgetProvider: React.FC<BudgetProviderProps> = ({ children }) => {
   // Simulated Future Events (shared across BudgetSimulator & WealthSimulator, persisted to Supabase)
   const [simulatedEvents, setSimulatedEventsState] = useState<SimulatedEvent[]>(() => {
     try {
-      const saved = localStorage.getItem('pathly_simulated_events');
+      const saved = localStorage.getItem(`pathly_simulated_events:${user?.id || "signed-out"}`);
       return saved ? JSON.parse(saved) : [];
     } catch {
       return [];
@@ -190,8 +182,8 @@ export const BudgetProvider: React.FC<BudgetProviderProps> = ({ children }) => {
       if (Array.isArray(dbEvents)) {
         setSimulatedEventsState(dbEvents);
         try {
-          localStorage.setItem('pathly_simulated_events', JSON.stringify(dbEvents));
-        } catch {}
+          localStorage.setItem(`pathly_simulated_events:${user?.id || "signed-out"}`, JSON.stringify(dbEvents));
+        } catch { /* Browser storage is optional; Supabase remains authoritative. */ }
       }
     }
   }, [user?.id, user?.user_metadata?.pathly_simulated_events]);
@@ -199,7 +191,7 @@ export const BudgetProvider: React.FC<BudgetProviderProps> = ({ children }) => {
   const setSimulatedEvents = async (newEvents: SimulatedEvent[]) => {
     setSimulatedEventsState(newEvents);
     try {
-      localStorage.setItem('pathly_simulated_events', JSON.stringify(newEvents));
+      localStorage.setItem(`pathly_simulated_events:${user?.id || "signed-out"}`, JSON.stringify(newEvents));
     } catch (e) {
       console.error('Failed to save simulated events to localStorage:', e);
     }
@@ -223,7 +215,7 @@ export const BudgetProvider: React.FC<BudgetProviderProps> = ({ children }) => {
   // Household / Couple Management (shared expenses, prorata, settlement)
   const [householdConfig, setHouseholdConfigState] = useState<HouseholdConfig>(() => {
     try {
-      const saved = localStorage.getItem('pathly_household_config');
+      const saved = localStorage.getItem(`pathly_household_config:${user?.id || "signed-out"}`);
       return saved ? JSON.parse(saved) : {
         enabled: true,
         userA: { name: 'Moi', income: 2173 },
@@ -253,16 +245,16 @@ export const BudgetProvider: React.FC<BudgetProviderProps> = ({ children }) => {
         sharedCategoryIds: dbCfg.sharedCategoryIds ?? prev.sharedCategoryIds ?? []
       }));
       try {
-        localStorage.setItem('pathly_household_config', JSON.stringify(dbCfg));
-      } catch {}
+        localStorage.setItem(`pathly_household_config:${user?.id || "signed-out"}`, JSON.stringify(dbCfg));
+      } catch { /* Browser storage may be unavailable. */ }
     }
   }, [user?.id, user?.user_metadata?.pathly_household_config]);
 
-  const updateHouseholdConfig = async (config: Partial<HouseholdConfig>) => {
+  const updateHouseholdConfig = useLatestCallback(async (config: Partial<HouseholdConfig>) => {
     const updated = { ...householdConfig, ...config };
     setHouseholdConfigState(updated);
     try {
-      localStorage.setItem('pathly_household_config', JSON.stringify(updated));
+      localStorage.setItem(`pathly_household_config:${user?.id || "signed-out"}`, JSON.stringify(updated));
     } catch (e) {
       console.error('Failed to save household config to localStorage:', e);
     }
@@ -276,7 +268,7 @@ export const BudgetProvider: React.FC<BudgetProviderProps> = ({ children }) => {
         console.error('❌ Failed to update household config in Supabase:', err);
       }
     }
-  };
+  });
 
   const totalHouseholdIncome = (householdConfig.userA?.income || 0) + (householdConfig.userB?.income || 0);
   const ratioA = householdConfig.splitMode === '50_50'
@@ -292,7 +284,7 @@ export const BudgetProvider: React.FC<BudgetProviderProps> = ({ children }) => {
   const hasInitializedSharedCategories = useRef(false);
   useEffect(() => {
     if (categories.length > 0 && !hasInitializedSharedCategories.current && (!householdConfig.sharedCategoryIds || householdConfig.sharedCategoryIds.length === 0)) {
-      const saved = localStorage.getItem('pathly_household_config');
+      const saved = localStorage.getItem(`pathly_household_config:${user?.id || "signed-out"}`);
       if (saved) {
         try {
           const parsed = JSON.parse(saved);
@@ -300,7 +292,7 @@ export const BudgetProvider: React.FC<BudgetProviderProps> = ({ children }) => {
             hasInitializedSharedCategories.current = true;
             return;
           }
-        } catch {}
+        } catch { /* Browser storage may be unavailable. */ }
       }
       hasInitializedSharedCategories.current = true;
       const defaultShared = categories
@@ -323,7 +315,7 @@ export const BudgetProvider: React.FC<BudgetProviderProps> = ({ children }) => {
         updateHouseholdConfig({ sharedCategoryIds: defaultShared });
       }
     }
-  }, [categories]);
+  }, [categories, householdConfig.sharedCategoryIds, updateHouseholdConfig, user?.id]);
 
   const isTransactionShared = (transaction: Transaction): boolean => {
     if (transaction.type !== 'expense' && transaction.type !== 'bill') return false;
@@ -338,8 +330,8 @@ export const BudgetProvider: React.FC<BudgetProviderProps> = ({ children }) => {
   const toggleCategoryShared = async (categoryId: string) => {
     const current = householdConfig.sharedCategoryIds || [];
     const exists = current.includes(categoryId);
-    const updated = exists 
-      ? current.filter(id => id !== categoryId) 
+    const updated = exists
+      ? current.filter(id => id !== categoryId)
       : [...current, categoryId];
     await updateHouseholdConfig({ sharedCategoryIds: updated });
   };
@@ -361,7 +353,7 @@ export const BudgetProvider: React.FC<BudgetProviderProps> = ({ children }) => {
   // Physical Assets / Patrimoine matériel (immobilier, véhicules, montres...)
   const [assets, setAssets] = useState<PhysicalAsset[]>(() => {
     try {
-      const saved = localStorage.getItem('pathly_physical_assets');
+      const saved = localStorage.getItem(`pathly_physical_assets:${user?.id || "signed-out"}`);
       return saved ? JSON.parse(saved) : [];
     } catch {
       return [];
@@ -373,15 +365,15 @@ export const BudgetProvider: React.FC<BudgetProviderProps> = ({ children }) => {
       const dbAssets = user.user_metadata.pathly_physical_assets;
       setAssets(dbAssets);
       try {
-        localStorage.setItem('pathly_physical_assets', JSON.stringify(dbAssets));
-      } catch {}
+        localStorage.setItem(`pathly_physical_assets:${user?.id || "signed-out"}`, JSON.stringify(dbAssets));
+      } catch { /* Browser storage may be unavailable. */ }
     }
   }, [user?.id, user?.user_metadata?.pathly_physical_assets]);
 
   const saveAssets = async (newAssets: PhysicalAsset[]) => {
     setAssets(newAssets);
     try {
-      localStorage.setItem('pathly_physical_assets', JSON.stringify(newAssets));
+      localStorage.setItem(`pathly_physical_assets:${user?.id || "signed-out"}`, JSON.stringify(newAssets));
     } catch (e) {
       console.error('Failed to save assets to localStorage:', e);
     }
@@ -421,7 +413,7 @@ export const BudgetProvider: React.FC<BudgetProviderProps> = ({ children }) => {
   // --- REAL ESTATE PLANS PERSISTENCE (Supabase + localStorage) ---
   const [realEstatePlans, setRealEstatePlansState] = useState<RealEstatePlan[]>(() => {
     try {
-      const saved = localStorage.getItem('pathly_real_estate_plans');
+      const saved = localStorage.getItem(`pathly_real_estate_plans:${user?.id || "signed-out"}`);
       return saved ? JSON.parse(saved) : [];
     } catch {
       return [];
@@ -434,17 +426,21 @@ export const BudgetProvider: React.FC<BudgetProviderProps> = ({ children }) => {
       if (Array.isArray(dbPlans)) {
         setRealEstatePlansState(dbPlans);
         try {
-          localStorage.setItem('pathly_real_estate_plans', JSON.stringify(dbPlans));
-        } catch {}
+          localStorage.setItem(`pathly_real_estate_plans:${user?.id || "signed-out"}`, JSON.stringify(dbPlans));
+        } catch { /* Browser storage may be unavailable. */ }
       }
     }
   }, [user?.id, user?.user_metadata?.pathly_real_estate_plans]);
 
   const saveRealEstatePlansTimeout = useRef<NodeJS.Timeout | null>(null);
+  useEffect(() => () => {
+    if (saveRealEstatePlansTimeout.current) clearTimeout(saveRealEstatePlansTimeout.current);
+  }, []);
+
   const saveRealEstatePlans = async (newPlans: RealEstatePlan[]) => {
     setRealEstatePlansState(newPlans);
     try {
-      localStorage.setItem('pathly_real_estate_plans', JSON.stringify(newPlans));
+      localStorage.setItem(`pathly_real_estate_plans:${user?.id || "signed-out"}`, JSON.stringify(newPlans));
     } catch (e) {
       console.error('Failed to save real estate plans to localStorage:', e);
     }
@@ -467,7 +463,7 @@ export const BudgetProvider: React.FC<BudgetProviderProps> = ({ children }) => {
   // --- INVESTMENT POSITIONS / BOURSE (PEA / CTO) ---
   const [investmentPositions, setInvestmentPositionsState] = useState<InvestmentPosition[]>(() => {
     try {
-      const saved = localStorage.getItem('pathly_investment_positions');
+      const saved = localStorage.getItem(`pathly_investment_positions:${user?.id || "signed-out"}`);
       return saved ? JSON.parse(saved) : [];
     } catch {
       return [];
@@ -490,8 +486,8 @@ export const BudgetProvider: React.FC<BudgetProviderProps> = ({ children }) => {
         investmentPositionsRef.current = dbPositions;
         setInvestmentPositionsState(dbPositions);
         try {
-          localStorage.setItem('pathly_investment_positions', JSON.stringify(dbPositions));
-        } catch {}
+          localStorage.setItem(`pathly_investment_positions:${user?.id || "signed-out"}`, JSON.stringify(dbPositions));
+        } catch { /* Browser storage may be unavailable. */ }
       }
     }
   }, [user?.id, user?.user_metadata?.pathly_investment_positions]);
@@ -500,7 +496,7 @@ export const BudgetProvider: React.FC<BudgetProviderProps> = ({ children }) => {
     investmentPositionsRef.current = newPositions;
     setInvestmentPositionsState(newPositions);
     try {
-      localStorage.setItem('pathly_investment_positions', JSON.stringify(newPositions));
+      localStorage.setItem(`pathly_investment_positions:${user?.id || "signed-out"}`, JSON.stringify(newPositions));
     } catch (e) {
       console.error('Failed to save investment positions to localStorage:', e);
     }
@@ -529,8 +525,8 @@ export const BudgetProvider: React.FC<BudgetProviderProps> = ({ children }) => {
     };
     const currentList = investmentPositionsRef.current;
     // Prevent rapid duplicate clicks
-    const exists = currentList.some(p => 
-      p.symbol.toUpperCase() === newPosition.symbol.toUpperCase() && 
+    const exists = currentList.some(p =>
+      p.symbol.toUpperCase() === newPosition.symbol.toUpperCase() &&
       p.accountId === newPosition.accountId &&
       p.shares === newPosition.shares &&
       p.buyPrice === newPosition.buyPrice
@@ -558,84 +554,7 @@ export const BudgetProvider: React.FC<BudgetProviderProps> = ({ children }) => {
     await saveInvestmentPositions(updated);
   };
 
-  // --- ONE TIME CLEANUP ---
-  useEffect(() => {
-    const cleanup = async () => {
-      if (!user || transactions.length === 0 || debtPayments.length === 0 || debts.length === 0) return;
-      const alreadyCleaned = localStorage.getItem('pathly_debt_cleaned_v2');
-      if (alreadyCleaned) return;
 
-      const debtCategory = categories.find(c => c.type === 'debt');
-      if (!debtCategory) return;
-
-      console.log('🧹 Démarrage du nettoyage des dettes en double...');
-
-      // 1. Transactions
-      const debtTx = transactions.filter(t => t.categoryId === debtCategory.id && t.description.startsWith('Dette:'));
-      const groupedTx: any = {};
-      debtTx.forEach(t => {
-        const key = `${new Date(t.date).toISOString().split('T')[0]}_${t.description}`;
-        if (!groupedTx[key]) groupedTx[key] = [];
-        groupedTx[key].push(t);
-      });
-
-      const txToDelete: string[] = [];
-      Object.values(groupedTx).forEach((group: any) => {
-        if (group.length > 1) {
-          txToDelete.push(...group.slice(1).map((t: any) => t.id));
-        }
-      });
-
-      if (txToDelete.length > 0) {
-        for (const id of txToDelete) {
-          await deleteTransaction(id);
-        }
-      }
-
-      // 2. Debt Payments
-      const groupedDp: any = {};
-      debtPayments.forEach(dp => {
-        const key = `${dp.debtId}_${new Date(dp.date).toISOString().split('T')[0]}`;
-        if (!groupedDp[key]) groupedDp[key] = [];
-        groupedDp[key].push(dp);
-      });
-
-      const dpToDelete: string[] = [];
-      const principalToRestore: any = {};
-      Object.values(groupedDp).forEach((group: any) => {
-        if (group.length > 1) {
-          const duplicates = group.slice(1);
-          duplicates.forEach((dp: any) => {
-            dpToDelete.push(dp.id);
-            if (!principalToRestore[dp.debtId]) principalToRestore[dp.debtId] = 0;
-            principalToRestore[dp.debtId] += dp.principal;
-          });
-        }
-      });
-
-      if (dpToDelete.length > 0) {
-        for (const id of dpToDelete) {
-          await supabase.from('debt_payments').delete().eq('id', id);
-        }
-        
-        for (const [debtId, principal] of Object.entries(principalToRestore)) {
-          const debt = debts.find(d => d.id === debtId);
-          if (debt) {
-            const newAmount = debt.remainingAmount + (principal as number);
-            await updateDebt(debtId, { remainingAmount: newAmount, isActive: newAmount > 0 });
-            debt.remainingAmount = newAmount;
-            if (newAmount > 0) debt.isActive = true;
-          }
-        }
-      }
-
-      localStorage.setItem('pathly_debt_cleaned_v2', 'true');
-      console.log('✅ Nettoyage terminé !');
-      window.location.reload();
-    };
-    cleanup();
-  }, [user?.id, transactions.length, debtPayments.length, debts.length, categories.length]);
-  // --- FIN CLEANUP ---
 
   useEffect(() => {
     accountsRef.current = accounts;
@@ -650,10 +569,10 @@ export const BudgetProvider: React.FC<BudgetProviderProps> = ({ children }) => {
     snapshotCache.current = new Map();
     setBalanceSnapshots([]);
     setSnapshotsLoaded(false);
-    if (!user) return;
+    if (!userId) return;
 
     let cancelled = false;
-    supabaseService.getBalanceSnapshots(user.id)
+    supabaseService.getBalanceSnapshots(userId)
       .then(rows => {
         if (cancelled) return;
         rows.forEach(r => snapshotCache.current.set(`${r.accountId}|${r.date}`, r.balance));
@@ -670,10 +589,10 @@ export const BudgetProvider: React.FC<BudgetProviderProps> = ({ children }) => {
     return () => {
       cancelled = true;
     };
-  }, [user?.id]);
+  }, [userId]);
 
   useEffect(() => {
-    if (!user || !snapshotsLoaded || accounts.length === 0) return;
+    if (!userId || !snapshotsLoaded || accounts.length === 0) return;
 
     const today = format(new Date(), 'yyyy-MM-dd');
     const rows = accounts
@@ -681,7 +600,7 @@ export const BudgetProvider: React.FC<BudgetProviderProps> = ({ children }) => {
       .map(a => ({ accountId: a.id, date: today, balance: a.balance }));
     if (rows.length === 0) return;
 
-    supabaseService.upsertBalanceSnapshots(user.id, rows)
+    supabaseService.upsertBalanceSnapshots(userId, rows)
       .then(() => {
         rows.forEach(r => snapshotCache.current.set(`${r.accountId}|${r.date}`, r.balance));
         setBalanceSnapshots(prev => {
@@ -690,43 +609,15 @@ export const BudgetProvider: React.FC<BudgetProviderProps> = ({ children }) => {
         });
       })
       .catch(error => console.warn('Could not save balance snapshot:', error));
-  }, [accounts, user?.id, snapshotsLoaded]);
+  }, [accounts, userId, snapshotsLoaded]);
 
-  useEffect(() => {
-    if (!user || transactions.length === 0 || accounts.length === 0) return;
-
-    generateRecurringTransactions();
-    generateAutoDebtPayments();
-    reconcileScheduledTransactionStatuses();
-  }, [user?.id, transactions, accounts, debts]);
-
-  useEffect(() => {
-    if (user) {
-      console.log('💰 User detected, loading budget data...');
-      loadUserData(user.id);
-    } else {
-      // Clear data when user logs out
-      console.log('🔄 Clearing budget data after logout');
-      loadRequestId.current++;
-      setTransactions([]);
-      setCategories([]);
-      setAccounts([]);
-      setBudgets([]);
-      setSavingsGoals([]);
-      setDebts([]);
-      setDebtPayments([]);
-      setSelectedAccountIds([]);
-      setMigrationStatus('pending');
-    }
-  }, [user?.id]);
-
-  const loadUserData = async (userId = user?.id) => {
+  const loadUserData = useLatestCallback(async (userId: string | undefined = user?.id) => {
     if (!userId) return;
 
     console.log('💰 Loading budget data for user:', user?.email || userId);
     const requestId = ++loadRequestId.current;
     setIsLoading(true);
-    
+
     try {
       // Check if user has data in Supabase
       const [
@@ -762,7 +653,7 @@ export const BudgetProvider: React.FC<BudgetProviderProps> = ({ children }) => {
       if (supabaseAccounts.length === 0 && supabaseCategories.length === 0 && supabaseTransactions.length === 0) {
         console.log('🔄 No data found, attempting migration...');
         await migrateFromIndexedDB();
-        
+
         // Reload data after migration
         const [
           newAccounts,
@@ -825,7 +716,7 @@ export const BudgetProvider: React.FC<BudgetProviderProps> = ({ children }) => {
         setIsLoading(false);
       }
     }
-  };
+  });
 
   const reloadAll = async () => {
     await loadUserData();
@@ -897,7 +788,7 @@ export const BudgetProvider: React.FC<BudgetProviderProps> = ({ children }) => {
 
     try {
       console.log('📝 Creating default categories and accounts...');
-      
+
       const [existingCategories, existingAccounts] = await Promise.all([
         supabaseService.getCategories(user.id),
         supabaseService.getAccounts(user.id),
@@ -946,19 +837,19 @@ export const BudgetProvider: React.FC<BudgetProviderProps> = ({ children }) => {
     if (!transaction.categoryId) {
       throw new Error('Aucune catégorie sélectionnée pour cette transaction');
     }
-    
+
     try {
       const newTransaction = await supabaseService.createTransaction({
         ...transaction,
         userId: user.id,
       });
-      
+
       setTransactions(prev => [newTransaction, ...prev]);
 
       // Update account balance only for completed transactions
       if (newTransaction.status === 'completed') {
         await updateAccountBalance(
-          transaction.accountId, 
+          transaction.accountId,
           getAccountBalanceImpact(newTransaction)
         );
       }
@@ -973,7 +864,7 @@ export const BudgetProvider: React.FC<BudgetProviderProps> = ({ children }) => {
     sourceAmount: number,
     currentTransactions: Transaction[]
   ) => {
-    const dependentTransactions = currentTransactions.filter(t => 
+    const dependentTransactions = currentTransactions.filter(t =>
       t.id !== sourceId &&
       t.isRecurring &&
       t.recurringPattern?.isActive &&
@@ -1000,7 +891,7 @@ export const BudgetProvider: React.FC<BudgetProviderProps> = ({ children }) => {
       if (!oldTransaction) return;
 
       const updatedTransaction = await supabaseService.updateTransaction(id, updates);
-      
+
       setTransactions(prev => prev.map(t => t.id === id ? updatedTransaction : t));
 
       // Update account balances if amount, account, type or completion status changed
@@ -1013,15 +904,15 @@ export const BudgetProvider: React.FC<BudgetProviderProps> = ({ children }) => {
         // Revert old transaction effect (only if it was completed)
         if (oldTransaction.status === 'completed') {
           await updateAccountBalance(
-            oldTransaction.accountId, 
+            oldTransaction.accountId,
             -getAccountBalanceImpact(oldTransaction)
           );
         }
-        
+
         // Apply new transaction effect (only if it's completed)
         if (updatedTransaction.status === 'completed') {
           await updateAccountBalance(
-            updatedTransaction.accountId, 
+            updatedTransaction.accountId,
             getAccountBalanceImpact(updatedTransaction)
           );
         }
@@ -1050,7 +941,7 @@ export const BudgetProvider: React.FC<BudgetProviderProps> = ({ children }) => {
       // Revert account balance (only if it was completed)
       if (transaction.status === 'completed') {
         await updateAccountBalance(
-          transaction.accountId, 
+          transaction.accountId,
           -getAccountBalanceImpact(transaction)
         );
       }
@@ -1079,9 +970,9 @@ export const BudgetProvider: React.FC<BudgetProviderProps> = ({ children }) => {
   };
 
   const getScheduledTransactions = (startDate: Date, endDate: Date): Transaction[] => {
-    return transactions.filter(t => 
-      t.status === 'scheduled' && 
-      t.date >= startDate && 
+    return transactions.filter(t =>
+      t.status === 'scheduled' &&
+      t.date >= startDate &&
       t.date <= endDate
     );
   };
@@ -1157,7 +1048,7 @@ export const BudgetProvider: React.FC<BudgetProviderProps> = ({ children }) => {
     return threshold;
   };
 
-  const reconcileScheduledTransactionStatuses = async () => {
+  const reconcileScheduledTransactionStatuses = useLatestCallback(async () => {
     const now = new Date();
     const dueTransactions = transactions.filter(transaction =>
       transaction.status === 'scheduled' &&
@@ -1171,7 +1062,7 @@ export const BudgetProvider: React.FC<BudgetProviderProps> = ({ children }) => {
         console.error('Error completing scheduled transaction:', error);
       }
     }
-  };
+  });
 
   // Account functions
   const addAccount = async (account: Omit<BankAccount, 'id' | 'userId'>) => {
@@ -1184,13 +1075,13 @@ export const BudgetProvider: React.FC<BudgetProviderProps> = ({ children }) => {
       console.warn('Un compte avec ce nom existe déjà');
       return accounts.find(existing => existing.type === account.type && existing.name.trim().toLowerCase() === account.name.trim().toLowerCase());
     }
-    
+
     try {
       const newAccount = await supabaseService.createAccount({
         ...account,
         userId: user.id,
       });
-      
+
       setAccounts(prev => [...prev, newAccount]);
       setSelectedAccountIds(prev => [...prev, newAccount.id]);
       return newAccount;
@@ -1340,7 +1231,7 @@ export const BudgetProvider: React.FC<BudgetProviderProps> = ({ children }) => {
         ...category,
         userId: user.id,
       });
-      
+
       setCategories(prev => [...prev, newCategory]);
       return newCategory;
     } catch (error) {
@@ -1376,7 +1267,7 @@ export const BudgetProvider: React.FC<BudgetProviderProps> = ({ children }) => {
         const categoryId = categoryIds[i];
         await supabaseService.updateCategory(categoryId, { order: i });
       }
-      
+
       // Update local state
       setCategories(prev => prev.map(cat => {
         const newOrder = categoryIds.indexOf(cat.id);
@@ -1391,10 +1282,10 @@ export const BudgetProvider: React.FC<BudgetProviderProps> = ({ children }) => {
   // Budget functions
   const setBudget = async (budget: Omit<Budget, 'id' | 'userId'>) => {
     if (!user) return;
-    
+
     try {
       const existingBudget = budgets.find(
-        b => b.categoryId === budget.categoryId && 
+        b => b.categoryId === budget.categoryId &&
              b.period === budget.period &&
              isSameMonth(b.startDate, budget.startDate)
       );
@@ -1430,16 +1321,15 @@ export const BudgetProvider: React.FC<BudgetProviderProps> = ({ children }) => {
   // Savings Goals functions
   const addSavingsGoal = async (goal: Omit<SavingsGoal, 'id' | 'userId' | 'currentAmount' | 'isCompleted' | 'createdAt'>) => {
     if (!user) return;
-    
+
     try {
       const newGoal = await supabaseService.createSavingsGoal({
         ...goal,
         userId: user.id,
         currentAmount: 0,
         isCompleted: false,
-        createdAt: new Date(),
       });
-      
+
       setSavingsGoals(prev => [newGoal, ...prev]);
     } catch (error) {
       console.error('Error adding savings goal:', error);
@@ -1503,13 +1393,13 @@ export const BudgetProvider: React.FC<BudgetProviderProps> = ({ children }) => {
   // Debt functions
   const addDebt = async (debt: Omit<Debt, 'id' | 'userId'>): Promise<Debt | undefined> => {
     if (!user) return undefined;
-    
+
     try {
       const newDebt = await supabaseService.createDebt({
         ...debt,
         userId: user.id,
       });
-      
+
       setDebts(prev => [newDebt, ...prev]);
       return newDebt;
     } catch (error) {
@@ -1557,7 +1447,7 @@ export const BudgetProvider: React.FC<BudgetProviderProps> = ({ children }) => {
   };
 
   // Recurring transactions logic
-  const generateRecurringTransactions = () => {
+  const generateRecurringTransactions = useLatestCallback(() => {
     if (!user) return;
 
     const now = new Date();
@@ -1704,10 +1594,10 @@ export const BudgetProvider: React.FC<BudgetProviderProps> = ({ children }) => {
         pattern.currentOccurrence = updatedPattern.currentOccurrence;
       }
     });
-  };
+  });
 
   // Auto-deduct debts logic
-  const generateAutoDebtPayments = () => {
+  const generateAutoDebtPayments = useLatestCallback(() => {
     if (!user) return;
     const now = new Date();
 
@@ -1719,13 +1609,13 @@ export const BudgetProvider: React.FC<BudgetProviderProps> = ({ children }) => {
       let newRemainingAmount = debt.remainingAmount;
 
       while (
-        isBefore(startOfDay(currentDueDate), startOfDay(now)) || 
+        isBefore(startOfDay(currentDueDate), startOfDay(now)) ||
         (isSameDay(currentDueDate, now) && !isAfter(getAutoCompletionDate(currentDueDate), now))
       ) {
         if (debt.endDate && isAfter(currentDueDate, new Date(debt.endDate))) break;
 
         const expectedAmount = Math.min(debt.minimumPayment, newRemainingAmount);
-        
+
         if (expectedAmount > 0) {
           const monthlyRate = debt.interestRate / 100 / 12;
           const interest = newRemainingAmount * monthlyRate;
@@ -1734,7 +1624,7 @@ export const BudgetProvider: React.FC<BudgetProviderProps> = ({ children }) => {
           // 1. Create actual transaction (expense)
           const debtCategory = categories.find(c => c.type === 'debt');
           const categoryId = debt.categoryId || (debtCategory ? debtCategory.id : '');
-          
+
           const newTransactionData = {
             userId: user.id,
             accountId: debt.accountId,
@@ -1746,7 +1636,7 @@ export const BudgetProvider: React.FC<BudgetProviderProps> = ({ children }) => {
             status: 'completed' as const,
             isRecurring: false,
           };
-          
+
           addTransaction(newTransactionData);
 
           // 2. Create debt payment record
@@ -1776,14 +1666,14 @@ export const BudgetProvider: React.FC<BudgetProviderProps> = ({ children }) => {
           remainingAmount: newRemainingAmount,
           isActive: newRemainingAmount > 0
         });
-        
+
         // Mutate the object in place so subsequent immediate renders don't re-trigger
         debt.dueDate = currentDueDate;
         debt.remainingAmount = newRemainingAmount;
         if (newRemainingAmount <= 0) debt.isActive = false;
       }
     });
-  };
+  });
 
   // Calendar events
   const getCalendarEvents = (startDate: Date, endDate: Date): CalendarEvent[] => {
@@ -1844,7 +1734,7 @@ export const BudgetProvider: React.FC<BudgetProviderProps> = ({ children }) => {
 
   // Analytics functions
   const getFinancialSummary = (startDate: Date, endDate: Date): FinancialSummary => {
-    const periodTransactions = transactions.filter(t => 
+    const periodTransactions = transactions.filter(t =>
       t.date >= startDate && t.date <= endDate &&
       !isExcludedFromReports(t) &&
       (selectedAccountIds.length === 0 || selectedAccountIds.includes(t.accountId))
@@ -1890,8 +1780,8 @@ export const BudgetProvider: React.FC<BudgetProviderProps> = ({ children }) => {
 
     const netWorth = accounts
       .filter(a => selectedAccountIds.length === 0 || selectedAccountIds.includes(a.id))
-      .reduce((sum, a) => sum + a.balance, 0) + 
-      totalAssetsValue - 
+      .reduce((sum, a) => sum + a.balance, 0) +
+      totalAssetsValue -
       debts.reduce((sum, d) => sum + d.remainingAmount, 0);
 
     const cashFlow = getCashFlowProjection(12);
@@ -1902,7 +1792,7 @@ export const BudgetProvider: React.FC<BudgetProviderProps> = ({ children }) => {
         const spent = periodTransactions
           .filter(t => t.categoryId === budget.categoryId && t.type === 'expense')
           .reduce((sum, t) => sum + t.amount, 0);
-        
+
         return {
           categoryId: budget.categoryId,
           budgeted: budget.amount,
@@ -1929,8 +1819,8 @@ export const BudgetProvider: React.FC<BudgetProviderProps> = ({ children }) => {
   // Export function
   const exportData = async (options: ExportOptions): Promise<string> => {
     const { format: exportFormat, dateRange, includeCategories, includeAccounts, includeGoals, includeDebts, includeRecurring } = options;
-    
-    const filteredTransactions = transactions.filter(t => 
+
+    const filteredTransactions = transactions.filter(t =>
       t.date >= dateRange.start && t.date <= dateRange.end
     );
 
@@ -1948,7 +1838,7 @@ export const BudgetProvider: React.FC<BudgetProviderProps> = ({ children }) => {
     switch (exportFormat) {
       case 'json':
         return JSON.stringify(data, null, 2);
-      case 'csv':
+      case 'csv': {
         // Simple CSV export for transactions
         const csvHeaders = ['Date', 'Description', 'Amount', 'Type', 'Category', 'Account'];
         const csvRows = filteredTransactions.map(t => {
@@ -1957,13 +1847,14 @@ export const BudgetProvider: React.FC<BudgetProviderProps> = ({ children }) => {
           return [
             format(t.date, 'yyyy-MM-dd'),
             t.description,
-            t.amount.toString(),
+            t.amount,
             t.type,
             category,
             account
-          ].join(',');
+          ];
         });
-        return [csvHeaders.join(','), ...csvRows].join('\n');
+        return serializeCsv([csvHeaders, ...csvRows]);
+      }
       case 'pdf':
         // For PDF, return a formatted text that could be converted to PDF
         return `Budget Export - ${format(dateRange.start, 'dd/MM/yyyy')} to ${format(dateRange.end, 'dd/MM/yyyy')}\n\n${JSON.stringify(data, null, 2)}`;
@@ -1971,6 +1862,34 @@ export const BudgetProvider: React.FC<BudgetProviderProps> = ({ children }) => {
         return JSON.stringify(data, null, 2);
     }
   };
+
+  useEffect(() => {
+    if (!user || transactions.length === 0 || accounts.length === 0) return;
+
+    generateRecurringTransactions();
+    generateAutoDebtPayments();
+    reconcileScheduledTransactionStatuses();
+  }, [user, transactions, accounts, debts, generateRecurringTransactions, generateAutoDebtPayments, reconcileScheduledTransactionStatuses]);
+
+  useEffect(() => {
+    if (userId) {
+      console.log('💰 User detected, loading budget data...');
+      loadUserData(userId);
+    } else {
+      // Clear data when user logs out
+      console.log('🔄 Clearing budget data after logout');
+      loadRequestId.current++;
+      setTransactions([]);
+      setCategories([]);
+      setAccounts([]);
+      setBudgets([]);
+      setSavingsGoals([]);
+      setDebts([]);
+      setDebtPayments([]);
+      setSelectedAccountIds([]);
+      setMigrationStatus('pending');
+    }
+  }, [userId, loadUserData]);
 
   return (
     <BudgetContext.Provider value={{
@@ -1983,7 +1902,7 @@ export const BudgetProvider: React.FC<BudgetProviderProps> = ({ children }) => {
       savingsGoals,
       debts,
       debtPayments,
-      
+
       // Transactions
       addTransaction,
       updateTransaction,
@@ -1991,49 +1910,49 @@ export const BudgetProvider: React.FC<BudgetProviderProps> = ({ children }) => {
       generateRecurringTransactions,
       getScheduledTransactions,
       getProjectedRecurringTransactions,
-      
+
       // Categories
       addCategory,
       updateCategory,
       deleteCategory,
       reorderCategories,
-      
+
       // Accounts
       addAccount,
       updateAccount,
       deleteAccount,
       transferBetweenAccounts,
-      
+
       // Budgets
       setBudget,
       deleteBudget,
-      
+
       // Savings Goals
       addSavingsGoal,
       updateSavingsGoal,
       deleteSavingsGoal,
       contributeToGoal,
-      
+
       // Debts
       addDebt,
       updateDebt,
       deleteDebt,
       addDebtPayment,
-      
+
       // Analytics
       getFinancialSummary,
       getCashFlowProjection,
       getCalendarEvents,
-      
+
       // Export
       exportData,
-      
+
       // Filters
       currentPeriod,
       setCurrentPeriod: (start: Date, end: Date) => setCurrentPeriod({ start, end }),
       selectedAccountIds,
       setSelectedAccountIds,
-      
+
       // Simulated Events
       simulatedEvents,
       setSimulatedEvents,

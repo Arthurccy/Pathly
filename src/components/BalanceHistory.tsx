@@ -1,10 +1,10 @@
 import React, { useMemo, useState } from 'react';
 import { AreaChart, Area, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ReferenceLine, ResponsiveContainer } from 'recharts';
-import { addDays, differenceInCalendarDays, endOfDay, format, startOfDay, subDays } from 'date-fns';
+import { differenceInCalendarDays, endOfDay, format, startOfDay, subDays } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { TrendingUp, TrendingDown } from 'lucide-react';
-import { useBudget } from '../contexts/BudgetContext';
-import { useAuth } from '../contexts/AuthContext';
+import { useBudget } from '../contexts/budgetState';
+import { useAuth } from '../contexts/authState';
 import { getCustomMonthEnd, getCustomMonthPeriod } from '../utils/dateUtils';
 import { Transaction } from '../types';
 
@@ -194,9 +194,10 @@ const BalanceHistory: React.FC = () => {
   const positive = view.delta >= 0;
   const hasHistory = differenceInCalendarDays(today, earliest) > 0;
 
-  const tooltip = ({ active, payload }: any) => {
+  const tooltip = ({ active, payload }: import('recharts').TooltipProps<import('recharts/types/component/DefaultTooltipContent').ValueType, import('recharts/types/component/DefaultTooltipContent').NameType>) => {
     if (!active || !payload?.length) return null;
-    const p = payload[0].payload;
+    const p = payload[0].payload as Record<string, string | number | undefined> & {full?: string; previousFull?: string; total?: number; forecast?: number; previous?: number};
+    if (!p) return null;
     return (
       <div className="rounded-xl border border-slate-200/80 bg-white/95 px-3 py-2 text-sm shadow-xl backdrop-blur dark:border-slate-700 dark:bg-slate-900/95">
         <p className="font-semibold text-slate-900 dark:text-white">{p.full}</p>

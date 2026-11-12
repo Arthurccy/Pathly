@@ -247,7 +247,7 @@ export interface ExportOptions {
 
 export interface AuthContextType {
   user: User | null;
-  session: any;
+  session: import("@supabase/supabase-js").Session | null;
   login: (email: string, password: string) => Promise<boolean>;
   register: (email: string, password: string, name: string) => Promise<boolean>;
   logout: () => Promise<void>;
@@ -284,7 +284,7 @@ export interface BudgetContextType {
   addAccount: (account: Omit<BankAccount, 'id' | 'userId'>) => Promise<BankAccount | undefined>;
   updateAccount: (id: string, account: Partial<BankAccount>) => void;
   deleteAccount: (id: string) => void;
-  transferBetweenAccounts: (fromAccountId: string, toAccountId: string, amount: number, description: string) => void;
+  transferBetweenAccounts: (fromAccountId: string, toAccountId: string, amount: number, description: string, date?: Date) => void;
   
   // Budgets
   setBudget: (budget: Omit<Budget, 'id' | 'userId'>) => void;
@@ -457,7 +457,7 @@ export interface RealEstatePlan {
 }
 
 // Legacy types for backward compatibility
-export interface Goal extends SavingsGoal {}
+export type Goal = SavingsGoal;
 
 export interface InvestmentPosition {
   id: string;

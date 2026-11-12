@@ -1,5 +1,4 @@
 import React, { useMemo, useState } from 'react';
-import { Line } from 'react-chartjs-2';
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -13,12 +12,11 @@ import {
 } from 'chart.js';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
-import { AlertTriangle, CheckCircle2, Gauge, TrendingDown, BarChart3, Sparkles } from 'lucide-react';
-import { useBudget } from '../contexts/BudgetContext';
-import { useAuth } from '../contexts/AuthContext';
+import { AlertTriangle, CheckCircle2, Gauge, TrendingDown, BarChart3 } from 'lucide-react';
+import { useBudget } from '../contexts/budgetState';
+import { useAuth } from '../contexts/authState';
 import { getCustomMonthPeriod } from '../utils/dateUtils';
 import SankeyModal from './SankeyModal';
-import AIAdvisorModal from './AIAdvisorModal';
 import { CashFlow } from '../types';
 
 ChartJS.register(
@@ -37,13 +35,11 @@ const CashFlowChart: React.FC = () => {
   const { user } = useAuth();
   
   const [selectedMonthForSankey, setSelectedMonthForSankey] = useState<CashFlow | null>(null);
-  const [selectedMonthForAI, setSelectedMonthForAI] = useState<CashFlow | null>(null);
 
   const monthStartDay = user?.settings?.monthStartDay || 1;
   const currentBudgetPeriod = getCustomMonthPeriod(new Date(), monthStartDay);
   const cashFlowData = getCashFlowProjection(12, currentBudgetPeriod.start, monthStartDay);
   const firstProjection = cashFlowData[0];
-  const finalProjection = cashFlowData[cashFlowData.length - 1];
   const money = (value: number, digits = 0) =>
     new Intl.NumberFormat('fr-FR', {
       style: 'currency',
@@ -84,7 +80,7 @@ const CashFlowChart: React.FC = () => {
 
   const monthlyPlan = useMemo(
     () => {
-      let projectedWithoutBudgetReserve = firstProjection?.openingBalance ?? 0;
+
 
       return cashFlowData.map((item, index) => {
       const period = getCustomMonthPeriod(item.date, monthStartDay);
@@ -99,7 +95,7 @@ const CashFlowChart: React.FC = () => {
         plannedOutflows -
         budgetReserve;
       const plannedOnlyBalance = item.income - plannedOutflows;
-      projectedWithoutBudgetReserve += plannedOnlyBalance;
+
       const pressureItems = [
         { label: 'dépenses totales', value: plannedExpenses },
         { label: 'budgets libres', value: budgetReserve },
@@ -145,80 +141,10 @@ const CashFlowChart: React.FC = () => {
       };
       });
     },
-    [cashFlowData, firstProjection?.openingBalance, monthStartDay]
+    [cashFlowData, monthStartDay]
   );
 
-  const data = {
-    labels: monthlyPlan.map(item => format(item.periodStart, 'dd MMM', { locale: fr })),
-    datasets: [
-      {
-        label: 'Revenus',
-        data: monthlyPlan.map(cf => cf.income),
-        borderColor: '#10B981',
-        backgroundColor: 'rgba(16, 185, 129, 0.1)',
-        fill: false,
-        tension: 0.4,
-      },
-      {
-        label: 'Sorties',
-        data: monthlyPlan.map(cf => cf.expenses),
-        borderColor: '#EF4444',
-        backgroundColor: 'rgba(239, 68, 68, 0.1)',
-        fill: false,
-        tension: 0.4,
-      },
-      {
-        label: 'Résultat du mois',
-        data: monthlyPlan.map(cf => cf.planBalance),
-        borderColor: '#3B82F6',
-        backgroundColor: 'rgba(59, 130, 246, 0.1)',
-        fill: true,
-        tension: 0.4,
-      },
-    ],
-  };
 
-  const options = {
-    responsive: true,
-    maintainAspectRatio: false,
-    plugins: {
-      legend: {
-        position: 'top' as const,
-        labels: {
-          padding: 20,
-          usePointStyle: true,
-          color: document.documentElement.classList.contains('dark') ? '#D1D5DB' : '#374151',
-        },
-      },
-      tooltip: {
-        callbacks: {
-          label: (context: any) => {
-            const value = context.parsed.y;
-            return `${context.dataset.label}: ${value.toFixed(2)} \u20ac`;
-          },
-        },
-      },
-    },
-    scales: {
-      x: {
-        grid: {
-          color: document.documentElement.classList.contains('dark') ? '#374151' : '#E5E7EB',
-        },
-        ticks: {
-          color: document.documentElement.classList.contains('dark') ? '#D1D5DB' : '#374151',
-        },
-      },
-      y: {
-        grid: {
-          color: document.documentElement.classList.contains('dark') ? '#374151' : '#E5E7EB',
-        },
-        ticks: {
-          color: document.documentElement.classList.contains('dark') ? '#D1D5DB' : '#374151',
-          callback: (value: any) => `${value} \u20ac`,
-        },
-      },
-    },
-  };
 
   const [showAllMonths, setShowAllMonths] = useState(false);
 
@@ -246,9 +172,6 @@ const CashFlowChart: React.FC = () => {
           const resultClass = item.planBalance >= 0
             ? 'text-slate-950 dark:text-white'
             : 'text-red-600 dark:text-red-400';
-          const projBalanceClass = item.projectedBalance >= 0
-            ? 'text-slate-950 dark:text-white'
-            : 'text-red-600 dark:text-red-400';
 
           return (
             <div key={item.date.toISOString()} className="rounded-lg border border-slate-200 p-3 dark:border-slate-700">
@@ -269,13 +192,7 @@ const CashFlowChart: React.FC = () => {
                         <BarChart3 className="h-3 w-3" />
                         <span>Voir les flux</span>
                       </button>
-                      <button
-                        onClick={() => setSelectedMonthForAI(item)}
-                        className="inline-flex items-center gap-1 rounded bg-indigo-50 px-2 py-0.5 text-xs font-medium text-indigo-700 transition-colors hover:bg-indigo-100 dark:bg-indigo-900/30 dark:text-indigo-300 dark:hover:bg-indigo-900/50"
-                      >
-                        <Sparkles className="h-3 w-3" />
-                        <span>Conseil IA</span>
-                      </button>
+
                     </div>
                     <p className="text-xs text-slate-500 dark:text-slate-400">
                       {item.isCurrentPeriod ? 'Mois en cours (complet)' : 'Période complète'} - {item.plannedCount} mouvement{item.plannedCount > 1 ? 's' : ''} à venir - plus gros poste: {item.mainPressure ? `${item.mainPressure.label} ${money(item.mainPressure.value)}` : 'aucun'}
@@ -362,12 +279,7 @@ const CashFlowChart: React.FC = () => {
         categories={categories}
         accounts={accounts}
       />
-      <AIAdvisorModal
-        isOpen={!!selectedMonthForAI}
-        onClose={() => setSelectedMonthForAI(null)}
-        cashFlow={selectedMonthForAI}
-        categories={categories}
-      />
+
     </div>
   );
 };

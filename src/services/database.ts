@@ -1,4 +1,4 @@
-import { User, Transaction, Category, BankAccount, Budget, SavingsGoal, Debt, DebtPayment, UserSettings } from '../types';
+import { User, Transaction, Category, BankAccount, Budget, SavingsGoal, Debt, DebtPayment } from '../types';
 
 // Database service using IndexedDB for better persistence
 class DatabaseService {

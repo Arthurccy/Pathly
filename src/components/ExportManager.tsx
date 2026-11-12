@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
-import { Download, FileText, Calendar, Settings, Check } from 'lucide-react';
+import { Download, FileText, Settings, Check } from 'lucide-react';
 import { format, startOfMonth, endOfMonth, startOfYear, endOfYear } from 'date-fns';
-import { useBudget } from '../contexts/BudgetContext';
+import { useBudget } from '../contexts/budgetState';
 import { ExportOptions } from '../types';
 
 const ExportManager: React.FC = () => {
@@ -118,7 +118,7 @@ const ExportManager: React.FC = () => {
                 ].map(format => (
                   <button
                     key={format.value}
-                    onClick={() => setOptions({ ...options, format: format.value as any })}
+                    onClick={() => setOptions({ ...options, format: format.value as typeof options.format })}
                     className={`p-3 rounded-lg border-2 text-center transition-all ${
                       options.format === format.value
                         ? 'border-green-500 bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-300'
@@ -147,7 +147,7 @@ const ExportManager: React.FC = () => {
                 ].map(range => (
                   <button
                     key={range.value}
-                    onClick={() => setDateRange(range.value as any)}
+                    onClick={() => setDateRange(range.value as Parameters<typeof setDateRange>[0])}
                     className="px-3 py-2 text-sm bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-lg transition-colors"
                   >
                     {range.label}

@@ -1,10 +1,11 @@
+import { serializeCsv } from '../utils/csvExport';
 import React, { useState, useMemo } from 'react';
 import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import { TrendingUp, Calendar, Filter, Download, Eye } from 'lucide-react';
 import { format, startOfYear, endOfYear } from 'date-fns';
 import { fr } from 'date-fns/locale';
-import { useBudget } from '../contexts/BudgetContext';
-import { useAuth } from '../contexts/AuthContext';
+import { useBudget } from '../contexts/budgetState';
+import { useAuth } from '../contexts/authState';
 import { getCustomMonthPeriod } from '../utils/dateUtils';
 
 const AdvancedAnalytics: React.FC = () => {
@@ -24,8 +25,8 @@ const AdvancedAnalytics: React.FC = () => {
     [selectedYear, monthStartDay]
   );
 
-  const filteredTransactions = transactions.filter(t => 
-    t.date >= yearStart && 
+  const filteredTransactions = transactions.filter(t =>
+    t.date >= yearStart &&
     t.date <= yearEnd &&
     (selectedAccountIds.length === 0 || selectedAccountIds.includes(t.accountId))
   );
@@ -35,19 +36,19 @@ const AdvancedAnalytics: React.FC = () => {
     return months.map(month => {
       const monthStart = month.start;
       const monthEnd = month.end;
-      
-      const monthTransactions = filteredTransactions.filter(t => 
+
+      const monthTransactions = filteredTransactions.filter(t =>
         t.date >= monthStart && t.date <= monthEnd
       );
 
       const income = monthTransactions
         .filter(t => t.type === 'income')
         .reduce((sum, t) => sum + t.amount, 0);
-        
+
       const expenses = monthTransactions
         .filter(t => t.type === 'expense')
         .reduce((sum, t) => sum + t.amount, 0);
-        
+
       const savings = monthTransactions
         .filter(t => t.type === 'savings')
         .reduce((sum, t) => sum + t.amount, 0);
@@ -69,7 +70,7 @@ const AdvancedAnalytics: React.FC = () => {
     const categoryTotals = filteredTransactions.reduce((acc, transaction) => {
       const category = categories.find(c => c.id === transaction.categoryId);
       const categoryName = category?.name || 'Sans catégorie';
-      
+
       if (!acc[categoryName]) {
         acc[categoryName] = {
           name: categoryName,
@@ -80,12 +81,13 @@ const AdvancedAnalytics: React.FC = () => {
           type: category?.type || 'expense'
         };
       }
-      
-      acc[categoryName][transaction.type] += transaction.amount;
-      return acc;
-    }, {} as Record<string, any>);
 
-    return Object.values(categoryTotals).sort((a: any, b: any) => 
+      const field = transaction.type === 'income' ? 'income' : transaction.type === 'savings' ? 'savings' : ['expense', 'bill'].includes(transaction.type) ? 'expenses' : null;
+      if (field) acc[categoryName][field] += transaction.amount;
+      return acc;
+    }, {} as Record<string, {name: string; income: number; expenses: number; savings: number; color: string; type?: string; balance?: number}>);
+
+    return Object.values(categoryTotals).sort((a, b) =>
       (b.income + b.expenses + b.savings) - (a.income + a.expenses + a.savings)
     );
   }, [filteredTransactions, categories]);
@@ -95,7 +97,7 @@ const AdvancedAnalytics: React.FC = () => {
     const accountTotals = filteredTransactions.reduce((acc, transaction) => {
       const account = accounts.find(a => a.id === transaction.accountId);
       const accountName = account?.name || 'Compte inconnu';
-      
+
       if (!acc[accountName]) {
         acc[accountName] = {
           name: accountName,
@@ -106,10 +108,11 @@ const AdvancedAnalytics: React.FC = () => {
           color: account?.color || '#6B7280'
         };
       }
-      
-      acc[accountName][transaction.type] += transaction.amount;
+
+      const field = transaction.type === 'income' ? 'income' : transaction.type === 'savings' ? 'savings' : ['expense', 'bill'].includes(transaction.type) ? 'expenses' : null;
+      if (field) acc[accountName][field] += transaction.amount;
       return acc;
-    }, {} as Record<string, any>);
+    }, {} as Record<string, {name: string; income: number; expenses: number; savings: number; color: string; type?: string; balance?: number}>);
 
     return Object.values(accountTotals);
   }, [filteredTransactions, accounts]);
@@ -119,11 +122,11 @@ const AdvancedAnalytics: React.FC = () => {
     const totalIncome = filteredTransactions
       .filter(t => t.type === 'income')
       .reduce((sum, t) => sum + t.amount, 0);
-      
+
     const totalExpenses = filteredTransactions
       .filter(t => t.type === 'expense')
       .reduce((sum, t) => sum + t.amount, 0);
-      
+
     const totalSavings = filteredTransactions
       .filter(t => t.type === 'savings')
       .reduce((sum, t) => sum + t.amount, 0);
@@ -159,11 +162,11 @@ const AdvancedAnalytics: React.FC = () => {
 
   const renderChart = () => {
     const data = getChartData();
-    
+
     if (chartType === 'pie' && viewType === 'category') {
       const pieData = categoryData
-        .filter((item: any) => item.expenses > 0)
-        .map((item: any) => ({
+        .filter((item) => item.expenses > 0)
+        .map((item) => ({
           name: item.name,
           value: item.expenses,
           color: item.color
@@ -186,7 +189,7 @@ const AdvancedAnalytics: React.FC = () => {
                 <Cell key={`cell-${index}`} fill={entry.color} />
               ))}
             </Pie>
-            <Tooltip formatter={(value: any) => [`${value.toFixed(2)} €`, 'Montant']} />
+            <Tooltip formatter={(value) => [`${Number(value).toFixed(2)} €`, 'Montant']} />
           </PieChart>
         </ResponsiveContainer>
       );
@@ -199,8 +202,8 @@ const AdvancedAnalytics: React.FC = () => {
             <CartesianGrid strokeDasharray="3 3" />
             <XAxis dataKey={viewType === 'monthly' ? 'month' : 'name'} />
             <YAxis />
-            <Tooltip 
-              formatter={(value: any, name: string) => [`${value.toFixed(2)} €`, name]}
+            <Tooltip
+              formatter={(value, name) => [`${Number(value).toFixed(2)} €`, name]}
               labelFormatter={(label) => viewType === 'monthly' ? `Mois: ${label}` : label}
             />
             <Legend />
@@ -218,8 +221,8 @@ const AdvancedAnalytics: React.FC = () => {
           <CartesianGrid strokeDasharray="3 3" />
           <XAxis dataKey={viewType === 'monthly' ? 'month' : 'name'} />
           <YAxis />
-          <Tooltip 
-            formatter={(value: any, name: string) => [`${value.toFixed(2)} €`, name]}
+          <Tooltip
+            formatter={(value, name) => [`${Number(value).toFixed(2)} €`, name]}
             labelFormatter={(label) => viewType === 'monthly' ? `Mois: ${label}` : label}
           />
           <Legend />
@@ -233,16 +236,16 @@ const AdvancedAnalytics: React.FC = () => {
 
   const exportData = () => {
     const data = getChartData();
-    const csv = [
-      ['Période', 'Revenus', 'Dépenses', 'Épargne', 'Solde'].join(','),
-      ...data.map((item: any) => [
-        viewType === 'monthly' ? item.fullMonth || item.month : item.name,
-        item.income?.toFixed(2) || '0.00',
-        item.expenses?.toFixed(2) || '0.00',
-        item.savings?.toFixed(2) || '0.00',
-        item.balance?.toFixed(2) || '0.00'
-      ].join(','))
-    ].join('\n');
+    const csv = serializeCsv([
+      ['Période', 'Revenus', 'Dépenses', 'Épargne', 'Solde'],
+      ...data.map((item) => [
+        'fullMonth' in item ? item.fullMonth : item.name,
+        Math.round((item.income ?? 0) * 100) / 100,
+        Math.round((item.expenses ?? 0) * 100) / 100,
+        Math.round((item.savings ?? 0) * 100) / 100,
+        Math.round((item.balance ?? 0) * 100) / 100
+      ])
+    ]);
 
     const blob = new Blob([csv], { type: 'text/csv' });
     const url = URL.createObjectURL(blob);
@@ -266,7 +269,7 @@ const AdvancedAnalytics: React.FC = () => {
             Analyse détaillée
           </h1>
         </div>
-        
+
         <button
           onClick={exportData}
           className="flex items-center space-x-2 bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg transition-colors"
@@ -296,7 +299,7 @@ const AdvancedAnalytics: React.FC = () => {
             <Eye className="h-5 w-5 text-gray-500" />
             <select
               value={viewType}
-              onChange={(e) => setViewType(e.target.value as any)}
+              onChange={(e) => setViewType(e.target.value as typeof viewType)}
               className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
             >
               <option value="monthly">Par mois</option>
@@ -309,7 +312,7 @@ const AdvancedAnalytics: React.FC = () => {
             <Filter className="h-5 w-5 text-gray-500" />
             <select
               value={chartType}
-              onChange={(e) => setChartType(e.target.value as any)}
+              onChange={(e) => setChartType(e.target.value as typeof chartType)}
               className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
             >
               <option value="bar">Barres</option>
@@ -362,8 +365,8 @@ const AdvancedAnalytics: React.FC = () => {
           <div className="text-center">
             <p className="text-sm text-gray-500 dark:text-gray-400">Solde net</p>
             <p className={`text-2xl font-bold ${
-              yearlyStats.balance >= 0 
-                ? 'text-green-600 dark:text-green-400' 
+              yearlyStats.balance >= 0
+                ? 'text-green-600 dark:text-green-400'
                 : 'text-red-600 dark:text-red-400'
             }`}>
               {yearlyStats.balance.toFixed(0)} €
@@ -384,7 +387,7 @@ const AdvancedAnalytics: React.FC = () => {
           {' - '}
           {selectedYear}
         </h3>
-        
+
         {renderChart()}
       </div>
 
@@ -394,13 +397,13 @@ const AdvancedAnalytics: React.FC = () => {
           <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
             Top {viewType === 'category' ? 'catégories' : 'comptes'} - Dépenses
           </h3>
-          
+
           <div className="space-y-3">
-            {getChartData()
-              .filter((item: any) => item.expenses > 0)
-              .sort((a: any, b: any) => b.expenses - a.expenses)
+            {(viewType === 'category' ? categoryData : accountData)
+              .filter((item) => item.expenses > 0)
+              .sort((a, b) => b.expenses - a.expenses)
               .slice(0, 10)
-              .map((item: any, index: number) => (
+              .map((item, index: number) => (
                 <div key={index} className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
                   <div className="flex items-center space-x-3">
                     <div

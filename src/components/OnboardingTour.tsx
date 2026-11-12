@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { ArrowRight, CheckCircle2, CreditCard, ListChecks, Plus, ShieldCheck, Sparkles, X } from 'lucide-react';
-import { useBudget } from '../contexts/BudgetContext';
-import { useAuth } from '../contexts/AuthContext';
+import { useBudget } from '../contexts/budgetState';
+import { useAuth } from '../contexts/authState';
 
 interface OnboardingTourProps {
   onViewChange: (view: string) => void;

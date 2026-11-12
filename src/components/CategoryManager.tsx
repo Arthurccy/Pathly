@@ -6,11 +6,10 @@ import {
   GripVertical, 
   Eye, 
   EyeOff,
-  Palette,
   Tag
 } from 'lucide-react';
 import * as LucideIcons from 'lucide-react';
-import { useBudget } from '../contexts/BudgetContext';
+import { useBudget } from '../contexts/budgetState';
 import { Category } from '../types';
 
 const CategoryManager: React.FC = () => {
@@ -19,7 +18,6 @@ const CategoryManager: React.FC = () => {
     addCategory, 
     updateCategory, 
     deleteCategory, 
-    reorderCategories, 
     householdConfig, 
     toggleCategoryShared, 
     ratioA, 
@@ -37,7 +35,7 @@ const CategoryManager: React.FC = () => {
     budget: '',
     description: '',
     excludeFromReports: false,
-    isSharedBudget: false,
+      isSharedBudget: false,
   });
 
   const iconOptions = [
@@ -305,7 +303,7 @@ const CategoryManager: React.FC = () => {
               </label>
               <div className="grid grid-cols-6 sm:grid-cols-8 md:grid-cols-10 gap-2 max-h-48 overflow-y-auto border border-gray-200 dark:border-gray-600 rounded-xl p-3">
                 {iconOptions.map(iconName => {
-                  const IconComponent = (LucideIcons as any)[iconName];
+                  const IconComponent = LucideIcons.icons[iconName as keyof typeof LucideIcons.icons];
                   return (
                     <button
                       key={iconName}
@@ -368,6 +366,7 @@ const CategoryManager: React.FC = () => {
                   budget: '',
                   description: '',
                   excludeFromReports: false,
+      isSharedBudget: false,
                 });
                 }}
                 className="px-4 py-2 text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-lg transition-colors"
@@ -398,7 +397,7 @@ const CategoryManager: React.FC = () => {
             {categoriesByType
               .sort((a, b) => a.order - b.order)
               .map((category) => {
-                const IconComponent = (LucideIcons as any)[category.icon] || LucideIcons.DollarSign;
+                const IconComponent = LucideIcons.icons[category.icon as keyof typeof LucideIcons.icons] || LucideIcons.DollarSign;
                 
                 return (
                   <div key={category.id} className="p-4 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { format, parseISO, startOfDay } from 'date-fns';
-import { useBudget } from '../contexts/BudgetContext';
+import { useBudget } from '../contexts/budgetState';
 import type { RecurringPattern } from '../types';
 import { importRecurrenceCandidates, nextImportOccurrence, recurrenceKey } from '../utils/importRecurrence';
 

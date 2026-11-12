@@ -104,6 +104,6 @@ export async function fetchEurUsdRate(): Promise<number> {
     if (quotes['EURUSD=X']?.price) {
       return quotes['EURUSD=X'].price;
     }
-  } catch {}
+  } catch { /* Fall back to the documented exchange-rate estimate. */ }
   return 1.08;
 }

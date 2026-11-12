@@ -1,12 +1,11 @@
 import React, { useState } from 'react';
 import { CreditCard, Plus, Edit, Trash2, Calendar, TrendingDown, DollarSign } from 'lucide-react';
-import { format, addMonths, differenceInMonths } from 'date-fns';
-import { fr } from 'date-fns/locale';
-import { useBudget } from '../contexts/BudgetContext';
+import { format } from 'date-fns';
+import { useBudget } from '../contexts/budgetState';
 import { Debt, DebtPayment } from '../types';
 
 const DebtManager: React.FC = () => {
-  const { debts, debtPayments, accounts, addDebt, updateDebt, deleteDebt, addDebtPayment } = useBudget();
+  const { debts, accounts, addDebt, updateDebt, deleteDebt, addDebtPayment } = useBudget();
   const [showForm, setShowForm] = useState(false);
   const [editingDebt, setEditingDebt] = useState<Debt | null>(null);
   const [showPaymentForm, setShowPaymentForm] = useState<string | null>(null);
@@ -452,7 +451,6 @@ const DebtManager: React.FC = () => {
         {debts.filter(d => d.isActive).length > 0 ? (
           <div className="divide-y divide-gray-200 dark:divide-gray-700">
             {debts.filter(d => d.isActive).map((debt) => {
-              const account = accounts.find(a => a.id === debt.accountId);
               const payoffMonths = calculatePayoffTime(debt);
               const totalInterest = calculateTotalInterest(debt);
               const progress = ((debt.totalAmount - debt.remainingAmount) / debt.totalAmount) * 100;

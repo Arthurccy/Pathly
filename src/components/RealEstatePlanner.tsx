@@ -1,7 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import {
   Home,
-  Calculator,
   Users,
   Percent,
   Sparkles,
@@ -9,31 +8,23 @@ import {
   CheckCircle2,
   AlertTriangle,
   ShieldCheck,
-  FileText,
   Plus,
   Trash2,
-  Save,
   Scale,
   Landmark,
   Euro,
-  HelpCircle,
-  TrendingDown,
   Building2,
-  RotateCcw,
-  ArrowUpRight,
   Info,
   Calendar,
   Clock,
   TrendingUp,
-  Tag,
   Copy,
   RefreshCw,
   Layers,
-  Zap,
   Award
 } from 'lucide-react';
-import { useBudget } from '../contexts/BudgetContext';
-import { useAuth } from '../contexts/AuthContext';
+import { useBudget } from '../contexts/budgetState';
+import { useAuth } from '../contexts/authState';
 import { RealEstatePlan, SalaryEvolution } from '../types';
 
 interface RealEstatePlannerProps {
@@ -82,7 +73,7 @@ const createBlankPlan = (id: string, name: string, buyerAName: string, buyerAInc
   };
 };
 
-const RealEstatePlanner: React.FC<RealEstatePlannerProps> = ({ onViewChange }) => {
+const RealEstatePlanner: React.FC<RealEstatePlannerProps> = () => {
   const { householdConfig, assets, addAsset, updateAsset, deleteAsset, debts, addDebt, updateDebt, deleteDebt, accounts, realEstatePlans, saveRealEstatePlans } = useBudget();
   const { user } = useAuth();
 
@@ -131,8 +122,6 @@ const RealEstatePlanner: React.FC<RealEstatePlannerProps> = ({ onViewChange }) =
   };
 
   const handleDuplicatePlan = async (sourcePlan: RealEstatePlan) => {
-    const defaultNameA = householdConfig?.userA?.name || 'Moi';
-    const defaultNameB = householdConfig?.userB?.name || 'Conjoint(e)';
     const newId = `plan-${Date.now()}`;
     const duplicated: RealEstatePlan = {
       ...sourcePlan,
@@ -614,7 +603,7 @@ const RealEstatePlanner: React.FC<RealEstatePlannerProps> = ({ onViewChange }) =
           originalLoanAmount: calculations.mainLoanPrincipal + (currentPlan.hasPtz ? calculations.ptzPrincipal : 0),
           startDate: `${targetDateStr}-01`,
           endDate: `${new Date(startDate.getFullYear() + (currentPlan.mainLoanDurationYears || 25), startDate.getMonth()).toISOString().split('T')[0]}`,
-          monthlyPayment: calculations.monthlyTotalPayment,
+          monthlyPayment: calculations.representativeMonthly,
         },
         notes: `Achat prévu pour ${targetDateStr}. Apport global: ${calculations.totalContribution.toLocaleString('fr-FR')} €. Quote-part notariée: ${currentPlan.buyerAName} (${calculations.officialRatioA}%) / ${currentPlan.buyerBName} (${calculations.officialRatioB}%).`,
       };
@@ -1433,7 +1422,7 @@ const RealEstatePlanner: React.FC<RealEstatePlannerProps> = ({ onViewChange }) =
                     </label>
                     <select
                       value={newEvoBorrower}
-                      onChange={e => setNewEvoBorrower(e.target.value as any)}
+                      onChange={e => setNewEvoBorrower(e.target.value as typeof newEvoBorrower)}
                       className="w-full px-3 py-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-xl text-xs font-semibold dark:text-white"
                     >
                       <option value="buyerA">{currentPlan.buyerAName} (Emprunteur 1)</option>
@@ -2041,7 +2030,7 @@ const RealEstatePlanner: React.FC<RealEstatePlannerProps> = ({ onViewChange }) =
                   <button
                     key={opt.id}
                     type="button"
-                    onClick={() => updateCurrentPlan({ monthlySplitMode: opt.id as any })}
+                    onClick={() => updateCurrentPlan({ monthlySplitMode: opt.id as RealEstatePlan["monthlySplitMode"] })}
                     className={`w-full p-3 rounded-xl border text-left transition-all ${
                       currentPlan.monthlySplitMode === opt.id
                         ? 'border-indigo-600 bg-indigo-50/50 dark:bg-indigo-950/40 text-indigo-900 dark:text-indigo-200 font-semibold'
@@ -2098,7 +2087,7 @@ const RealEstatePlanner: React.FC<RealEstatePlannerProps> = ({ onViewChange }) =
                   <button
                     key={opt.id}
                     type="button"
-                    onClick={() => updateCurrentPlan({ ownershipSplitMode: opt.id as any })}
+                    onClick={() => updateCurrentPlan({ ownershipSplitMode: opt.id as RealEstatePlan["ownershipSplitMode"] })}
                     className={`w-full p-3 rounded-xl border text-left transition-all ${
                       currentPlan.ownershipSplitMode === opt.id
                         ? 'border-indigo-600 bg-indigo-50/50 dark:bg-indigo-950/40 text-indigo-900 dark:text-indigo-200 font-semibold'

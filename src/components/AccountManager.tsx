@@ -20,7 +20,7 @@ import {
   ArrowRightLeft,
   Utensils
 } from 'lucide-react';
-import { useBudget } from '../contexts/BudgetContext';
+import { useBudget } from '../contexts/budgetState';
 import { BankAccount, Transaction } from '../types';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
@@ -918,7 +918,7 @@ const AccountManager: React.FC = () => {
                       name="updateType"
                       value="transaction"
                       checked={balanceUpdateData.updateType === 'transaction'}
-                      onChange={(e) => setBalanceUpdateData({ ...balanceUpdateData, updateType: e.target.value as any })}
+                      onChange={(e) => setBalanceUpdateData({ ...balanceUpdateData, updateType: e.target.value as typeof balanceUpdateData.updateType })}
                       className="text-purple-600 focus:ring-purple-500"
                     />
                     <div>
@@ -937,7 +937,7 @@ const AccountManager: React.FC = () => {
                       name="updateType"
                       value="manual"
                       checked={balanceUpdateData.updateType === 'manual'}
-                      onChange={(e) => setBalanceUpdateData({ ...balanceUpdateData, updateType: e.target.value as any })}
+                      onChange={(e) => setBalanceUpdateData({ ...balanceUpdateData, updateType: e.target.value as typeof balanceUpdateData.updateType })}
                       className="text-purple-600 focus:ring-purple-500"
                     />
                     <div>

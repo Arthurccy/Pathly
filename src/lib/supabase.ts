@@ -1,3 +1,5 @@
+export type Json = string | number | boolean | null | { [key: string]: Json | undefined } | Json[];
+
 import { createClient } from '@supabase/supabase-js'
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
@@ -80,7 +82,7 @@ export interface Database {
           type: string
           status: string
           is_recurring: boolean
-          recurring_pattern: any | null
+          recurring_pattern: Json | null
           memo: string | null
           tags: string[] | null
           transfer_to_account_id: string | null
@@ -99,7 +101,7 @@ export interface Database {
           type: string
           status?: string
           is_recurring?: boolean
-          recurring_pattern?: any | null
+          recurring_pattern?: Json | null
           memo?: string | null
           tags?: string[] | null
           transfer_to_account_id?: string | null
@@ -118,7 +120,7 @@ export interface Database {
           type?: string
           status?: string
           is_recurring?: boolean
-          recurring_pattern?: any | null
+          recurring_pattern?: Json | null
           memo?: string | null
           tags?: string[] | null
           transfer_to_account_id?: string | null
@@ -186,7 +188,7 @@ export interface Database {
           priority: string
           is_completed: boolean
           color: string | null
-          auto_contribution: any | null
+          auto_contribution: Json | null
           created_at: string
           updated_at: string
         }
@@ -203,7 +205,7 @@ export interface Database {
           priority: string
           is_completed?: boolean
           color?: string | null
-          auto_contribution?: any | null
+          auto_contribution?: Json | null
           created_at?: string
           updated_at?: string
         }
@@ -220,7 +222,7 @@ export interface Database {
           priority?: string
           is_completed?: boolean
           color?: string | null
-          auto_contribution?: any | null
+          auto_contribution?: Json | null
           updated_at?: string
         }
       }
@@ -370,7 +372,7 @@ export interface Database {
           date_format: string
           theme: string
           language: string
-          notifications: any
+          notifications: Json
           created_at: string
           updated_at: string
         }
@@ -384,7 +386,7 @@ export interface Database {
           date_format?: string
           theme?: string
           language?: string
-          notifications?: any
+          notifications?: Json
           created_at?: string
           updated_at?: string
         }
@@ -398,7 +400,7 @@ export interface Database {
           date_format?: string
           theme?: string
           language?: string
-          notifications?: any
+          notifications?: Json
           updated_at?: string
         }
       }
