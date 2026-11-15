@@ -1,6 +1,8 @@
 import type { PhysicalAsset, Debt } from '../types';
 import React, { useState, useMemo } from 'react';
-import { Target, AlertTriangle, Gauge, CheckCircle2, Calculator, Plus, Euro, Info, Trash2, CalendarClock } from 'lucide-react';
+import { Target, AlertTriangle, Gauge, CheckCircle2, Calculator, Plus, Euro, Info, Trash2, CalendarClock, Car, Sparkles } from 'lucide-react';
+import { format } from 'date-fns';
+import { fr } from 'date-fns/locale';
 import { useBudget } from '../contexts/budgetState';
 import { SimulatedEvent } from '../types';
 import { getBudgetIncomeBaseline } from '../utils/budgetSimulation';
@@ -114,6 +116,16 @@ const BudgetSimulator: React.FC = () => {
     return null;
   }, [realEstatePlans]);
 
+  // Future physical assets (vehicles, valuable items, etc. excluding real estate plan)
+  const futurePhysicalAssets = useMemo(() => {
+    return (assets || []).filter(a => {
+      if (activePlan && a.category === 'real_estate' && (a.realEstatePlanId === activePlan.id || a.isPlanned)) {
+        return false;
+      }
+      return isFutureAsset(a);
+    });
+  }, [assets, activePlan]);
+
   // Starting net equity for currently owned physical assets
   const initialCurrentAssetsNet = useMemo(() => {
     const currentAssetsVal = (assets || [])
@@ -132,7 +144,7 @@ const BudgetSimulator: React.FC = () => {
       .reduce((sum, a) => sum + (Number(a.balance) || 0), 0);
   }, [accounts]);
 
-  // Calculate true projections integrating realistic cash flows, future events & real estate equity
+  // Calculate true projections integrating realistic cash flows, future events, physical assets & real estate equity
   const yearlyProjections = useMemo(() => {
     const trueProjections = [];
     const now = new Date();
@@ -197,6 +209,8 @@ const BudgetSimulator: React.FC = () => {
       return isNaN(absoluteVal) ? currentValue : absoluteVal;
     };
 
+    const acquiredAssetIds = new Set<string>();
+
     for (let i = 0; i < 180; i++) { // 15 years = 180 months
       const monthDate = new Date(now.getFullYear(), now.getMonth() + i + 1, 1);
       const monthKey = monthDate.toISOString().substring(0, 7);
@@ -234,20 +248,54 @@ const BudgetSimulator: React.FC = () => {
       }
       const homeEquity = housePurchased ? Math.max(0, propertyPrice - remainingMortgage) : 0;
 
-      // 4. Monthly cash flows
-      const monthExpenses = monthFixed + monthDebts + monthBudgets;
+      // 4. Future physical assets acquisitions (vehicles, items, etc.)
+      futurePhysicalAssets.forEach(asset => {
+        const purchaseMonth = asset.purchaseDate ? asset.purchaseDate.substring(0, 7) : '';
+        if (!acquiredAssetIds.has(asset.id) && purchaseMonth && monthKey >= purchaseMonth) {
+          acquiredAssetIds.add(asset.id);
+          
+          // Cash outflow: down payment or full purchase price
+          const loanAmount = asset.loanDetails?.originalLoanAmount || 0;
+          const cashPaid = Math.max(0, asset.purchasePrice - loanAmount);
+          runningLiquid = Math.max(0, runningLiquid - cashPaid);
+
+          // Add to vehicle & physical equity
+          runningCarEquity += (asset.currentValue || asset.purchasePrice);
+        }
+      });
+
+      // Active loans monthly payment for acquired future assets
+      let futureAssetsMonthlyDebt = 0;
+      futurePhysicalAssets.forEach(asset => {
+        if (acquiredAssetIds.has(asset.id) && asset.loanDetails?.monthlyPayment) {
+          const start = asset.loanDetails.startDate ? asset.loanDetails.startDate.substring(0, 7) : (asset.purchaseDate ? asset.purchaseDate.substring(0, 7) : '');
+          const end = asset.loanDetails.endDate ? asset.loanDetails.endDate.substring(0, 7) : '';
+          const isLoanActive = (!start || monthKey >= start) && (!end || monthKey <= end);
+          if (isLoanActive) {
+            futureAssetsMonthlyDebt += asset.loanDetails.monthlyPayment;
+          }
+        }
+      });
+
+      // 5. Monthly cash flows
+      const effectiveMonthDebts = monthDebts + futureAssetsMonthlyDebt;
+      const monthExpenses = monthFixed + effectiveMonthDebts + monthBudgets;
       const margin = monthIncome - monthExpenses - monthSavings;
 
-      // Arthur accumulates his scheduled monthly savings, plus any positive unspent margin
+      // Accumulate monthly savings plus positive unspent margin
       const netCashAdded = monthSavings + (margin > 0 ? margin : margin);
       // Modest 1.5% annual yield on liquid cash
       runningLiquid = Math.max(0, (runningLiquid + netCashAdded) * (1 + 0.015 / 12));
 
-      // 5. Existing car debt payoff after 2 years
+      // 6. Existing car debt payoff after 2 years
       if (i >= 24) {
-        runningCarEquity = (assets || [])
+        const baseCurrentVal = (assets || [])
           .filter(a => !isFutureAsset(a))
           .reduce((sum, a) => sum + (Number(a.currentValue) || 0), 0);
+        const acquiredFutureVal = futurePhysicalAssets
+          .filter(a => acquiredAssetIds.has(a.id))
+          .reduce((sum, a) => sum + (Number(a.currentValue || a.purchasePrice) || 0), 0);
+        runningCarEquity = baseCurrentVal + acquiredFutureVal;
       }
 
       // Year snapshot (every 12 months)
@@ -259,6 +307,7 @@ const BudgetSimulator: React.FC = () => {
           patrimony: totalPatrimony,
           liquidPatrimony: Math.round(runningLiquid),
           realEstateEquity: Math.round(homeEquity),
+          physicalEquity: Math.round(runningCarEquity),
           income: Math.round(monthIncome),
           expenses: Math.round(monthExpenses),
           savings: Math.round(monthSavings),
@@ -269,7 +318,7 @@ const BudgetSimulator: React.FC = () => {
     }
 
     return trueProjections;
-  }, [assets, activePlan, initialLiquidCash, initialCurrentAssetsNet, currentIncome, currentFixed, currentDebts, currentBudgets, currentSavings, events]);
+  }, [assets, activePlan, futurePhysicalAssets, initialLiquidCash, initialCurrentAssetsNet, currentIncome, currentFixed, currentDebts, currentBudgets, currentSavings, events]);
 
   const getStatus = (balance: number) => {
     if (balance < 0) return { label: 'Déficit', Icon: AlertTriangle, color: 'text-red-600 dark:text-red-400', bg: 'bg-red-50 dark:bg-red-950/30' };
@@ -481,6 +530,71 @@ const BudgetSimulator: React.FC = () => {
               )}
             </div>
           </div>
+
+          {/* Card 3: Projets & Acquisitions matérielles */}
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-4 sm:p-6 space-y-4">
+            <div className="flex items-center justify-between">
+              <h2 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+                <Car className="h-5 w-5 text-emerald-500" />
+                Acquisitions & Véhicules
+              </h2>
+              {futurePhysicalAssets.length > 0 && (
+                <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300">
+                  {futurePhysicalAssets.length} projet{futurePhysicalAssets.length > 1 ? 's' : ''}
+                </span>
+              )}
+            </div>
+
+            <p className="text-sm text-gray-500 dark:text-gray-400">
+              Vos projets d'achat de véhicules et biens matériels définis dans Biens & Patrimoine sont automatiquement intégrés dans la projection à 15 ans.
+            </p>
+
+            {futurePhysicalAssets.length > 0 ? (
+              <div className="space-y-3">
+                {futurePhysicalAssets.map(asset => {
+                  const downPayment = Math.max(0, asset.purchasePrice - (asset.loanDetails?.originalLoanAmount || 0));
+                  return (
+                    <div
+                      key={asset.id}
+                      className="p-3.5 rounded-xl border border-emerald-100 bg-emerald-50/40 dark:border-emerald-900/40 dark:bg-emerald-950/20 space-y-2"
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2 font-bold text-sm text-slate-900 dark:text-white">
+                          <Car className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+                          <span>{asset.name}</span>
+                        </div>
+                        <span className="text-xs font-semibold text-emerald-700 dark:text-emerald-300">
+                          {asset.purchasePrice.toLocaleString('fr-FR')} €
+                        </span>
+                      </div>
+
+                      <div className="flex flex-wrap items-center justify-between text-xs text-slate-600 dark:text-slate-300 pt-1 border-t border-emerald-200/50 dark:border-emerald-800/50">
+                        <span>
+                          Prévu en : <strong>{asset.purchaseDate ? format(new Date(asset.purchaseDate), 'MMMM yyyy', { locale: fr }) : '-'}</strong>
+                        </span>
+                        <span>
+                          Sortie cash : <strong>{downPayment.toLocaleString('fr-FR')} €</strong>
+                          {asset.loanDetails?.originalLoanAmount ? ` (+ crédit ${asset.loanDetails.originalLoanAmount.toLocaleString('fr-FR')}€)` : ''}
+                        </span>
+                      </div>
+
+                      <div className="flex items-center gap-1.5 text-[11px] text-emerald-700 dark:text-emerald-400 font-medium">
+                        <CheckCircle2 className="h-3.5 w-3.5" />
+                        <span>Intégré à la simulation (trésorerie débitée & actif valorisé)</span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="p-4 rounded-xl border-2 border-dashed border-gray-200 dark:border-gray-700 text-center text-sm text-gray-500">
+                <p>Aucune acquisition future programmée.</p>
+                <p className="text-xs text-gray-400 mt-1">
+                  Ajoutez un véhicule avec date d'achat future dans l'onglet "Biens & Patrimoine" pour le voir ici.
+                </p>
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Colonne droite : Résultats */}
@@ -549,9 +663,13 @@ const BudgetSimulator: React.FC = () => {
                     <p className="text-xs font-semibold text-blue-800/70 dark:text-blue-300/70 uppercase tracking-wider mb-2">Dans {proj.yearOffset} an{proj.yearOffset > 1 ? 's' : ''}</p>
                     <p className="text-xl font-bold text-blue-600 dark:text-blue-400">{proj.patrimony.toLocaleString('fr-FR', { maximumFractionDigits: 0 })} €</p>
                     <span className="text-[10px] text-gray-500 dark:text-gray-400 mt-1">
-                      {proj.realEstateEquity > 0 
-                        ? `dont ${(proj.realEstateEquity / 1000).toFixed(0)}k€ immo` 
-                        : `Épargne & liquidités`}
+                      {proj.realEstateEquity > 0 && (proj.physicalEquity ?? 0) > 0
+                        ? `dont ${(proj.realEstateEquity / 1000).toFixed(0)}k€ immo & ${((proj.physicalEquity ?? 0) / 1000).toFixed(0)}k€ biens`
+                        : proj.realEstateEquity > 0 
+                          ? `dont ${(proj.realEstateEquity / 1000).toFixed(0)}k€ immo` 
+                          : (proj.physicalEquity ?? 0) > 0
+                            ? `dont ${((proj.physicalEquity ?? 0) / 1000).toFixed(0)}k€ biens/véhicules`
+                            : `Épargne & liquidités`}
                     </span>
                   </div>
                 ))}
@@ -593,15 +711,23 @@ const BudgetSimulator: React.FC = () => {
                         </td>
                         <td className="px-4 py-3 text-right font-bold text-gray-900 dark:text-white">
                           <div>{proj.patrimony.toLocaleString('fr-FR', { maximumFractionDigits: 0 })} €</div>
-                          {proj.realEstateEquity > 0 ? (
-                            <div className="text-[11px] font-normal text-indigo-600 dark:text-indigo-400">
-                              dont {proj.realEstateEquity.toLocaleString('fr-FR', { maximumFractionDigits: 0 })} € equity immo
-                            </div>
-                          ) : (
-                            <div className="text-[11px] font-normal text-gray-400">
-                              100% liquidités & épargne
-                            </div>
-                          )}
+                          <div className="text-[11px] font-normal space-y-0.5">
+                            {proj.realEstateEquity > 0 && (
+                              <div className="text-indigo-600 dark:text-indigo-400">
+                                dont {proj.realEstateEquity.toLocaleString('fr-FR', { maximumFractionDigits: 0 })} € equity immo
+                              </div>
+                            )}
+                            {(proj.physicalEquity ?? 0) > 0 && (
+                              <div className="text-emerald-600 dark:text-emerald-400">
+                                dont {(proj.physicalEquity ?? 0).toLocaleString('fr-FR', { maximumFractionDigits: 0 })} € biens & véhicules
+                              </div>
+                            )}
+                            {proj.realEstateEquity === 0 && (proj.physicalEquity ?? 0) === 0 && (
+                              <div className="text-gray-400">
+                                100% liquidités & épargne
+                              </div>
+                            )}
+                          </div>
                         </td>
                       </tr>
                     ))}

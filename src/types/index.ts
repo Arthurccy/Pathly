@@ -267,7 +267,7 @@ export interface BudgetContextType {
   debtPayments: DebtPayment[];
   
   // Transactions
-  addTransaction: (transaction: Omit<Transaction, 'id' | 'userId'>) => void;
+  addTransaction: (transaction: Omit<Transaction, 'id' | 'userId'>) => Promise<Transaction | undefined> | void;
   updateTransaction: (id: string, transaction: Partial<Transaction>) => void;
   deleteTransaction: (id: string) => void;
   generateRecurringTransactions: () => void;
@@ -363,6 +363,7 @@ export interface PhysicalAsset {
   debtIds?: string[]; // IDs of multiple linked credits/debts (e.g. main loan + PTZ)
   isPlanned?: boolean; // If this is a future planned project
   realEstatePlanId?: string; // ID of the linked RealEstatePlan if created from planner
+  transactionId?: string; // ID of linked financial transaction in Pathly
   loanDetails?: {
     originalLoanAmount?: number;
     startDate?: string;

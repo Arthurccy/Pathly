@@ -853,6 +853,7 @@ export const BudgetProvider: React.FC<BudgetProviderProps> = ({ children }) => {
           getAccountBalanceImpact(newTransaction)
         );
       }
+      return newTransaction;
     } catch (error) {
       console.error('Error adding transaction:', error);
       throw error;

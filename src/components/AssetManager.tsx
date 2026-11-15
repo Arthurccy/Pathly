@@ -18,7 +18,9 @@ import {
   Sparkles,
   ArrowRight,
   PieChart,
-  Home
+  Home,
+  ReceiptText,
+  Link2
 } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
 import { fr } from 'date-fns/locale';
@@ -83,10 +85,10 @@ interface AssetManagerProps {
 }
 
 const AssetManager: React.FC<AssetManagerProps> = ({ onViewChange }) => {
-  const { assets, addAsset, updateAsset, deleteAsset, debts, accounts, addDebt, realEstatePlans } = useBudget();
+  const { assets, addAsset, updateAsset, deleteAsset, debts, accounts, addDebt, realEstatePlans, transactions, addTransaction, categories } = useBudget();
 
   const [activeCategoryFilter, setActiveCategoryFilter] = useState<string>('all');
-  const [scopeFilter, setScopeFilter] = useState<'current' | 'all'>('current');
+  const [scopeFilter, setScopeFilter] = useState<'all' | 'current' | 'future'>('all');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingAsset, setEditingAsset] = useState<PhysicalAsset | null>(null);
 
@@ -97,7 +99,8 @@ const AssetManager: React.FC<AssetManagerProps> = ({ onViewChange }) => {
     try {
       const pDate = new Date(asset.purchaseDate);
       const now = new Date();
-      return (pDate.getFullYear() > now.getFullYear()) || 
+      return (pDate.getTime() > now.getTime()) ||
+             (pDate.getFullYear() > now.getFullYear()) || 
              (pDate.getFullYear() === now.getFullYear() && pDate.getMonth() > now.getMonth());
     } catch {
       return false;
@@ -157,15 +160,23 @@ const AssetManager: React.FC<AssetManagerProps> = ({ onViewChange }) => {
     }
   };
 
+  // Eligible transactions for linking
+  const eligibleTransactions = useMemo(() => {
+    return (transactions || [])
+      .filter(t => t.type === 'expense' || t.type === 'bill')
+      .slice(0, 80);
+  }, [transactions]);
+
   // Form State
   const [formData, setFormData] = useState({
     name: '',
-    category: 'real_estate' as PhysicalAsset['category'],
+    category: 'vehicle' as PhysicalAsset['category'],
     purchasePrice: '',
     currentValue: '',
     purchaseDate: new Date().toISOString().split('T')[0],
     location: '',
     notes: '',
+    isPlanned: false,
     hasLoan: false,
     selectedDebtId: '',
     // Quick new loan details
@@ -177,18 +188,29 @@ const AssetManager: React.FC<AssetManagerProps> = ({ onViewChange }) => {
     loanMonthlyPayment: '',
     loanInterestRate: '2.5',
     loanAccountId: '',
+    // Financial transaction linking
+    selectedTransactionId: '',
+    createTransactionRecord: false,
+    transactionAccountId: '',
+    transactionCategoryId: '',
+    transactionAmount: '',
   });
 
   const openAddModal = () => {
     setEditingAsset(null);
+    const defaultAccount = accounts.find(a => a.type === 'checking') || accounts[0];
+    const defaultCategory = categories.find(c => c.name.toLowerCase().includes('voiture') || c.name.toLowerCase().includes('véhicule')) || categories.find(c => c.type === 'expense') || categories[0];
+    const defaultCategoryType = (activeCategoryFilter !== 'all' ? activeCategoryFilter : 'vehicle') as PhysicalAsset['category'];
+
     setFormData({
       name: '',
-      category: 'real_estate',
+      category: defaultCategoryType,
       purchasePrice: '',
       currentValue: '',
       purchaseDate: new Date().toISOString().split('T')[0],
       location: '',
       notes: '',
+      isPlanned: false,
       hasLoan: false,
       selectedDebtId: '',
       createDebtRecord: false,
@@ -198,7 +220,12 @@ const AssetManager: React.FC<AssetManagerProps> = ({ onViewChange }) => {
       loanEndDate: '',
       loanMonthlyPayment: '',
       loanInterestRate: '2.5',
-      loanAccountId: accounts[0]?.id || '',
+      loanAccountId: defaultAccount?.id || '',
+      selectedTransactionId: '',
+      createTransactionRecord: false,
+      transactionAccountId: defaultAccount?.id || '',
+      transactionCategoryId: defaultCategory?.id || '',
+      transactionAmount: '',
     });
     setIsModalOpen(true);
   };
@@ -206,6 +233,8 @@ const AssetManager: React.FC<AssetManagerProps> = ({ onViewChange }) => {
   const openEditModal = (asset: PhysicalAsset) => {
     setEditingAsset(asset);
     const linkedDebt = debts.find(d => d.id === asset.debtId);
+    const defaultAccount = accounts.find(a => a.type === 'checking') || accounts[0];
+    const defaultCategory = categories.find(c => c.name.toLowerCase().includes('voiture') || c.name.toLowerCase().includes('véhicule')) || categories.find(c => c.type === 'expense') || categories[0];
     
     setFormData({
       name: asset.name,
@@ -215,6 +244,7 @@ const AssetManager: React.FC<AssetManagerProps> = ({ onViewChange }) => {
       purchaseDate: asset.purchaseDate.split('T')[0],
       location: asset.location || '',
       notes: asset.notes || '',
+      isPlanned: Boolean(asset.isPlanned || isFutureAsset(asset)),
       hasLoan: Boolean(asset.debtId || asset.loanDetails),
       selectedDebtId: asset.debtId || '',
       createDebtRecord: false,
@@ -224,7 +254,12 @@ const AssetManager: React.FC<AssetManagerProps> = ({ onViewChange }) => {
       loanEndDate: asset.loanDetails?.endDate?.split('T')[0] || (linkedDebt?.endDate ? format(linkedDebt.endDate, 'yyyy-MM-dd') : ''),
       loanMonthlyPayment: asset.loanDetails?.monthlyPayment?.toString() || linkedDebt?.minimumPayment?.toString() || '',
       loanInterestRate: linkedDebt?.interestRate?.toString() || '2.5',
-      loanAccountId: linkedDebt?.accountId || accounts[0]?.id || '',
+      loanAccountId: linkedDebt?.accountId || defaultAccount?.id || '',
+      selectedTransactionId: asset.transactionId || '',
+      createTransactionRecord: false,
+      transactionAccountId: defaultAccount?.id || '',
+      transactionCategoryId: defaultCategory?.id || '',
+      transactionAmount: '',
     });
     setIsModalOpen(true);
   };
@@ -237,10 +272,24 @@ const AssetManager: React.FC<AssetManagerProps> = ({ onViewChange }) => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!formData.name || !formData.purchasePrice || !formData.currentValue) {
-      alert('Veuillez renseigner le nom, le prix d\'achat et la valeur estimée actuelle.');
+    if (!formData.name || !formData.purchasePrice) {
+      alert('Veuillez renseigner le nom et le prix d\'achat.');
       return;
     }
+
+    const priceNum = parseFloat(formData.purchasePrice) || 0;
+    const valueNum = formData.currentValue ? parseFloat(formData.currentValue) : priceNum;
+
+    // Detect if planned future purchase
+    const isDateInFuture = (() => {
+      if (!formData.purchaseDate) return false;
+      const pDate = new Date(formData.purchaseDate);
+      const now = new Date();
+      return (pDate.getTime() > now.getTime()) ||
+             (pDate.getFullYear() > now.getFullYear()) ||
+             (pDate.getFullYear() === now.getFullYear() && pDate.getMonth() > now.getMonth());
+    })();
+    const isPlanned = Boolean(formData.isPlanned || isDateInFuture);
 
     const linkedDebtId = formData.selectedDebtId || undefined;
 
@@ -272,15 +321,46 @@ const AssetManager: React.FC<AssetManagerProps> = ({ onViewChange }) => {
       }
     }
 
+    // If user asked to create a financial transaction in Pathly
+    let finalTransactionId = formData.selectedTransactionId || editingAsset?.transactionId || undefined;
+    if (formData.createTransactionRecord && formData.transactionAccountId && formData.transactionCategoryId) {
+      try {
+        const txAmount = parseFloat(formData.transactionAmount || formData.purchasePrice) || priceNum;
+        const txCategory = categories.find(c => c.id === formData.transactionCategoryId)?.name || 'Dépenses';
+        const txDate = formData.purchaseDate ? new Date(formData.purchaseDate) : new Date();
+        const txStatus = isDateInFuture ? 'scheduled' : 'completed';
+
+        const created = await addTransaction({
+          description: `Acquisition ${formData.name}`,
+          amount: txAmount,
+          date: txDate,
+          type: 'expense',
+          category: txCategory,
+          categoryId: formData.transactionCategoryId,
+          accountId: formData.transactionAccountId,
+          status: txStatus,
+          isRecurring: false,
+          notes: `Achat lié au bien : ${formData.name}`,
+        });
+        if (created?.id) {
+          finalTransactionId = created.id;
+        }
+      } catch (err) {
+        console.error('Failed to create linked transaction:', err);
+      }
+    }
+
     const payload: Omit<PhysicalAsset, 'id'> = {
       name: formData.name,
       category: formData.category,
-      purchasePrice: parseFloat(formData.purchasePrice),
-      currentValue: parseFloat(formData.currentValue),
+      purchasePrice: priceNum,
+      currentValue: valueNum,
       purchaseDate: formData.purchaseDate,
       location: formData.location || undefined,
       notes: formData.notes || undefined,
       debtId: linkedDebtId,
+      isPlanned,
+      transactionId: finalTransactionId,
       loanDetails: formData.hasLoan ? {
         originalLoanAmount: formData.loanOriginalAmount ? parseFloat(formData.loanOriginalAmount) : undefined,
         startDate: formData.loanStartDate || undefined,
@@ -304,10 +384,13 @@ const AssetManager: React.FC<AssetManagerProps> = ({ onViewChange }) => {
     }
   };
 
-  // Scope assets: Current vs All
+  // Scope assets: All vs Current vs Future
   const scopeAssets = useMemo(() => {
     if (scopeFilter === 'current') {
       return assets.filter(a => !isFutureAsset(a));
+    }
+    if (scopeFilter === 'future') {
+      return assets.filter(a => isFutureAsset(a));
     }
     return assets;
   }, [assets, scopeFilter]);
@@ -377,19 +460,8 @@ const AssetManager: React.FC<AssetManagerProps> = ({ onViewChange }) => {
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          {futureAssets.length > 0 && (
+          {assets.length > 0 && (
             <div className="flex items-center bg-slate-100 dark:bg-slate-800 p-1 rounded-xl text-xs font-semibold">
-              <button
-                type="button"
-                onClick={() => setScopeFilter('current')}
-                className={`px-3 py-1.5 rounded-lg transition-all ${
-                  scopeFilter === 'current'
-                    ? 'bg-white dark:bg-slate-700 text-blue-600 dark:text-blue-400 shadow-sm'
-                    : 'text-slate-500 hover:text-slate-900 dark:text-slate-400'
-                }`}
-              >
-                Patrimoine Actuel ({assets.filter(a => !isFutureAsset(a)).length})
-              </button>
               <button
                 type="button"
                 onClick={() => setScopeFilter('all')}
@@ -399,7 +471,29 @@ const AssetManager: React.FC<AssetManagerProps> = ({ onViewChange }) => {
                     : 'text-slate-500 hover:text-slate-900 dark:text-slate-400'
                 }`}
               >
-                Tout (avec projets futurs) ({assets.length})
+                Tous les biens ({assets.length})
+              </button>
+              <button
+                type="button"
+                onClick={() => setScopeFilter('current')}
+                className={`px-3 py-1.5 rounded-lg transition-all ${
+                  scopeFilter === 'current'
+                    ? 'bg-white dark:bg-slate-700 text-blue-600 dark:text-blue-400 shadow-sm'
+                    : 'text-slate-500 hover:text-slate-900 dark:text-slate-400'
+                }`}
+              >
+                Actuels ({assets.filter(a => !isFutureAsset(a)).length})
+              </button>
+              <button
+                type="button"
+                onClick={() => setScopeFilter('future')}
+                className={`px-3 py-1.5 rounded-lg transition-all ${
+                  scopeFilter === 'future'
+                    ? 'bg-white dark:bg-slate-700 text-purple-600 dark:text-purple-400 shadow-sm'
+                    : 'text-slate-500 hover:text-slate-900 dark:text-slate-400'
+                }`}
+              >
+                Projets & Futurs ({futureAssets.length})
               </button>
             </div>
           )}
@@ -714,7 +808,8 @@ const AssetManager: React.FC<AssetManagerProps> = ({ onViewChange }) => {
                             </span>
                           )}
                           {isFuture && (
-                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-purple-100 text-purple-800 dark:bg-purple-950/60 dark:text-purple-300 border border-purple-200 dark:border-purple-800">
+                            <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-purple-100 text-purple-800 dark:bg-purple-950/60 dark:text-purple-300 border border-purple-200 dark:border-purple-800">
+                              <Sparkles className="h-3 w-3 text-purple-600 dark:text-purple-400" />
                               Achat prévu {asset.purchaseDate ? format(new Date(asset.purchaseDate), 'MMM yyyy', { locale: fr }) : ''}
                             </span>
                           )}
@@ -769,6 +864,31 @@ const AssetManager: React.FC<AssetManagerProps> = ({ onViewChange }) => {
                       </span>
                     </div>
                   </div>
+
+                  {/* Transaction liée dans Pathly */}
+                  {(() => {
+                    if (!asset.transactionId) return null;
+                    const linkedTx = transactions.find(t => t.id === asset.transactionId);
+                    if (!linkedTx) return null;
+                    return (
+                      <div className="mt-2.5 p-2.5 rounded-xl border border-emerald-200/70 bg-emerald-50/50 dark:border-emerald-900/40 dark:bg-emerald-950/20 text-xs flex items-center justify-between">
+                        <div className="flex items-center gap-2 truncate min-w-0">
+                          <ReceiptText className="h-4 w-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                          <span className="truncate text-slate-700 dark:text-slate-300">
+                            Opération liée : <strong className="text-slate-900 dark:text-white">{linkedTx.description}</strong>
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-1 shrink-0 ml-2">
+                          <span className="font-semibold text-emerald-700 dark:text-emerald-300">
+                            {money(linkedTx.amount)}
+                          </span>
+                          <span className="text-[10px] px-1.5 py-0.5 rounded bg-white dark:bg-slate-800 text-slate-500 border border-slate-200 dark:border-slate-700">
+                            {linkedTx.status === 'scheduled' ? 'Planifiée' : 'Payée'}
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })()}
 
                   {/* Credit / Mortgage Section if present */}
                   {(linkedDebts.length > 0 || loanDetails) && (
@@ -869,10 +989,27 @@ const AssetManager: React.FC<AssetManagerProps> = ({ onViewChange }) => {
             <Building2 className="h-6 w-6" />
           </div>
           <h3 className="text-base font-bold text-slate-900 dark:text-white">
-            Aucun bien répertorié pour le moment
+            {scopeFilter === 'current' && futureAssets.length > 0
+              ? 'Aucun bien actuel dans cette catégorie'
+              : scopeFilter === 'future'
+              ? 'Aucune acquisition future programmée'
+              : 'Aucun bien répertorié pour le moment'}
           </h3>
           <p className="mt-1 text-sm text-slate-500 dark:text-slate-400 max-w-md mx-auto">
-            Ajoutez votre résidence, un appartement, votre véhicule ou vos montres de collection pour suivre l'évolution de votre patrimoine réel.
+            {scopeFilter === 'current' && futureAssets.length > 0 ? (
+              <span>
+                Vous avez {futureAssets.length} projet(s) ou acquisition(s) future(s).{' '}
+                <button
+                  type="button"
+                  onClick={() => setScopeFilter('all')}
+                  className="text-blue-600 hover:underline dark:text-blue-400 font-semibold"
+                >
+                  Afficher tous les biens
+                </button>
+              </span>
+            ) : (
+              "Ajoutez votre résidence, un appartement, votre véhicule ou vos montres de collection pour suivre l'évolution de votre patrimoine réel."
+            )}
           </p>
           <button
             onClick={openAddModal}
@@ -1012,9 +1149,167 @@ const AssetManager: React.FC<AssetManagerProps> = ({ onViewChange }) => {
                     type="date"
                     required
                     value={formData.purchaseDate}
-                    onChange={(e) => setFormData({ ...formData, purchaseDate: e.target.value })}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      const isFuture = val ? new Date(val).getTime() > Date.now() : false;
+                      setFormData({
+                        ...formData,
+                        purchaseDate: val,
+                        isPlanned: isFuture ? true : formData.isPlanned,
+                      });
+                    }}
                     className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-white focus:ring-2 focus:ring-blue-500"
                   />
+                </div>
+
+                <div className="flex items-center gap-2 pt-1 sm:col-span-3">
+                  <input
+                    type="checkbox"
+                    id="isPlannedAsset"
+                    checked={formData.isPlanned}
+                    onChange={(e) => setFormData({ ...formData, isPlanned: e.target.checked })}
+                    className="h-4 w-4 rounded border-purple-300 text-purple-600 focus:ring-purple-500"
+                  />
+                  <label htmlFor="isPlannedAsset" className="text-xs font-medium text-slate-700 dark:text-slate-300 cursor-pointer flex items-center gap-1.5">
+                    <Sparkles className="h-3.5 w-3.5 text-purple-600 dark:text-purple-400" />
+                    <span>Acquisition future / Projet planifié (visible dans Projets & intégré au simulateur de budget)</span>
+                  </label>
+                </div>
+              </div>
+
+              {/* SECTION LIAISON FINANCIÈRE / TRANSACTION PATHLY */}
+              <div className="rounded-2xl border border-emerald-200 bg-emerald-50/40 p-4 dark:border-emerald-900/50 dark:bg-emerald-950/20 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <ReceiptText className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
+                    <div>
+                      <h4 className="text-sm font-bold text-slate-900 dark:text-white">
+                        Liaison avec une transaction Pathly
+                      </h4>
+                      <p className="text-xs text-slate-500 dark:text-slate-400">
+                        Liez l'achat à une dépense existante ou prévoyez l'opération financière
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="pt-2 border-t border-emerald-200/60 dark:border-emerald-800/60 space-y-3">
+                  {/* Select existing transaction */}
+                  {eligibleTransactions.length > 0 && (
+                    <div>
+                      <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
+                        Associer à une opération bancaire ou planifiée existante
+                      </label>
+                      <select
+                        value={formData.selectedTransactionId}
+                        onChange={(e) => {
+                          const txId = e.target.value;
+                          const tx = transactions.find(t => t.id === txId);
+                          if (tx) {
+                            setFormData({
+                              ...formData,
+                              selectedTransactionId: txId,
+                              purchasePrice: formData.purchasePrice || tx.amount.toString(),
+                              currentValue: formData.currentValue || tx.amount.toString(),
+                              purchaseDate: format(new Date(tx.date), 'yyyy-MM-dd'),
+                              isPlanned: tx.status === 'scheduled' || new Date(tx.date) > new Date(),
+                              createTransactionRecord: false,
+                            });
+                          } else {
+                            setFormData({ ...formData, selectedTransactionId: '' });
+                          }
+                        }}
+                        className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+                      >
+                        <option value="">-- Aucune opération liée (ou créer ci-dessous) --</option>
+                        {eligibleTransactions.map(t => (
+                          <option key={t.id} value={t.id}>
+                            {t.description} ({money(t.amount)} - {format(new Date(t.date), 'dd/MM/yyyy')} - {t.status === 'scheduled' ? 'Planifiée' : 'Payée'})
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+
+                  {/* Create new transaction if none selected */}
+                  {!formData.selectedTransactionId && (
+                    <div className="space-y-3 pt-1 border-t border-emerald-200/40 dark:border-emerald-800/40">
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="checkbox"
+                          id="createTx"
+                          checked={formData.createTransactionRecord}
+                          onChange={(e) => {
+                            const checked = e.target.checked;
+                            const defaultAccount = accounts.find(a => a.type === 'checking') || accounts[0];
+                            const defaultCategory = categories.find(c => c.name.toLowerCase().includes('voiture') || c.name.toLowerCase().includes('véhicule')) || categories.find(c => c.type === 'expense') || categories[0];
+                            setFormData({
+                              ...formData,
+                              createTransactionRecord: checked,
+                              transactionAccountId: formData.transactionAccountId || defaultAccount?.id || '',
+                              transactionCategoryId: formData.transactionCategoryId || defaultCategory?.id || '',
+                              transactionAmount: formData.transactionAmount || formData.purchasePrice,
+                            });
+                          }}
+                          className="h-4 w-4 rounded border-emerald-300 text-emerald-600 focus:ring-emerald-500"
+                        />
+                        <label htmlFor="createTx" className="text-xs font-medium text-emerald-900 dark:text-emerald-300 cursor-pointer">
+                          Créer l'opération financière dans Pathly (pour impacter la trésorerie et le simulateur)
+                        </label>
+                      </div>
+
+                      {formData.createTransactionRecord && (
+                        <div className="grid gap-3 sm:grid-cols-3 pt-2">
+                          <div>
+                            <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
+                              Compte débité *
+                            </label>
+                            <select
+                              value={formData.transactionAccountId}
+                              onChange={(e) => setFormData({ ...formData, transactionAccountId: e.target.value })}
+                              className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+                            >
+                              {accounts.map(acc => (
+                                <option key={acc.id} value={acc.id}>
+                                  {acc.name} ({money(acc.balance)})
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+
+                          <div>
+                            <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
+                              Catégorie *
+                            </label>
+                            <select
+                              value={formData.transactionCategoryId}
+                              onChange={(e) => setFormData({ ...formData, transactionCategoryId: e.target.value })}
+                              className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+                            >
+                              {categories.filter(c => c.type === 'expense').map(cat => (
+                                <option key={cat.id} value={cat.id}>
+                                  {cat.name}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+
+                          <div>
+                            <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
+                              Montant de l'opération (€)
+                            </label>
+                            <input
+                              type="number"
+                              value={formData.transactionAmount || formData.purchasePrice}
+                              onChange={(e) => setFormData({ ...formData, transactionAmount: e.target.value })}
+                              placeholder={formData.purchasePrice || 'Montant'}
+                              className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+                            />
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               </div>
 
