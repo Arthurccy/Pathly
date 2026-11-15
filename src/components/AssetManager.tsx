@@ -20,7 +20,6 @@ import {
   PieChart,
   Home,
   ReceiptText,
-  Link2,
   Tag,
   ArrowUpRight
 } from 'lucide-react';
@@ -163,9 +162,16 @@ const AssetManager: React.FC<AssetManagerProps> = ({ onViewChange }) => {
   };
 
   // Eligible transactions for linking
-  const eligibleTransactions = useMemo(() => {
+    const eligibleTransactions = useMemo(() => {
     return (transactions || [])
       .filter(t => t.type === 'expense' || t.type === 'bill')
+      .slice(0, 80);
+  }, [transactions]);
+
+  // Eligible transactions for sale linking (income / receipts)
+  const eligibleSaleTransactions = useMemo(() => {
+    return (transactions || [])
+      .filter(t => t.type === 'income' || t.amount > 0)
       .slice(0, 80);
   }, [transactions]);
 
@@ -359,8 +365,7 @@ const AssetManager: React.FC<AssetManagerProps> = ({ onViewChange }) => {
     if (formData.createTransactionRecord && formData.transactionAccountId && formData.transactionCategoryId) {
       try {
         const txAmount = parseFloat(formData.transactionAmount || formData.purchasePrice) || priceNum;
-        const txCategory = categories.find(c => c.id === formData.transactionCategoryId)?.name || 'Dépenses';
-        const txDate = formData.purchaseDate ? new Date(formData.purchaseDate) : new Date();
+                const txDate = formData.purchaseDate ? new Date(formData.purchaseDate) : new Date();
         const txStatus = isDateInFuture ? 'scheduled' : 'completed';
 
         const created = await addTransaction({
@@ -368,12 +373,11 @@ const AssetManager: React.FC<AssetManagerProps> = ({ onViewChange }) => {
           amount: txAmount,
           date: txDate,
           type: 'expense',
-          category: txCategory,
           categoryId: formData.transactionCategoryId,
           accountId: formData.transactionAccountId,
           status: txStatus,
           isRecurring: false,
-          notes: `Achat lié au bien : ${formData.name}`,
+          memo: `Achat lié au bien : ${formData.name}`,
         });
         if (created?.id) {
           finalTransactionId = created.id;
@@ -391,8 +395,7 @@ const AssetManager: React.FC<AssetManagerProps> = ({ onViewChange }) => {
     if (formData.hasSale && formData.createSaleTransactionRecord && formData.saleTransactionAccountId && formData.saleTransactionCategoryId) {
       try {
         const salePriceNum = parseFloat(formData.saleTransactionAmount || formData.salePrice || formData.currentValue || formData.purchasePrice) || 0;
-        const saleCategory = categories.find(c => c.id === formData.saleTransactionCategoryId)?.name || 'Autres revenus';
-        const saleDateObj = formData.saleDate ? new Date(formData.saleDate) : new Date();
+                const saleDateObj = formData.saleDate ? new Date(formData.saleDate) : new Date();
         const isSaleFuture = saleDateObj.getTime() > Date.now();
         const saleTxStatus = isSaleFuture ? 'scheduled' : 'completed';
 
@@ -401,12 +404,11 @@ const AssetManager: React.FC<AssetManagerProps> = ({ onViewChange }) => {
           amount: salePriceNum,
           date: saleDateObj,
           type: 'income',
-          category: saleCategory,
           categoryId: formData.saleTransactionCategoryId,
           accountId: formData.saleTransactionAccountId,
           status: saleTxStatus,
           isRecurring: false,
-          notes: `Rentrée financière liée à la vente : ${formData.name}`,
+          memo: `Rentrée financière liée à la vente : ${formData.name}`,
         });
         if (createdSale?.id) {
           finalSaleTransactionId = createdSale.id;
@@ -1811,3 +1813,6 @@ const AssetManager: React.FC<AssetManagerProps> = ({ onViewChange }) => {
 };
 
 export default AssetManager;
+
+
+

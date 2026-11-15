@@ -1,6 +1,6 @@
 import type { PhysicalAsset, Debt } from '../types';
 import React, { useState, useMemo } from 'react';
-import { Target, AlertTriangle, Gauge, CheckCircle2, Calculator, Plus, Euro, Info, Trash2, CalendarClock, Car, Sparkles } from 'lucide-react';
+import { Target, AlertTriangle, Gauge, CheckCircle2, Calculator, Plus, Euro, Info, Trash2, CalendarClock, Car, Tag } from 'lucide-react';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { useBudget } from '../contexts/budgetState';
@@ -127,10 +127,10 @@ const BudgetSimulator: React.FC = () => {
   }, [assets, activePlan]);
 
   // Assets with planned future sale/resale
-  const plannedSalesAssets = useMemo(() => {
+    // Assets with planned future sale/resale among currently owned assets
+  const currentPlannedSales = useMemo(() => {
     return (assets || []).filter(a => {
-      if (a.isSold) return false;
-      if (!a.saleDate) return false;
+      if (isFutureAsset(a) || a.isSold || !a.saleDate) return false;
       try {
         const sDate = new Date(a.saleDate);
         const now = new Date();
@@ -653,6 +653,30 @@ const BudgetSimulator: React.FC = () => {
                 </p>
               </div>
             )}
+
+            {currentPlannedSales.length > 0 && (
+              <div className="space-y-2 pt-3 border-t border-gray-200 dark:border-gray-700">
+                <h4 className="text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">
+                  Reventes planifiées de biens actuels
+                </h4>
+                {currentPlannedSales.map(asset => (
+                  <div
+                    key={asset.id}
+                    className="p-3 rounded-xl border border-amber-200 bg-amber-50/50 dark:border-amber-900/40 dark:bg-amber-950/20 flex items-center justify-between text-xs"
+                  >
+                    <div>
+                      <span className="font-semibold text-gray-900 dark:text-white">{asset.name}</span>
+                      <span className="text-gray-500 ml-2">
+                        Revente : {format(new Date(asset.saleDate!), 'MMMM yyyy', { locale: fr })}
+                      </span>
+                    </div>
+                    <span className="font-bold text-emerald-600 dark:text-emerald-400">
+                      +{(asset.salePrice || asset.currentValue).toLocaleString('fr-FR')} €
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
 
@@ -802,3 +826,5 @@ const BudgetSimulator: React.FC = () => {
 };
 
 export default BudgetSimulator;
+
+
