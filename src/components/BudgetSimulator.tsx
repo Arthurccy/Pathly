@@ -226,6 +226,7 @@ const BudgetSimulator: React.FC = () => {
 
     const acquiredAssetIds = new Set<string>();
     const soldAssetIds = new Set<string>();
+    const assetRemainingLoans = new Map<string, number>();
 
     for (let i = 0; i < 180; i++) { // 15 years = 180 months
       const monthDate = new Date(now.getFullYear(), now.getMonth() + i + 1, 1);
@@ -270,13 +271,13 @@ const BudgetSimulator: React.FC = () => {
         if (!acquiredAssetIds.has(asset.id) && purchaseMonth && monthKey >= purchaseMonth) {
           acquiredAssetIds.add(asset.id);
           
-          // Cash outflow: down payment or full purchase price
+          // Cash outflow: down payment (cash paid out of pocket from liquid savings)
           const loanAmount = asset.loanDetails?.originalLoanAmount || 0;
           const cashPaid = Math.max(0, asset.purchasePrice - loanAmount);
           runningLiquid = Math.max(0, runningLiquid - cashPaid);
 
-          // Add to vehicle & physical equity
-          runningCarEquity += (asset.currentValue || asset.purchasePrice);
+          // Track starting loan amount on this asset
+          assetRemainingLoans.set(asset.id, loanAmount);
         }
       });
 
@@ -288,30 +289,34 @@ const BudgetSimulator: React.FC = () => {
           if (isEligible && saleMonth && monthKey >= saleMonth) {
             soldAssetIds.add(asset.id);
 
-            // Cash proceeds from sale credited to liquid accounts
-            const proceeds = asset.salePrice || asset.currentValue || asset.purchasePrice;
-            runningLiquid += proceeds;
-
-            // Asset leaves physical equity
-            runningCarEquity = Math.max(0, runningCarEquity - (asset.currentValue || asset.purchasePrice));
+            // Deduct any remaining loan from sale proceeds
+            const remainingLoan = assetRemainingLoans.get(asset.id) || 0;
+            const grossProceeds = asset.salePrice || asset.currentValue || asset.purchasePrice;
+            const netProceeds = Math.max(0, grossProceeds - remainingLoan);
+            runningLiquid += netProceeds;
+            assetRemainingLoans.set(asset.id, 0);
           }
         }
       });
 
-      // Active loans monthly payment for acquired future assets (stopped if asset sold)
+      // 6. Active loans monthly repayment for acquired future assets (reduces loan principal)
       let futureAssetsMonthlyDebt = 0;
       futurePhysicalAssets.forEach(asset => {
         if (acquiredAssetIds.has(asset.id) && !soldAssetIds.has(asset.id) && asset.loanDetails?.monthlyPayment) {
           const start = asset.loanDetails.startDate ? asset.loanDetails.startDate.substring(0, 7) : (asset.purchaseDate ? asset.purchaseDate.substring(0, 7) : '');
           const end = asset.loanDetails.endDate ? asset.loanDetails.endDate.substring(0, 7) : '';
           const isLoanActive = (!start || monthKey >= start) && (!end || monthKey <= end);
-          if (isLoanActive) {
-            futureAssetsMonthlyDebt += asset.loanDetails.monthlyPayment;
+          const currentLoan = assetRemainingLoans.get(asset.id) || 0;
+          if (isLoanActive && currentLoan > 0) {
+            const payment = Math.min(asset.loanDetails.monthlyPayment, currentLoan);
+            futureAssetsMonthlyDebt += payment;
+            // Repaying loan builds net vehicle equity!
+            assetRemainingLoans.set(asset.id, Math.max(0, currentLoan - payment));
           }
         }
       });
 
-      // 6. Monthly cash flows
+      // 7. Monthly cash flows
       const effectiveMonthDebts = monthDebts + futureAssetsMonthlyDebt;
       const monthExpenses = monthFixed + effectiveMonthDebts + monthBudgets;
       const margin = monthIncome - monthExpenses - monthSavings;
@@ -321,16 +326,24 @@ const BudgetSimulator: React.FC = () => {
       // Modest 1.5% annual yield on liquid cash
       runningLiquid = Math.max(0, (runningLiquid + netCashAdded) * (1 + 0.015 / 12));
 
-      // 7. Existing car debt payoff after 2 years
-      if (i >= 24) {
-        const baseCurrentVal = (assets || [])
-          .filter(a => !isFutureAsset(a) && !soldAssetIds.has(a.id))
-          .reduce((sum, a) => sum + (Number(a.currentValue) || 0), 0);
-        const acquiredFutureVal = futurePhysicalAssets
-          .filter(a => acquiredAssetIds.has(a.id) && !soldAssetIds.has(a.id))
-          .reduce((sum, a) => sum + (Number(a.currentValue || a.purchasePrice) || 0), 0);
-        runningCarEquity = baseCurrentVal + acquiredFutureVal;
-      }
+      // 8. Vehicle & physical assets net equity: gross value minus remaining loan
+      const baseCurrentVal = (assets || [])
+        .filter(a => !isFutureAsset(a) && !soldAssetIds.has(a.id))
+        .reduce((sum, a) => sum + (Number(a.currentValue) || 0), 0);
+      const activeCurrentDebts = i >= 24 ? 0 : (debts || [])
+        .filter(d => d.isActive && !isFutureDebt(d))
+        .reduce((sum, d) => sum + (Number(d.remainingAmount) || 0), 0);
+      const currentNetVal = Math.max(0, baseCurrentVal - activeCurrentDebts);
+
+      const futureNetVal = futurePhysicalAssets
+        .filter(a => acquiredAssetIds.has(a.id) && !soldAssetIds.has(a.id))
+        .reduce((sum, a) => {
+          const gross = Number(a.currentValue || a.purchasePrice) || 0;
+          const remLoan = assetRemainingLoans.get(a.id) || 0;
+          return sum + Math.max(0, gross - remLoan);
+        }, 0);
+
+      runningCarEquity = currentNetVal + futureNetVal;
 
       // Year snapshot (every 12 months)
       if ((i + 1) % 12 === 0) {
