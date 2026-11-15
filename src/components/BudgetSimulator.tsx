@@ -122,9 +122,24 @@ const BudgetSimulator: React.FC = () => {
       if (activePlan && a.category === 'real_estate' && (a.realEstatePlanId === activePlan.id || a.isPlanned)) {
         return false;
       }
-      return isFutureAsset(a);
+      return isFutureAsset(a) && !a.isSold;
     });
   }, [assets, activePlan]);
+
+  // Assets with planned future sale/resale
+  const plannedSalesAssets = useMemo(() => {
+    return (assets || []).filter(a => {
+      if (a.isSold) return false;
+      if (!a.saleDate) return false;
+      try {
+        const sDate = new Date(a.saleDate);
+        const now = new Date();
+        return sDate.getTime() > now.getTime();
+      } catch {
+        return false;
+      }
+    });
+  }, [assets]);
 
   // Starting net equity for currently owned physical assets
   const initialCurrentAssetsNet = useMemo(() => {
@@ -210,6 +225,7 @@ const BudgetSimulator: React.FC = () => {
     };
 
     const acquiredAssetIds = new Set<string>();
+    const soldAssetIds = new Set<string>();
 
     for (let i = 0; i < 180; i++) { // 15 years = 180 months
       const monthDate = new Date(now.getFullYear(), now.getMonth() + i + 1, 1);
@@ -264,10 +280,28 @@ const BudgetSimulator: React.FC = () => {
         }
       });
 
-      // Active loans monthly payment for acquired future assets
+      // 5. Assets sales / resales (liquid cash inflow & removal from physical equity)
+      (assets || []).forEach(asset => {
+        if (asset.saleDate && !soldAssetIds.has(asset.id)) {
+          const saleMonth = asset.saleDate.substring(0, 7);
+          const isEligible = !isFutureAsset(asset) || acquiredAssetIds.has(asset.id);
+          if (isEligible && saleMonth && monthKey >= saleMonth) {
+            soldAssetIds.add(asset.id);
+
+            // Cash proceeds from sale credited to liquid accounts
+            const proceeds = asset.salePrice || asset.currentValue || asset.purchasePrice;
+            runningLiquid += proceeds;
+
+            // Asset leaves physical equity
+            runningCarEquity = Math.max(0, runningCarEquity - (asset.currentValue || asset.purchasePrice));
+          }
+        }
+      });
+
+      // Active loans monthly payment for acquired future assets (stopped if asset sold)
       let futureAssetsMonthlyDebt = 0;
       futurePhysicalAssets.forEach(asset => {
-        if (acquiredAssetIds.has(asset.id) && asset.loanDetails?.monthlyPayment) {
+        if (acquiredAssetIds.has(asset.id) && !soldAssetIds.has(asset.id) && asset.loanDetails?.monthlyPayment) {
           const start = asset.loanDetails.startDate ? asset.loanDetails.startDate.substring(0, 7) : (asset.purchaseDate ? asset.purchaseDate.substring(0, 7) : '');
           const end = asset.loanDetails.endDate ? asset.loanDetails.endDate.substring(0, 7) : '';
           const isLoanActive = (!start || monthKey >= start) && (!end || monthKey <= end);
@@ -277,7 +311,7 @@ const BudgetSimulator: React.FC = () => {
         }
       });
 
-      // 5. Monthly cash flows
+      // 6. Monthly cash flows
       const effectiveMonthDebts = monthDebts + futureAssetsMonthlyDebt;
       const monthExpenses = monthFixed + effectiveMonthDebts + monthBudgets;
       const margin = monthIncome - monthExpenses - monthSavings;
@@ -287,13 +321,13 @@ const BudgetSimulator: React.FC = () => {
       // Modest 1.5% annual yield on liquid cash
       runningLiquid = Math.max(0, (runningLiquid + netCashAdded) * (1 + 0.015 / 12));
 
-      // 6. Existing car debt payoff after 2 years
+      // 7. Existing car debt payoff after 2 years
       if (i >= 24) {
         const baseCurrentVal = (assets || [])
-          .filter(a => !isFutureAsset(a))
+          .filter(a => !isFutureAsset(a) && !soldAssetIds.has(a.id))
           .reduce((sum, a) => sum + (Number(a.currentValue) || 0), 0);
         const acquiredFutureVal = futurePhysicalAssets
-          .filter(a => acquiredAssetIds.has(a.id))
+          .filter(a => acquiredAssetIds.has(a.id) && !soldAssetIds.has(a.id))
           .reduce((sum, a) => sum + (Number(a.currentValue || a.purchasePrice) || 0), 0);
         runningCarEquity = baseCurrentVal + acquiredFutureVal;
       }
@@ -578,9 +612,21 @@ const BudgetSimulator: React.FC = () => {
                         </span>
                       </div>
 
+                      {asset.saleDate && (
+                        <div className="flex flex-wrap items-center justify-between text-xs text-amber-700 dark:text-amber-300 pt-1 border-t border-emerald-200/50 dark:border-emerald-800/50">
+                          <span className="flex items-center gap-1">
+                            <Tag className="h-3.5 w-3.5" />
+                            Revente prévue : <strong>{format(new Date(asset.saleDate), 'MMMM yyyy', { locale: fr })}</strong>
+                          </span>
+                          <span>
+                            Rentrée cash : <strong>+{(asset.salePrice || asset.currentValue).toLocaleString('fr-FR')} €</strong>
+                          </span>
+                        </div>
+                      )}
+
                       <div className="flex items-center gap-1.5 text-[11px] text-emerald-700 dark:text-emerald-400 font-medium">
                         <CheckCircle2 className="h-3.5 w-3.5" />
-                        <span>Intégré à la simulation (trésorerie débitée & actif valorisé)</span>
+                        <span>Intégré à la simulation (trésorerie débitée, actif valorisé{asset.saleDate ? ' & revente réinjectée' : ''})</span>
                       </div>
                     </div>
                   );

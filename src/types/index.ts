@@ -363,7 +363,11 @@ export interface PhysicalAsset {
   debtIds?: string[]; // IDs of multiple linked credits/debts (e.g. main loan + PTZ)
   isPlanned?: boolean; // If this is a future planned project
   realEstatePlanId?: string; // ID of the linked RealEstatePlan if created from planner
-  transactionId?: string; // ID of linked financial transaction in Pathly
+  transactionId?: string; // ID of linked financial transaction in Pathly (purchase)
+  isSold?: boolean; // If this asset has been sold
+  saleDate?: string; // Planned or completed sale date (YYYY-MM-DD)
+  salePrice?: number; // Sale price (estimated or completed)
+  saleTransactionId?: string; // ID of linked income transaction in Pathly
   loanDetails?: {
     originalLoanAmount?: number;
     startDate?: string;

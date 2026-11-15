@@ -20,7 +20,9 @@ import {
   PieChart,
   Home,
   ReceiptText,
-  Link2
+  Link2,
+  Tag,
+  ArrowUpRight
 } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
 import { fr } from 'date-fns/locale';
@@ -88,7 +90,7 @@ const AssetManager: React.FC<AssetManagerProps> = ({ onViewChange }) => {
   const { assets, addAsset, updateAsset, deleteAsset, debts, accounts, addDebt, realEstatePlans, transactions, addTransaction, categories } = useBudget();
 
   const [activeCategoryFilter, setActiveCategoryFilter] = useState<string>('all');
-  const [scopeFilter, setScopeFilter] = useState<'all' | 'current' | 'future'>('all');
+  const [scopeFilter, setScopeFilter] = useState<'all' | 'current' | 'future' | 'sold'>('all');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingAsset, setEditingAsset] = useState<PhysicalAsset | null>(null);
 
@@ -188,18 +190,29 @@ const AssetManager: React.FC<AssetManagerProps> = ({ onViewChange }) => {
     loanMonthlyPayment: '',
     loanInterestRate: '2.5',
     loanAccountId: '',
-    // Financial transaction linking
+    // Financial purchase transaction linking
     selectedTransactionId: '',
     createTransactionRecord: false,
     transactionAccountId: '',
     transactionCategoryId: '',
     transactionAmount: '',
+    // Sale / Resale details
+    hasSale: false,
+    isSold: false,
+    saleDate: '',
+    salePrice: '',
+    selectedSaleTransactionId: '',
+    createSaleTransactionRecord: false,
+    saleTransactionAccountId: '',
+    saleTransactionCategoryId: '',
+    saleTransactionAmount: '',
   });
 
   const openAddModal = () => {
     setEditingAsset(null);
     const defaultAccount = accounts.find(a => a.type === 'checking') || accounts[0];
     const defaultCategory = categories.find(c => c.name.toLowerCase().includes('voiture') || c.name.toLowerCase().includes('véhicule')) || categories.find(c => c.type === 'expense') || categories[0];
+    const defaultIncomeCategory = categories.find(c => c.type === 'income') || categories[0];
     const defaultCategoryType = (activeCategoryFilter !== 'all' ? activeCategoryFilter : 'vehicle') as PhysicalAsset['category'];
 
     setFormData({
@@ -226,6 +239,15 @@ const AssetManager: React.FC<AssetManagerProps> = ({ onViewChange }) => {
       transactionAccountId: defaultAccount?.id || '',
       transactionCategoryId: defaultCategory?.id || '',
       transactionAmount: '',
+      hasSale: false,
+      isSold: false,
+      saleDate: '',
+      salePrice: '',
+      selectedSaleTransactionId: '',
+      createSaleTransactionRecord: false,
+      saleTransactionAccountId: defaultAccount?.id || '',
+      saleTransactionCategoryId: defaultIncomeCategory?.id || '',
+      saleTransactionAmount: '',
     });
     setIsModalOpen(true);
   };
@@ -235,6 +257,7 @@ const AssetManager: React.FC<AssetManagerProps> = ({ onViewChange }) => {
     const linkedDebt = debts.find(d => d.id === asset.debtId);
     const defaultAccount = accounts.find(a => a.type === 'checking') || accounts[0];
     const defaultCategory = categories.find(c => c.name.toLowerCase().includes('voiture') || c.name.toLowerCase().includes('véhicule')) || categories.find(c => c.type === 'expense') || categories[0];
+    const defaultIncomeCategory = categories.find(c => c.type === 'income') || categories[0];
     
     setFormData({
       name: asset.name,
@@ -260,6 +283,16 @@ const AssetManager: React.FC<AssetManagerProps> = ({ onViewChange }) => {
       transactionAccountId: defaultAccount?.id || '',
       transactionCategoryId: defaultCategory?.id || '',
       transactionAmount: '',
+      // Sale details
+      hasSale: Boolean(asset.isSold || asset.saleDate || asset.salePrice || asset.saleTransactionId),
+      isSold: Boolean(asset.isSold),
+      saleDate: asset.saleDate ? asset.saleDate.split('T')[0] : '',
+      salePrice: asset.salePrice ? asset.salePrice.toString() : (asset.isSold ? asset.currentValue.toString() : ''),
+      selectedSaleTransactionId: asset.saleTransactionId || '',
+      createSaleTransactionRecord: false,
+      saleTransactionAccountId: defaultAccount?.id || '',
+      saleTransactionCategoryId: defaultIncomeCategory?.id || '',
+      saleTransactionAmount: asset.salePrice ? asset.salePrice.toString() : '',
     });
     setIsModalOpen(true);
   };
@@ -350,6 +383,39 @@ const AssetManager: React.FC<AssetManagerProps> = ({ onViewChange }) => {
       }
     }
 
+    // If user asked to create a financial sale/income transaction in Pathly
+    let finalSaleTransactionId = formData.hasSale
+      ? (formData.selectedSaleTransactionId || editingAsset?.saleTransactionId || undefined)
+      : undefined;
+
+    if (formData.hasSale && formData.createSaleTransactionRecord && formData.saleTransactionAccountId && formData.saleTransactionCategoryId) {
+      try {
+        const salePriceNum = parseFloat(formData.saleTransactionAmount || formData.salePrice || formData.currentValue || formData.purchasePrice) || 0;
+        const saleCategory = categories.find(c => c.id === formData.saleTransactionCategoryId)?.name || 'Autres revenus';
+        const saleDateObj = formData.saleDate ? new Date(formData.saleDate) : new Date();
+        const isSaleFuture = saleDateObj.getTime() > Date.now();
+        const saleTxStatus = isSaleFuture ? 'scheduled' : 'completed';
+
+        const createdSale = await addTransaction({
+          description: `Vente ${formData.name}`,
+          amount: salePriceNum,
+          date: saleDateObj,
+          type: 'income',
+          category: saleCategory,
+          categoryId: formData.saleTransactionCategoryId,
+          accountId: formData.saleTransactionAccountId,
+          status: saleTxStatus,
+          isRecurring: false,
+          notes: `Rentrée financière liée à la vente : ${formData.name}`,
+        });
+        if (createdSale?.id) {
+          finalSaleTransactionId = createdSale.id;
+        }
+      } catch (err) {
+        console.error('Failed to create linked sale transaction:', err);
+      }
+    }
+
     const payload: Omit<PhysicalAsset, 'id'> = {
       name: formData.name,
       category: formData.category,
@@ -361,6 +427,10 @@ const AssetManager: React.FC<AssetManagerProps> = ({ onViewChange }) => {
       debtId: linkedDebtId,
       isPlanned,
       transactionId: finalTransactionId,
+      isSold: formData.hasSale ? Boolean(formData.isSold) : false,
+      saleDate: formData.hasSale && formData.saleDate ? formData.saleDate : undefined,
+      salePrice: formData.hasSale && formData.salePrice ? parseFloat(formData.salePrice) : undefined,
+      saleTransactionId: finalSaleTransactionId,
       loanDetails: formData.hasLoan ? {
         originalLoanAmount: formData.loanOriginalAmount ? parseFloat(formData.loanOriginalAmount) : undefined,
         startDate: formData.loanStartDate || undefined,
@@ -384,13 +454,21 @@ const AssetManager: React.FC<AssetManagerProps> = ({ onViewChange }) => {
     }
   };
 
-  // Scope assets: All vs Current vs Future
+  // Sold assets helper
+  const soldAssets = useMemo(() => {
+    return assets.filter(a => Boolean(a.isSold));
+  }, [assets]);
+
+  // Scope assets: All vs Current vs Future vs Sold
   const scopeAssets = useMemo(() => {
     if (scopeFilter === 'current') {
-      return assets.filter(a => !isFutureAsset(a));
+      return assets.filter(a => !isFutureAsset(a) && !a.isSold);
     }
     if (scopeFilter === 'future') {
-      return assets.filter(a => isFutureAsset(a));
+      return assets.filter(a => isFutureAsset(a) && !a.isSold);
+    }
+    if (scopeFilter === 'sold') {
+      return assets.filter(a => Boolean(a.isSold));
     }
     return assets;
   }, [assets, scopeFilter]);
@@ -410,7 +488,7 @@ const AssetManager: React.FC<AssetManagerProps> = ({ onViewChange }) => {
   );
 
   const futureAssets = useMemo(() => {
-    return assets.filter(a => isFutureAsset(a));
+    return assets.filter(a => isFutureAsset(a) && !a.isSold);
   }, [assets]);
 
   // Global KPIs computed strictly on the selected scope
@@ -482,7 +560,7 @@ const AssetManager: React.FC<AssetManagerProps> = ({ onViewChange }) => {
                     : 'text-slate-500 hover:text-slate-900 dark:text-slate-400'
                 }`}
               >
-                Actuels ({assets.filter(a => !isFutureAsset(a)).length})
+                Actuels ({assets.filter(a => !isFutureAsset(a) && !a.isSold).length})
               </button>
               <button
                 type="button"
@@ -493,8 +571,21 @@ const AssetManager: React.FC<AssetManagerProps> = ({ onViewChange }) => {
                     : 'text-slate-500 hover:text-slate-900 dark:text-slate-400'
                 }`}
               >
-                Projets & Futurs ({futureAssets.length})
+                Projets ({futureAssets.length})
               </button>
+              {soldAssets.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setScopeFilter('sold')}
+                  className={`px-3 py-1.5 rounded-lg transition-all ${
+                    scopeFilter === 'sold'
+                      ? 'bg-white dark:bg-slate-700 text-amber-600 dark:text-amber-400 shadow-sm'
+                      : 'text-slate-500 hover:text-slate-900 dark:text-slate-400'
+                  }`}
+                >
+                  Vendus ({soldAssets.length})
+                </button>
+              )}
             </div>
           )}
 
@@ -807,7 +898,19 @@ const AssetManager: React.FC<AssetManagerProps> = ({ onViewChange }) => {
                               • {asset.location}
                             </span>
                           )}
-                          {isFuture && (
+                          {asset.isSold && (
+                            <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-200 text-slate-800 dark:bg-slate-700 dark:text-slate-200 border border-slate-300 dark:border-slate-600">
+                              <Tag className="h-3 w-3" />
+                              Vendu {asset.saleDate ? format(new Date(asset.saleDate), 'dd/MM/yyyy') : ''}
+                            </span>
+                          )}
+                          {!asset.isSold && asset.saleDate && (
+                            <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300 border border-amber-200 dark:border-amber-800">
+                              <Tag className="h-3 w-3 text-amber-600 dark:text-amber-400" />
+                              Vente prévue {format(new Date(asset.saleDate), 'MMM yyyy', { locale: fr })}
+                            </span>
+                          )}
+                          {isFuture && !asset.isSold && (
                             <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-purple-100 text-purple-800 dark:bg-purple-950/60 dark:text-purple-300 border border-purple-200 dark:border-purple-800">
                               <Sparkles className="h-3 w-3 text-purple-600 dark:text-purple-400" />
                               Achat prévu {asset.purchaseDate ? format(new Date(asset.purchaseDate), 'MMM yyyy', { locale: fr }) : ''}
@@ -884,6 +987,31 @@ const AssetManager: React.FC<AssetManagerProps> = ({ onViewChange }) => {
                           </span>
                           <span className="text-[10px] px-1.5 py-0.5 rounded bg-white dark:bg-slate-800 text-slate-500 border border-slate-200 dark:border-slate-700">
                             {linkedTx.status === 'scheduled' ? 'Planifiée' : 'Payée'}
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })()}
+
+                  {/* Transaction liée à la revente dans Pathly */}
+                  {(() => {
+                    if (!asset.saleTransactionId) return null;
+                    const linkedSaleTx = transactions.find(t => t.id === asset.saleTransactionId);
+                    if (!linkedSaleTx) return null;
+                    return (
+                      <div className="mt-2 p-2.5 rounded-xl border border-blue-200/70 bg-blue-50/50 dark:border-blue-900/40 dark:bg-blue-950/20 text-xs flex items-center justify-between">
+                        <div className="flex items-center gap-2 truncate min-w-0">
+                          <ArrowUpRight className="h-4 w-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                          <span className="truncate text-slate-700 dark:text-slate-300">
+                            Rentrée vente : <strong className="text-slate-900 dark:text-white">{linkedSaleTx.description}</strong>
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-1 shrink-0 ml-2">
+                          <span className="font-semibold text-emerald-700 dark:text-emerald-300">
+                            +{money(linkedSaleTx.amount)}
+                          </span>
+                          <span className="text-[10px] px-1.5 py-0.5 rounded bg-white dark:bg-slate-800 text-slate-500 border border-slate-200 dark:border-slate-700">
+                            {linkedSaleTx.status === 'scheduled' ? 'Planifiée' : 'Encaissée'}
                           </span>
                         </div>
                       </div>
@@ -1449,6 +1577,196 @@ const AssetManager: React.FC<AssetManagerProps> = ({ onViewChange }) => {
                         </label>
                       </div>
                     )}
+                  </div>
+                )}
+              </div>
+
+              {/* SECTION REVENTE OU CESSION DU BIEN */}
+              <div className="rounded-2xl border border-blue-200 bg-blue-50/30 p-4 dark:border-blue-900/50 dark:bg-blue-950/20 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Tag className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+                    <div>
+                      <h4 className="text-sm font-bold text-slate-900 dark:text-white">
+                        Revente ou Cession du bien
+                      </h4>
+                      <p className="text-xs text-slate-500 dark:text-slate-400">
+                        Prévoyez la revente future ou enregistrez un bien déjà vendu avec sa rentrée d'argent
+                      </p>
+                    </div>
+                  </div>
+                  <input
+                    type="checkbox"
+                    checked={formData.hasSale}
+                    onChange={(e) => {
+                      const checked = e.target.checked;
+                      setFormData({
+                        ...formData,
+                        hasSale: checked,
+                        salePrice: formData.salePrice || formData.currentValue || formData.purchasePrice,
+                        saleDate: formData.saleDate || new Date().toISOString().split('T')[0],
+                      });
+                    }}
+                    className="h-5 w-5 rounded border-blue-300 text-blue-600 focus:ring-blue-500"
+                  />
+                </div>
+
+                {formData.hasSale && (
+                  <div className="pt-2 border-t border-blue-200/60 dark:border-blue-800/60 space-y-3">
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <div>
+                        <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
+                          Date de vente (réalisée ou planifiée) *
+                        </label>
+                        <input
+                          type="date"
+                          value={formData.saleDate}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            const isPastOrToday = val ? new Date(val).getTime() <= Date.now() : false;
+                            setFormData({
+                              ...formData,
+                              saleDate: val,
+                              isSold: isPastOrToday ? formData.isSold : false,
+                            });
+                          }}
+                          className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-white focus:ring-2 focus:ring-blue-500"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
+                          Prix de revente (€) *
+                        </label>
+                        <input
+                          type="number"
+                          value={formData.salePrice}
+                          onChange={(e) => setFormData({ ...formData, salePrice: e.target.value })}
+                          placeholder="Ex: 18000"
+                          className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-white focus:ring-2 focus:ring-blue-500"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2 pt-1">
+                      <input
+                        type="checkbox"
+                        id="isSoldCheck"
+                        checked={formData.isSold}
+                        onChange={(e) => setFormData({ ...formData, isSold: e.target.checked })}
+                        className="h-4 w-4 rounded border-blue-300 text-blue-600 focus:ring-blue-500"
+                      />
+                      <label htmlFor="isSoldCheck" className="text-xs font-medium text-slate-700 dark:text-slate-300 cursor-pointer">
+                        Bien déjà vendu / cédé (sort du patrimoine actif et archive la plus-value)
+                      </label>
+                    </div>
+
+                    {/* Liaison transaction rentrée (Revenu / Vente) */}
+                    <div className="pt-2 border-t border-blue-200/50 dark:border-blue-800/50 space-y-3">
+                      <h5 className="text-xs font-semibold text-blue-900 dark:text-blue-300 flex items-center gap-1.5">
+                        <ArrowUpRight className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+                        Liaison avec la transaction de rentrée (Revenu / Vente)
+                      </h5>
+
+                      {eligibleSaleTransactions.length > 0 && (
+                        <div>
+                          <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
+                            Associer à un encaissement existant dans Pathly
+                          </label>
+                          <select
+                            value={formData.selectedSaleTransactionId}
+                            onChange={(e) => setFormData({ ...formData, selectedSaleTransactionId: e.target.value })}
+                            className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+                          >
+                            <option value="">-- Aucun encaissement lié (ou créer ci-dessous) --</option>
+                            {eligibleSaleTransactions.map(t => (
+                              <option key={t.id} value={t.id}>
+                                {t.description} (+{money(t.amount)} - {format(new Date(t.date), 'dd/MM/yyyy')} - {t.status === 'scheduled' ? 'Planifiée' : 'Encaissée'})
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      )}
+
+                      {!formData.selectedSaleTransactionId && (
+                        <div className="space-y-3 pt-1">
+                          <div className="flex items-center gap-2">
+                            <input
+                              type="checkbox"
+                              id="createSaleTx"
+                              checked={formData.createSaleTransactionRecord}
+                              onChange={(e) => {
+                                const checked = e.target.checked;
+                                const defaultAccount = accounts.find(a => a.type === 'checking') || accounts[0];
+                                const defaultCat = categories.find(c => c.type === 'income') || categories[0];
+                                setFormData({
+                                  ...formData,
+                                  createSaleTransactionRecord: checked,
+                                  saleTransactionAccountId: formData.saleTransactionAccountId || defaultAccount?.id || '',
+                                  saleTransactionCategoryId: formData.saleTransactionCategoryId || defaultCat?.id || '',
+                                  saleTransactionAmount: formData.saleTransactionAmount || formData.salePrice,
+                                });
+                              }}
+                              className="h-4 w-4 rounded border-blue-300 text-blue-600 focus:ring-blue-500"
+                            />
+                            <label htmlFor="createSaleTx" className="text-xs font-medium text-blue-900 dark:text-blue-300 cursor-pointer">
+                              Créer automatiquement l'opération de rentrée financière dans Pathly
+                            </label>
+                          </div>
+
+                          {formData.createSaleTransactionRecord && (
+                            <div className="grid gap-3 sm:grid-cols-3 pt-2">
+                              <div>
+                                <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
+                                  Compte crédité *
+                                </label>
+                                <select
+                                  value={formData.saleTransactionAccountId}
+                                  onChange={(e) => setFormData({ ...formData, saleTransactionAccountId: e.target.value })}
+                                  className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+                                >
+                                  {accounts.map(acc => (
+                                    <option key={acc.id} value={acc.id}>
+                                      {acc.name} ({money(acc.balance)})
+                                    </option>
+                                  ))}
+                                </select>
+                              </div>
+
+                              <div>
+                                <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
+                                  Catégorie de revenu *
+                                </label>
+                                <select
+                                  value={formData.saleTransactionCategoryId}
+                                  onChange={(e) => setFormData({ ...formData, saleTransactionCategoryId: e.target.value })}
+                                  className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+                                >
+                                  {categories.filter(c => c.type === 'income').map(cat => (
+                                    <option key={cat.id} value={cat.id}>
+                                      {cat.name}
+                                    </option>
+                                  ))}
+                                </select>
+                              </div>
+
+                              <div>
+                                <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
+                                  Montant rentrée (€)
+                                </label>
+                                <input
+                                  type="number"
+                                  value={formData.saleTransactionAmount || formData.salePrice}
+                                  onChange={(e) => setFormData({ ...formData, saleTransactionAmount: e.target.value })}
+                                  placeholder={formData.salePrice || 'Montant'}
+                                  className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+                                />
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
                   </div>
                 )}
               </div>
