@@ -365,7 +365,7 @@ const BudgetSimulator: React.FC = () => {
     }
 
     return trueProjections;
-  }, [assets, activePlan, futurePhysicalAssets, initialLiquidCash, initialCurrentAssetsNet, currentIncome, currentFixed, currentDebts, currentBudgets, currentSavings, events]);
+  }, [assets, activePlan, futurePhysicalAssets, initialLiquidCash, initialCurrentAssetsNet, currentIncome, currentFixed, currentDebts, currentBudgets, currentSavings, events, debts]);
 
   const getStatus = (balance: number) => {
     if (balance < 0) return { label: 'Déficit', Icon: AlertTriangle, color: 'text-red-600 dark:text-red-400', bg: 'bg-red-50 dark:bg-red-950/30' };
@@ -826,5 +826,6 @@ const BudgetSimulator: React.FC = () => {
 };
 
 export default BudgetSimulator;
+
 
 
